@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="112" fill="#0f172a"/>
+  <!--
+    O pingo fica dentro de ~68% da área central para sobreviver ao recorte
+    circular das versões maskable.
+  -->
+  <path
+    d="M256 108c62 74 112 138 112 196a112 112 0 0 1-224 0c0-58 50-122 112-196Z"
+    fill="#3fb8c9"
+  />
+  <circle cx="216" cy="316" r="26" fill="#0f172a" opacity="0.28"/>
+</svg>

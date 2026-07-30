@@ -1,0 +1,117 @@
+import { useQueryClient } from '@tanstack/vue-query'
+import type { MaybeRefOrGetter } from 'vue'
+import type { ItemDoEspaco, ItemParaAdicionar, StatusItem, TipoMidia } from '~/types/catalogo'
+
+const SELECT = `
+  id,
+  created_at,
+  media:media_item!inner(id, tipo, titulo, titulo_original, ano, capa_url, sinopse, metadados),
+  avaliacoes:rating(user_id, status, nota, resenha, visto_em)
+`
+
+/**
+ * Itens do catálogo no espaço ativo, de um ou mais tipos.
+ *
+ * `useSpaceQuery` cuida do space_id e da chave de cache — este composable
+ * serve igual para filmes, livros ou músicas; muda só `tipos`.
+ */
+export function useItens(tipos: MaybeRefOrGetter<TipoMidia[]>) {
+  const supabase = useSupabaseClient()
+
+  return useSpaceQuery(
+    computed(() => ['catalogo', toValue(tipos).join(',')]),
+    async (spaceId): Promise<ItemDoEspaco[]> => {
+      const { data, error } = await supabase
+        .from('entry')
+        .select(SELECT)
+        .eq('space_id', spaceId)
+        .in('media.tipo', toValue(tipos))
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      return (data ?? []) as unknown as ItemDoEspaco[]
+    },
+  )
+}
+
+export function useItem(entryId: MaybeRefOrGetter<string>) {
+  const supabase = useSupabaseClient()
+
+  return useSpaceQuery(
+    computed(() => ['catalogo', 'item', toValue(entryId)]),
+    async (): Promise<ItemDoEspaco> => {
+      const { data, error } = await supabase
+        .from('entry')
+        .select(SELECT)
+        .eq('id', toValue(entryId))
+        .single()
+
+      if (error) throw error
+      return data as unknown as ItemDoEspaco
+    },
+    { enabled: computed(() => !!toValue(entryId)) },
+  )
+}
+
+export function useAdicionarItem() {
+  const supabase = useSupabaseClient()
+
+  return useSpaceMutation<ItemParaAdicionar, string>(
+    async (spaceId, item) => {
+      const { data, error } = await supabase.rpc('adicionar_item', {
+        p_space: spaceId,
+        p_item: item,
+      })
+      if (error) throw error
+      return data as unknown as string
+    },
+    [['catalogo']],
+  )
+}
+
+interface AvaliacaoInput {
+  entryId: string
+  status?: StatusItem
+  nota?: number | null
+  resenha?: string | null
+  visto_em?: string | null
+}
+
+export function useAvaliar() {
+  const supabase = useSupabaseClient()
+  const user = useSupabaseUser()
+  const queryClient = useQueryClient()
+  const store = useSpaceStore()
+
+  return useSpaceMutation<AvaliacaoInput, void>(
+    async (_spaceId, { entryId, ...campos }) => {
+      // Upsert por (entry_id, user_id): a RLS garante que você só escreve na sua
+      // própria linha, então não há como sobrescrever a nota do par por acidente.
+      const { error } = await supabase
+        .from('rating')
+        .upsert(
+          { entry_id: entryId, user_id: user.value!.id, ...campos },
+          { onConflict: 'entry_id,user_id' },
+        )
+
+      if (error) throw error
+
+      await queryClient.invalidateQueries({
+        queryKey: ['space', store.espacoAtivoId, 'catalogo', 'item', entryId],
+      })
+    },
+    [['catalogo']],
+  )
+}
+
+export function useRemoverItem() {
+  const supabase = useSupabaseClient()
+
+  return useSpaceMutation<string, void>(
+    async (_spaceId, entryId) => {
+      const { error } = await supabase.from('entry').delete().eq('id', entryId)
+      if (error) throw error
+    },
+    [['catalogo']],
+  )
+}
