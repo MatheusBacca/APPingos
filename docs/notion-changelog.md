@@ -27,28 +27,46 @@ testadas contra um Postgres real; projeto ainda sem commit e sem remoto.
 
 ---
 
-## 2026-07-30 — Infraestrutura: Docker local, GitHub, Vercel
+## 2026-07-30 — Infraestrutura: Docker, GitHub, Vercel, Supabase na nuvem
 
 **Contexto:** fechar o ciclo operacional para trabalhar também do computador de casa, publicar
 o app de graça, e ter um jeito confiável de operar o Supabase no dia a dia.
 
 **Feito:**
 - Descoberto que o Docker Desktop já estava instalado, só parado — sem instalação necessária
-- `supabase init` + `supabase start` + `supabase db reset`: as duas migrations validadas pela
-  primeira vez contra um Postgres real
 - Primeiro commit do projeto e push para
   [github.com/MatheusBacca/APPingos](https://github.com/MatheusBacca/APPingos) (privado)
-- README atualizado com o fluxo Docker → local → cloud, e a seção de trabalhar de mais de um
-  computador
-- Deploy configurado no Vercel (Hobby, gratuito), com variáveis de ambiente e URL de redirect
-  do Supabase ajustada para o domínio de produção
-- Estes dois documentos criados para colar no Notion
+- Projeto Supabase criado na nuvem (`bmphsxdfryinvtvttmlr`, região `sa-east-1`); as duas
+  migrations aplicadas via `supabase db push` e validadas com queries reais (grants/RLS
+  filtrando corretamente para usuário anônimo) e dois cadastros de teste (o trigger de novo
+  usuário rodou sem erro nos dois)
+- Deploy no Vercel (Hobby, gratuito): projeto linkado ao GitHub (deploy automático a cada
+  push), `SUPABASE_URL`/`SUPABASE_KEY` configuradas nos 3 ambientes, testado em produção
+  (`https://appingos.vercel.app`) — cadastro real chegou a bater no Supabase (parou só por
+  rate limit de tantos testes seguidos, o que já prova que a conexão funciona)
+- README atualizado com o fluxo Docker → local → cloud e a seção de trabalhar de mais de um
+  computador; estes dois documentos criados para colar no Notion
 
 **Decisões:**
 - GitHub privado na conta pessoal (não a da WeON)
-- Docker/Supabase local para validar migrations e RLS antes de qualquer `db push` na nuvem —
-  a nuvem continua sendo o banco real do casal
 - Regra fixada: nunca editar schema direto pelo Table Editor da nuvem — sempre por migration
-  versionada, testada local primeiro
+  versionada, testada local (quando possível) antes de `db push`
 
-**Próximos passos sugeridos:** módulo de Orçamento (segundo motor: série temporal com meta).
+**Contratempos e o que aprendemos:**
+- O Docker Desktop crashava ao iniciar (`getting eth0 link: Link not found`) — sintoma de
+  memória baixa (a máquina tem 7,4 GB, e ficou por minutos abaixo de 1 GB livre com o uso
+  normal do dia). `wsl --shutdown` + reabrir resolveu o crash do daemon em si.
+- Mesmo com o daemon no ar, a stack completa do Supabase (~10 containers) não coube na RAM
+  livre — a CLI (que roda em Bun) crashava com erro de alocação de memória. **Decisão:** por
+  ora, validar migrations direto na nuvem em vez de local; retomar a stack local quando houver
+  mais RAM de sobra. Isso significa validar cada migration com mais cuidado antes do `db push`,
+  já que não há mais um ambiente descartável no meio do caminho.
+- O login do Vercel/GitHub via CLI depende de um fluxo de navegador (device code) — não dá
+  para automatizar sem a etapa manual do usuário; os códigos expiram em poucos minutos.
+- Vercel, ao linkar o projeto, reescreveu o `.gitignore` de um jeito que quebrava a exceção do
+  `.env.example` (uma regra `.env*` posterior anulava o `!.env.example`) — corrigido reordenando
+  as regras.
+
+**Próximos passos sugeridos:** pegar a chave do TMDB e configurá-la no Vercel; ajustar
+Authentication → URL Configuration no Supabase para incluir o domínio do Vercel; módulo de
+Orçamento (segundo motor: série temporal com meta).

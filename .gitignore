@@ -18,7 +18,12 @@ logs
 .fleet
 .idea
 
-# Local env files
+# Vercel
+.vercel
+
+# Local env files — a exceção do .env.example precisa vir por último,
+# senão um `.env*` posterior volta a ignorá-lo.
 .env
 .env.*
+.env*
 !.env.example

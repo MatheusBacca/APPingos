@@ -37,6 +37,14 @@ npx supabase db reset  # aplica todas as migrations do zero contra o Postgres lo
 O `db reset` imprime a URL do Studio local (normalmente `http://localhost:54323`) — dá para
 testar RLS por lá simulando dois usuários antes de qualquer coisa ir para a nuvem.
 
+> **Nota:** a stack completa (~10 containers) pede uns 2 GB de RAM livre além do que o
+> Windows e os apps abertos já usam. Se `supabase start` crashar com erro de memória ou o
+> Docker Desktop cair sozinho ao iniciar (`getting eth0 link: Link not found` é o sintoma),
+> feche apps pesados (o Chrome costuma ser o maior vilão) e tente `wsl --shutdown` antes de
+> reabrir o Docker Desktop. Sem isso, dá para validar uma migration direto na nuvem com
+> `supabase db push` — só peça mais atenção ao revisar o SQL antes, já que não há um ambiente
+> descartável no meio do caminho.
+
 Fluxo do dia a dia ao mexer no schema:
 
 1. `npx supabase migration new nome_da_mudanca` → escreve o SQL
