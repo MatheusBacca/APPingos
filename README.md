@@ -20,12 +20,37 @@ Arquitetura e roadmap completos em [`docs/plano-fundacao.md`](./docs/plano-funda
 npm install
 ```
 
-### 2. Configurar o Supabase
+### 2. Desenvolvimento local com Docker
+
+O Postgres/Auth/Studio rodam localmente via Docker — é aqui que se testa uma migration nova
+ou uma policy de RLS **antes** dela chegar perto do banco de verdade (o da nuvem, onde estão
+os dados reais do casal).
+
+Pré-requisito: [Docker Desktop](https://www.docker.com/products/docker-desktop/) aberto e rodando.
+
+```bash
+npx supabase init      # só na primeira vez — gera supabase/config.toml
+npx supabase start     # sobe Postgres + Auth + Studio local (primeira vez baixa as imagens)
+npx supabase db reset  # aplica todas as migrations do zero contra o Postgres local
+```
+
+O `db reset` imprime a URL do Studio local (normalmente `http://localhost:54323`) — dá para
+testar RLS por lá simulando dois usuários antes de qualquer coisa ir para a nuvem.
+
+Fluxo do dia a dia ao mexer no schema:
+
+1. `npx supabase migration new nome_da_mudanca` → escreve o SQL
+2. `npx supabase db reset` → valida local
+3. Só então `npx supabase db push` (ver passo 3) → aplica na nuvem
+
+`npx supabase stop` derruba a stack local quando não estiver mexendo em schema.
+
+### 3. Conectar ao Supabase na nuvem
 
 1. Crie um projeto em [supabase.com](https://supabase.com/dashboard)
 2. Em **Project Settings → API**, copie a **Project URL** e a **anon public key**
 3. Copie `.env.example` para `.env` e preencha `SUPABASE_URL` / `SUPABASE_KEY`
-4. Rode as migrations (precisa da [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started)):
+4. Linke o projeto e suba as migrations que já foram validadas localmente:
 
    ```bash
    npx supabase login
@@ -33,11 +58,14 @@ npm install
    npx supabase db push
    ```
 
-5. (Opcional, mas recomendado após qualquer mudança de schema) regenerar os tipos:
+5. (Recomendado após qualquer mudança de schema) regenerar os tipos:
 
    ```bash
    npm run db:types
    ```
+
+**Regra de ouro:** nunca alterar uma tabela direto pelo Table Editor da nuvem — sempre por
+migration versionada. Editar direto no dashboard cria deriva entre o banco real e o git.
 
 ### 3. Chave do TMDB (módulo Filmes/Séries)
 
@@ -55,6 +83,37 @@ Para testar no celular pela rede local:
 ```bash
 npm run dev -- --host
 ```
+
+## Trabalhando de mais de um computador
+
+O código sincroniza pelo GitHub — [github.com/MatheusBacca/APPingos](https://github.com/MatheusBacca/APPingos)
+(privado). Em cada máquina nova:
+
+```bash
+git clone https://github.com/MatheusBacca/APPingos.git
+cd APPingos
+npm install
+```
+
+O `.env` **nunca** é commitado (está no `.gitignore`) — recrie-o em cada máquina a partir do
+`.env.example` com as mesmas credenciais do Supabase e do TMDB.
+
+Fluxo normal: `git pull` ao começar a trabalhar, `git push` ao terminar. Se mexer em schema,
+rode `db reset` local antes de commitar (seção acima) para não subir uma migration quebrada.
+
+## Deploy (Vercel)
+
+O deploy é automático a cada push na branch `main`, uma vez conectado o repositório no
+[dashboard do Vercel](https://vercel.com/dashboard) (Add New → Project → importar o repo do
+GitHub). O preset Nuxt é autodetectado — nada a mudar em `nuxt.config.ts`.
+
+Variáveis de ambiente a configurar no Vercel (Settings → Environment Variables, em
+**Production** e **Preview**): `SUPABASE_URL`, `SUPABASE_KEY`, `NUXT_TMDB_API_KEY` — os
+mesmos valores do `.env` local.
+
+**Não esquecer:** no dashboard do Supabase, em **Authentication → URL Configuration**,
+adicionar o domínio do Vercel em Site URL / Redirect URLs. Sem isso o login funciona em
+`localhost` mas quebra em produção.
 
 ## Ícones do PWA
 
