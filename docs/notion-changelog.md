@@ -67,6 +67,38 @@ o app de graça, e ter um jeito confiável de operar o Supabase no dia a dia.
   `.env.example` (uma regra `.env*` posterior anulava o `!.env.example`) — corrigido reordenando
   as regras.
 
-**Próximos passos sugeridos:** pegar a chave do TMDB e configurá-la no Vercel; ajustar
-Authentication → URL Configuration no Supabase para incluir o domínio do Vercel; módulo de
-Orçamento (segundo motor: série temporal com meta).
+---
+
+## 2026-07-31 — TMDB em produção e três bugs achados testando de verdade
+
+**Contexto:** com o TMDB configurado, dava para exercitar o app inteiro em produção pela
+primeira vez. Foi aí que os bugs apareceram — nenhum deles quebrava o build.
+
+**Feito:**
+- TMDB ligado em produção. O token que o site entrega hoje é o **Read Access Token (v4)**, que
+  não funciona como `?api_key=` (v3): trocado para `Authorization: Bearer`, que também é melhor
+  por manter o segredo fora da URL (logo, fora de logs e histórico de proxy)
+- Fluxo completo validado em produção: cadastro → confirmação de e-mail → espaço pessoal criado
+  pelo trigger → buscar "Interestelar" no TMDB → adicionar → marcar "Visto" → nota 9 →
+  tudo persistido e conferido direto no banco
+- `npm run typecheck` (vue-tsc) adicionado; suíte em zero erros
+
+**Os três bugs (todos passavam pelo build):**
+1. **`useSupabaseUser()` devolve as claims do JWT, não um `User`** — o UUID vem em `sub`, não em
+   `id`. Ler `.id` retornava `undefined` silenciosamente: a query de espaços nunca habilitava
+   (app eternamente em "Carregando…") e as avaliações do próprio usuário nunca casavam.
+   Centralizado em `useUsuarioId()`, com fallback para `.id`.
+2. **Faltava FK de `membership.user_id` e `rating.user_id` para `profile.id`** — as duas só
+   apontavam para `auth.users`, então o PostgREST não conseguia inferir o embed e devolvia 400.
+   Resultado visível: os membros apareciam como "Alguém" em vez do nome.
+3. **Referência órfã a `user` no template** de `filmes/[id].vue`, sobrevivente do rename — o Vue
+   avalia variável inexistente como `undefined` sem reclamar, então as estrelas de nota
+   simplesmente sumiam. Foi o que motivou adicionar o typecheck.
+
+**Aprendizado que vale reter:** `nuxt build` passando não significa app funcionando. Os três
+bugs eram silenciosos em build e só apareceram exercitando o app de ponta a ponta. O typecheck
+pega a classe (3); as outras duas só aparecem testando de verdade contra o banco real.
+
+**Próximos passos sugeridos:** testar o fluxo de convite com uma segunda conta (é o que valida
+o isolamento por RLS entre espaços, que ainda não foi exercitado com dois usuários de verdade);
+módulo de Orçamento (segundo motor: série temporal com meta).

@@ -66,18 +66,35 @@ Fluxo do dia a dia ao mexer no schema:
    npx supabase db push
    ```
 
-5. (Recomendado após qualquer mudança de schema) regenerar os tipos:
+5. **Obrigatório após qualquer mudança de schema** — regenerar os tipos:
 
    ```bash
    npm run db:types
    ```
 
+   Gera `app/types/database.generated.ts` a partir do schema real (não editar à mão).
+   `app/types/database.types.ts` só reexporta esse arquivo e acrescenta o que o gerador não
+   infere — como as uniões literais de `papel` e `tipo`, que no banco são CHECK e não enum.
+
 **Regra de ouro:** nunca alterar uma tabela direto pelo Table Editor da nuvem — sempre por
 migration versionada. Editar direto no dashboard cria deriva entre o banco real e o git.
 
+### Verificação antes de subir
+
+`nuxt build` passa mesmo com variável inexistente em template (o Vue avalia como `undefined`)
+e com query errada contra o banco. Rode também:
+
+```bash
+npm run typecheck
+```
+
+E, para o que nem o typecheck pega (schema, RLS, embeds do PostgREST), exercite o fluxo no
+navegador contra o banco de verdade — foi assim que os três bugs de 31/07 apareceram.
+
 ### 3. Chave do TMDB (módulo Filmes/Séries)
 
-1. Crie uma chave em [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)
+1. Em [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api), copie o
+   **"API Read Access Token"** (v4) — **não** a "API Key" (v3). O app autentica por Bearer.
 2. Preencha `NUXT_TMDB_API_KEY` no `.env` — fica só no servidor, nunca chega ao browser
 
 ### 4. Rodar
