@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { STATUS_ROTULO } from '~/types/catalogo'
-import type { StatusItem } from '~/types/catalogo'
+import type { ItemDoEspaco, StatusItem } from '~/types/catalogo'
 
 useHead({ title: 'Nossa lista · Filmes & Séries · APPingos' })
 
@@ -8,12 +8,12 @@ const usuarioId = useUsuarioId()
 const { data: itens, isPending } = useItens(['filme', 'serie'])
 
 /** Status "meu" por item: o que eu marquei, ou 'quero' se eu nunca avaliei. */
-function meuStatus(item: (typeof itens.value)[number]): StatusItem {
+function meuStatus(item: ItemDoEspaco): StatusItem {
   return item.avaliacoes.find(a => a.user_id === usuarioId.value)?.status ?? 'quero'
 }
 
 const grupos = computed(() => {
-  const porStatus = new Map<StatusItem, typeof itens.value>()
+  const porStatus = new Map<StatusItem, ItemDoEspaco[]>()
   for (const status of Object.keys(STATUS_ROTULO) as StatusItem[]) porStatus.set(status, [])
 
   for (const item of itens.value ?? []) {

@@ -144,14 +144,14 @@ function nomeDoMembro(userId: string): string {
             <p class="text-sm font-medium">{{ nomeDoMembro(avaliacao.user_id) }}</p>
 
             <NotaEstrelas
-              v-if="avaliacao.user_id === user?.id"
+              v-if="avaliacao.user_id === usuarioId"
               class="mt-1"
               :nota="avaliacao.nota"
               @update:nota="onMudarNota"
             />
             <NotaEstrelas v-else class="mt-1" :nota="avaliacao.nota" somente-leitura tamanho="sm" />
 
-            <p v-if="avaliacao.resenha && avaliacao.user_id !== user?.id" class="mt-1 text-sm text-muted-foreground">
+            <p v-if="avaliacao.resenha && avaliacao.user_id !== usuarioId" class="mt-1 text-sm text-muted-foreground">
               {{ avaliacao.resenha }}
             </p>
           </div>

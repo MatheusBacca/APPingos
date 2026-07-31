@@ -60,13 +60,15 @@ async function tmdb<T>(event: H3Event, caminho: string, params: Record<string, s
     // Autenticação por Bearer com o Read Access Token (v4), e não `?api_key=`
     // (v3): é o método que o TMDB recomenda hoje e mantém o segredo fora da URL,
     // logo fora de logs e de qualquer histórico de proxy.
+    // O cast existe porque o $fetch do Nitro embrulha o retorno em
+    // TypedInternalResponse, que não colapsa para T num genérico.
     return await $fetch<T>(`${BASE}${caminho}`, {
       query: { language: 'pt-BR', ...params },
       headers: {
         Authorization: `Bearer ${chave(event)}`,
         accept: 'application/json',
       },
-    })
+    }) as T
   }
   catch (e: unknown) {
     const status = (e as { status?: number }).status ?? 502

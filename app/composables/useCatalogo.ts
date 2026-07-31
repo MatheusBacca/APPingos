@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/vue-query'
 import type { MaybeRefOrGetter } from 'vue'
 import type { ItemDoEspaco, ItemParaAdicionar, StatusItem, TipoMidia } from '~/types/catalogo'
+import type { Json } from '~/types/database.generated'
 
 const SELECT = `
   id,
@@ -60,7 +61,9 @@ export function useAdicionarItem() {
     async (spaceId, item) => {
       const { data, error } = await supabase.rpc('adicionar_item', {
         p_space: spaceId,
-        p_item: item,
+        // A RPC recebe jsonb; o tipo gerado é `Json`, que não aceita uma
+        // interface diretamente (índice de assinatura ausente).
+        p_item: item as unknown as Json,
       })
       if (error) throw error
       return data as unknown as string
