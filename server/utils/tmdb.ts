@@ -57,8 +57,15 @@ function chave(event: H3Event): string {
 
 async function tmdb<T>(event: H3Event, caminho: string, params: Record<string, string> = {}): Promise<T> {
   try {
+    // Autenticação por Bearer com o Read Access Token (v4), e não `?api_key=`
+    // (v3): é o método que o TMDB recomenda hoje e mantém o segredo fora da URL,
+    // logo fora de logs e de qualquer histórico de proxy.
     return await $fetch<T>(`${BASE}${caminho}`, {
-      query: { api_key: chave(event), language: 'pt-BR', ...params },
+      query: { language: 'pt-BR', ...params },
+      headers: {
+        Authorization: `Bearer ${chave(event)}`,
+        accept: 'application/json',
+      },
     })
   }
   catch (e: unknown) {
@@ -66,7 +73,7 @@ async function tmdb<T>(event: H3Event, caminho: string, params: Record<string, s
     throw createError({
       statusCode: status === 401 ? 502 : status,
       statusMessage: status === 401
-        ? 'Chave do TMDB rejeitada — confira NUXT_TMDB_API_KEY'
+        ? 'Token do TMDB rejeitado — confira NUXT_TMDB_API_KEY'
         : 'Falha ao consultar o TMDB',
     })
   }
