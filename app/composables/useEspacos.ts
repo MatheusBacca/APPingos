@@ -13,19 +13,19 @@ interface MembershipComEspaco {
  */
 export function useEspacos() {
   const supabase = useSupabaseClient()
-  const user = useSupabaseUser()
+  const usuarioId = useUsuarioId()
   const store = useSpaceStore()
 
   const query = useQuery({
-    queryKey: ['espacos', computed(() => user.value?.id)],
-    enabled: computed(() => !!user.value?.id),
+    queryKey: ['espacos', usuarioId],
+    enabled: computed(() => !!usuarioId.value),
     queryFn: async (): Promise<EspacoComPapel[]> => {
       // Filtramos por user_id de propósito: a policy de membership devolve
       // também as linhas do par, e aqui queremos só "os meus espaços".
       const { data, error } = await supabase
         .from('membership')
         .select('papel, space:space(id, tipo, nome)')
-        .eq('user_id', user.value!.id)
+        .eq('user_id', usuarioId.value!)
 
       if (error) throw error
 

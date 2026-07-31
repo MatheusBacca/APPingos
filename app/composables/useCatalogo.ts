@@ -79,7 +79,7 @@ interface AvaliacaoInput {
 
 export function useAvaliar() {
   const supabase = useSupabaseClient()
-  const user = useSupabaseUser()
+  const usuarioId = useUsuarioId()
   const queryClient = useQueryClient()
   const store = useSpaceStore()
 
@@ -90,7 +90,7 @@ export function useAvaliar() {
       const { error } = await supabase
         .from('rating')
         .upsert(
-          { entry_id: entryId, user_id: user.value!.id, ...campos },
+          { entry_id: entryId, user_id: usuarioId.value!, ...campos },
           { onConflict: 'entry_id,user_id' },
         )
 

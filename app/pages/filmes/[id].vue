@@ -8,7 +8,7 @@ import type { StatusItem } from '~/types/catalogo'
 const route = useRoute()
 const entryId = route.params.id as string
 const router = useRouter()
-const user = useSupabaseUser()
+const usuarioId = useUsuarioId()
 
 const { data: item, isPending, isError, error } = useItem(entryId)
 const { data: membros } = useMembros()
@@ -18,7 +18,7 @@ const remover = useRemoverItem()
 useHead({ title: () => `${item.value?.media.titulo ?? 'Carregando…'} · APPingos` })
 
 const minhaAvaliacao = computed(() =>
-  item.value?.avaliacoes.find(a => a.user_id === user.value?.id) ?? null,
+  item.value?.avaliacoes.find(a => a.user_id === usuarioId.value) ?? null,
 )
 
 const resenhaRascunho = ref('')

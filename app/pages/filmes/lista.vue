@@ -4,12 +4,12 @@ import type { StatusItem } from '~/types/catalogo'
 
 useHead({ title: 'Nossa lista · Filmes & Séries · APPingos' })
 
-const user = useSupabaseUser()
+const usuarioId = useUsuarioId()
 const { data: itens, isPending } = useItens(['filme', 'serie'])
 
 /** Status "meu" por item: o que eu marquei, ou 'quero' se eu nunca avaliei. */
 function meuStatus(item: (typeof itens.value)[number]): StatusItem {
-  return item.avaliacoes.find(a => a.user_id === user.value?.id)?.status ?? 'quero'
+  return item.avaliacoes.find(a => a.user_id === usuarioId.value)?.status ?? 'quero'
 }
 
 const grupos = computed(() => {
