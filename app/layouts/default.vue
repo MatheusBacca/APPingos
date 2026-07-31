@@ -1,4 +1,14 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+
 // Uma chamada só, no shell: carrega os espaços e alimenta o store.
 // Nenhuma página precisa se preocupar com isso.
 const { isPending, isError, error } = useEspacos()
@@ -14,6 +24,11 @@ const { resolverSeHouver } = useConvitePendente()
 watch(user, async (novo) => {
   if (novo) await resolverSeHouver()
 }, { immediate: true })
+
+// Fica no layout, e não numa página, porque o espaço excluído sumiu do seletor:
+// não há mais para onde "entrar". O aviso precisa alcançar a pessoa em qualquer
+// tela que ela abrir depois.
+const { aviso, marcarLido } = useAvisoEspacoDeletado()
 </script>
 
 <template>
@@ -54,5 +69,25 @@ watch(user, async (novo) => {
     </main>
 
     <AppBottomBar />
+
+    <Dialog :open="!!aviso">
+      <DialogContent :show-close-button="false" @escape-key-down.prevent @pointer-down-outside.prevent>
+        <DialogHeader>
+          <DialogTitle>O espaço foi deletado pelo dono.</DialogTitle>
+          <DialogDescription>
+            "{{ aviso?.space_nome }}" não existe mais — {{ aviso?.deletado_por_nome }} excluiu o
+            espaço, e tudo que estava nele foi junto. Os seus outros espaços continuam intactos.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            :disabled="marcarLido.isPending.value"
+            @click="aviso && marcarLido.mutate(aviso.id)"
+          >
+            Entendi
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>

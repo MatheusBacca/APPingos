@@ -65,6 +65,26 @@ export function useCriarEspaco() {
   })
 }
 
+/**
+ * Exclusão definitiva de um espaço de casal. A RPC recusa se quem chama não for
+ * o dono, e avisa os outros membros antes de apagar.
+ *
+ * Não mexe no espaço ativo de propósito: ao invalidar a lista, o
+ * `definirEspacos` do store já cai para o pessoal sozinho.
+ */
+export function useDeletarEspaco() {
+  const supabase = useSupabaseClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (spaceId: string) => {
+      const { error } = await supabase.rpc('deletar_espaco', { p_space: spaceId })
+      if (error) throw error
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['espacos'] }),
+  })
+}
+
 export function useCriarConvite() {
   const supabase = useSupabaseClient()
 

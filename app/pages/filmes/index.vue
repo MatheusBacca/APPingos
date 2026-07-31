@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { mensagemDeErro } from '@/lib/utils'
 import { useQuery } from '@tanstack/vue-query'
 import { refDebounced } from '@vueuse/core'
 import { PlusIcon, SearchIcon } from '@lucide/vue'
@@ -53,7 +54,7 @@ async function onAdicionar(resultado: ResultadoBusca) {
     termo.value = ''
   }
   catch (e) {
-    toast.error(e instanceof Error ? e.message : 'Não deu para adicionar.')
+    toast.error(mensagemDeErro(e, 'Não deu para adicionar.'))
   }
   finally {
     idsAdicionando.value.delete(resultado.fonte_id)
@@ -103,7 +104,7 @@ async function onAdicionar(resultado: ResultadoBusca) {
       </div>
 
       <p v-else-if="busca.isError.value" class="text-sm text-destructive">
-        {{ busca.error.value instanceof Error ? busca.error.value.message : 'Falha na busca.' }}
+        {{ mensagemDeErro(busca.error.value, 'Falha na busca.') }}
       </p>
 
       <p v-else-if="!busca.data.value?.length" class="text-sm text-muted-foreground">

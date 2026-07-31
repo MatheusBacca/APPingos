@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { mensagemDeErro } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -26,7 +27,7 @@ async function onSubmit() {
     else await router.push('/')
   }
   catch (e) {
-    erro.value = e instanceof Error ? e.message : 'Não foi possível criar a conta.'
+    erro.value = mensagemDeErro(e, 'Não foi possível criar a conta.')
   }
   finally {
     enviando.value = false

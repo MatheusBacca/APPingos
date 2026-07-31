@@ -1,3 +1,4 @@
+import { mensagemDeErro } from '@/lib/utils'
 import { toast } from 'vue-sonner'
 
 const CHAVE_LS = 'appingos:convite-pendente'
@@ -41,7 +42,7 @@ export function useConvitePendente() {
     catch (e) {
       // Código expirado/já usado não deveria travar o login/cadastro — a
       // pessoa continua e pode digitar o código à mão em Espaços depois.
-      toast.error(e instanceof Error ? e.message : 'Não foi possível entrar no espaço do convite.')
+      toast.error(mensagemDeErro(e, 'Não foi possível entrar no espaço do convite.'))
     }
     finally {
       limpar()

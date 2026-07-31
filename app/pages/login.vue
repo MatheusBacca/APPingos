@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { mensagemDeErro } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -21,7 +22,7 @@ async function onSubmit() {
     await entrar(email.value.trim(), senha.value)
   }
   catch (e) {
-    erro.value = e instanceof Error ? e.message : 'Não foi possível entrar.'
+    erro.value = mensagemDeErro(e, 'Não foi possível entrar.')
   }
   finally {
     enviando.value = false

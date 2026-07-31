@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { mensagemDeErro } from '@/lib/utils'
 import { Trash2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
@@ -33,7 +34,7 @@ async function onMudarStatus(status: StatusItem) {
     await avaliar.mutateAsync({ entryId, status })
   }
   catch (e) {
-    toast.error(e instanceof Error ? e.message : 'Não deu para salvar.')
+    toast.error(mensagemDeErro(e, 'Não deu para salvar.'))
   }
 }
 
@@ -42,7 +43,7 @@ async function onMudarNota(nota: number | null) {
     await avaliar.mutateAsync({ entryId, nota })
   }
   catch (e) {
-    toast.error(e instanceof Error ? e.message : 'Não deu para salvar a nota.')
+    toast.error(mensagemDeErro(e, 'Não deu para salvar a nota.'))
   }
 }
 
@@ -53,7 +54,7 @@ async function onSalvarResenha() {
     toast.success('Resenha salva.')
   }
   catch (e) {
-    toast.error(e instanceof Error ? e.message : 'Não deu para salvar a resenha.')
+    toast.error(mensagemDeErro(e, 'Não deu para salvar a resenha.'))
   }
   finally {
     salvandoResenha.value = false
@@ -68,7 +69,7 @@ async function onRemover() {
     await router.push('/filmes/lista')
   }
   catch (e) {
-    toast.error(e instanceof Error ? e.message : 'Não deu para remover.')
+    toast.error(mensagemDeErro(e, 'Não deu para remover.'))
   }
 }
 
@@ -89,7 +90,7 @@ function nomeDoMembro(userId: string): string {
   <div v-else-if="isError || !item" class="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">
     <p class="font-medium text-destructive">Não encontrei este item.</p>
     <p class="mt-1 text-muted-foreground">
-      {{ error instanceof Error ? error.message : 'Ele pode ter sido removido.' }}
+      {{ mensagemDeErro(error, 'Ele pode ter sido removido.') }}
     </p>
   </div>
 

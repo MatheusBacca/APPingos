@@ -286,6 +286,33 @@ export type Database = {
         }
         Relationships: []
       }
+      space_deletion_notice: {
+        Row: {
+          deletado_em: string
+          deletado_por_nome: string
+          id: string
+          lido_em: string | null
+          space_nome: string
+          user_id: string
+        }
+        Insert: {
+          deletado_em?: string
+          deletado_por_nome: string
+          id?: string
+          lido_em?: string | null
+          space_nome: string
+          user_id: string
+        }
+        Update: {
+          deletado_em?: string
+          deletado_por_nome?: string
+          id?: string
+          lido_em?: string | null
+          space_nome?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       space_invite: {
         Row: {
           codigo: string
@@ -342,6 +369,7 @@ export type Database = {
         Returns: string
       }
       criar_convite: { Args: { p_space: string }; Returns: string }
+      deletar_espaco: { Args: { p_space: string }; Returns: undefined }
       gerar_codigo_convite: { Args: never; Returns: string }
       is_space_member: { Args: { p_space: string }; Returns: boolean }
       is_space_owner: { Args: { p_space: string }; Returns: boolean }

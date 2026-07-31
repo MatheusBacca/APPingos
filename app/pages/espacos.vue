@@ -1,8 +1,17 @@
 <script setup lang="ts">
-import { CheckIcon, CopyIcon, HeartIcon, LinkIcon, UserIcon } from '@lucide/vue'
+import { mensagemDeErro } from '@/lib/utils'
+import { CheckIcon, CopyIcon, HeartIcon, LinkIcon, TriangleAlertIcon, UserIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
@@ -15,6 +24,7 @@ const store = useSpaceStore()
 const criarEspaco = useCriarEspaco()
 const criarConvite = useCriarConvite()
 const resgatarConvite = useResgatarConvite()
+const deletarEspaco = useDeletarEspaco()
 
 // Membros do espaço ativo. A policy de membership devolve todo mundo do espaço,
 // então aqui não filtramos por usuário.
@@ -53,7 +63,7 @@ async function onCriarEspaco() {
     toast.success(`Espaço "${nome}" criado.`)
   }
   catch (e) {
-    toast.error(e instanceof Error ? e.message : 'Não deu para criar o espaço.')
+    toast.error(mensagemDeErro(e, 'Não deu para criar o espaço.'))
   }
 }
 
@@ -65,7 +75,7 @@ async function onGerarConvite() {
     linkCopiado.value = false
   }
   catch (e) {
-    toast.error(e instanceof Error ? e.message : 'Não deu para gerar o convite.')
+    toast.error(mensagemDeErro(e, 'Não deu para gerar o convite.'))
   }
 }
 
@@ -83,6 +93,45 @@ async function copiarLink() {
   toast.success('Link copiado.')
 }
 
+// ---- Exclusão do espaço (só o dono) ----------------------------------------
+
+const podeExcluir = computed(() =>
+  store.espacoAtivo?.tipo === 'casal' && store.espacoAtivo.papel === 'dono',
+)
+
+// Quantos itens vão junto — o número é o que dá peso ao aviso.
+const totalItens = useSpaceQuery(['total-itens'], async (spaceId) => {
+  const { count, error } = await supabase
+    .from('entry')
+    .select('id', { count: 'exact', head: true })
+    .eq('space_id', spaceId)
+
+  if (error) throw error
+  return count ?? 0
+}, { enabled: podeExcluir })
+
+const dialogExcluir = ref(false)
+const nomeConfirmacao = ref('')
+
+const confirmacaoOk = computed(() =>
+  nomeConfirmacao.value.trim() === store.espacoAtivo?.nome,
+)
+
+watch(dialogExcluir, () => { nomeConfirmacao.value = '' })
+
+async function onExcluir() {
+  const espaco = store.espacoAtivo
+  if (!espaco || !confirmacaoOk.value) return
+  try {
+    await deletarEspaco.mutateAsync(espaco.id)
+    dialogExcluir.value = false
+    toast.success(`Espaço "${espaco.nome}" excluído.`)
+  }
+  catch (e) {
+    toast.error(mensagemDeErro(e, 'Não deu para excluir o espaço.'))
+  }
+}
+
 async function onResgatar() {
   const codigo = codigoDigitado.value.trim()
   if (!codigo) return
@@ -92,7 +141,7 @@ async function onResgatar() {
     toast.success('Pronto — você entrou no espaço.')
   }
   catch (e) {
-    toast.error(e instanceof Error ? e.message : 'Código inválido.')
+    toast.error(mensagemDeErro(e, 'Código inválido.'))
   }
 }
 </script>
@@ -184,8 +233,69 @@ async function onResgatar() {
             </Button>
           </div>
         </template>
+
+        <template v-if="podeExcluir">
+          <Separator />
+          <div>
+            <h3 class="flex items-center gap-2 text-sm font-medium text-destructive">
+              <TriangleAlertIcon class="size-4" />
+              Excluir espaço
+            </h3>
+            <p class="mt-1 text-sm text-muted-foreground">
+              Apaga o espaço para todo mundo, com tudo que está dentro. Não dá para desfazer.
+            </p>
+            <Button variant="destructive" class="mt-3" @click="dialogExcluir = true">
+              Excluir "{{ store.espacoAtivo?.nome }}"
+            </Button>
+          </div>
+        </template>
       </CardContent>
     </Card>
+
+    <Dialog v-model:open="dialogExcluir">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Excluir "{{ store.espacoAtivo?.nome }}"?</DialogTitle>
+          <DialogDescription>
+            Isso apaga o espaço para todos os membros, e não tem como voltar atrás.
+          </DialogDescription>
+        </DialogHeader>
+
+        <ul class="space-y-1 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm">
+          <li>
+            <strong>{{ totalItens.data.value ?? '…' }}</strong> item(ns) do catálogo, com as notas
+            e resenhas dos dois
+          </li>
+          <li>
+            <strong>{{ membros.data.value?.length ?? '…' }}</strong> membro(s) perdem o acesso e
+            recebem um aviso de que você excluiu o espaço
+          </li>
+        </ul>
+
+        <div class="space-y-2">
+          <Label for="confirmar-nome">
+            Digite <strong>{{ store.espacoAtivo?.nome }}</strong> para confirmar
+          </Label>
+          <Input
+            id="confirmar-nome"
+            v-model="nomeConfirmacao"
+            autocomplete="off"
+            :placeholder="store.espacoAtivo?.nome"
+          />
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" @click="dialogExcluir = false">Cancelar</Button>
+          <Button
+            variant="destructive"
+            :disabled="!confirmacaoOk || deletarEspaco.isPending.value"
+            @click="onExcluir"
+          >
+            {{ deletarEspaco.isPending.value ? 'Excluindo…' : 'Excluir definitivamente' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <div class="grid gap-4 sm:grid-cols-2">
       <Card>

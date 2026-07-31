@@ -102,3 +102,38 @@ pega a classe (3); as outras duas só aparecem testando de verdade contra o banc
 **Próximos passos sugeridos:** testar o fluxo de convite com uma segunda conta (é o que valida
 o isolamento por RLS entre espaços, que ainda não foi exercitado com dois usuários de verdade);
 módulo de Orçamento (segundo motor: série temporal com meta).
+
+---
+
+## 2026-07-31 — Exclusão de espaço pelo dono
+
+**Contexto:** um espaço de casal, uma vez criado, era para sempre — não havia como excluí-lo
+nem pela UI nem por RPC, e a única saída seria editar o banco à mão.
+
+**Feito:**
+- Migration `20260731130000_deletar_espaco.sql`: tabela `space_deletion_notice` + RPC
+  `deletar_espaco`, que checa o dono, recusa o espaço pessoal, avisa os outros membros e só
+  então apaga (o `on delete cascade` limpa membership, convites, entries e ratings)
+- Zona de risco em Espaços, visível só para o dono de um espaço de casal, com confirmação por
+  **digitação do nome exato** e a contagem do que será apagado
+- Pop-up "O espaço foi deletado pelo dono." no layout, para o membro ver na próxima vez que
+  abrir o app
+- Fluxo validado de ponta a ponta com duas contas reais, incluindo o teste de convite que
+  estava pendente desde 30/07 — o link de convite funciona
+
+**Decisão: aviso registrado, não soft delete.** Com exclusão definitiva não sobra linha
+nenhuma para o membro ler; a RPC grava o recado antes de apagar, numa tabela sem FK para
+`space` (por isso ela sobrevive ao cascade). O caminho alternativo — marcar `deleted_at` e
+manter a linha — obrigaria todo módulo futuro a lembrar de filtrar espaços fantasma, e pediria
+uma rotina de faxina.
+
+**Bug encontrado de brinde:** todo `catch` do app usava
+`e instanceof Error ? e.message : 'texto genérico'`. Os erros do supabase-js **não** são
+instâncias de `Error` (são objetos simples: `PostgrestError`, `AuthError`), então toda mensagem
+vinda do banco caía no texto genérico. Foi assim que um "este convite já foi usado" apareceu
+como "Código inválido." durante o teste, e as mensagens de guarda da RPC nova nunca chegariam
+ao usuário. Centralizado em `mensagemDeErro()` (`app/lib/utils.ts`).
+
+**Também nesta sessão:** documento de planejamento de Stories/timeline
+(`notion-plano-stories-timeline.md`) — decisão de escopo registrada: publicações permanentes,
+não efêmeras.
