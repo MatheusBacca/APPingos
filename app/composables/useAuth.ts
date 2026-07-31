@@ -6,10 +6,15 @@ export function useAuth() {
   const store = useSpaceStore()
   const queryClient = useQueryClient()
   const router = useRouter()
+  // Precisa ser chamado aqui, em setup síncrono: useMutation() por baixo usa
+  // inject(), que não funciona mais dentro de entrar()/cadastrar() — essas
+  // rodam depois, disparadas por um @click, fora do contexto de injeção.
+  const convitePendente = useConvitePendente()
 
   async function entrar(email: string, senha: string) {
     const { error } = await supabase.auth.signInWithPassword({ email, password: senha })
     if (error) throw error
+    await convitePendente.resolverSeHouver()
     await router.push('/')
   }
 
@@ -23,7 +28,10 @@ export function useAuth() {
     })
     if (error) throw error
 
-    // Se a confirmação de e-mail estiver ligada no projeto, não há sessão ainda.
+    // Se a confirmação de e-mail estiver ligada no projeto, não há sessão ainda
+    // — o convite pendente só é resolvido mais tarde, em /confirmar.
+    if (data.session) await convitePendente.resolverSeHouver()
+
     return { precisaConfirmar: !data.session }
   }
 

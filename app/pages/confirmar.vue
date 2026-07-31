@@ -6,9 +6,12 @@ useHead({ title: 'Confirmando · APPingos' })
 
 const user = useSupabaseUser()
 const router = useRouter()
+const { resolverSeHouver } = useConvitePendente()
 
-watchEffect(() => {
-  if (user.value) router.replace('/')
+watchEffect(async () => {
+  if (!user.value) return
+  await resolverSeHouver()
+  await router.replace('/')
 })
 </script>
 

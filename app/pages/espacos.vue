@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CheckIcon, CopyIcon, HeartIcon, UserIcon } from '@lucide/vue'
+import { CheckIcon, CopyIcon, HeartIcon, LinkIcon, UserIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -36,6 +36,13 @@ const nomeNovoEspaco = ref('')
 const codigoGerado = ref<string | null>(null)
 const codigoDigitado = ref('')
 const copiado = ref(false)
+const linkCopiado = ref(false)
+
+const linkConvite = computed(() =>
+  codigoGerado.value && import.meta.client
+    ? `${location.origin}/convite/${codigoGerado.value}`
+    : null,
+)
 
 async function onCriarEspaco() {
   const nome = nomeNovoEspaco.value.trim()
@@ -55,6 +62,7 @@ async function onGerarConvite() {
   try {
     codigoGerado.value = await criarConvite.mutateAsync(store.espacoAtivoId)
     copiado.value = false
+    linkCopiado.value = false
   }
   catch (e) {
     toast.error(e instanceof Error ? e.message : 'Não deu para gerar o convite.')
@@ -66,6 +74,13 @@ async function copiarCodigo() {
   await navigator.clipboard.writeText(codigoGerado.value)
   copiado.value = true
   toast.success('Código copiado.')
+}
+
+async function copiarLink() {
+  if (!linkConvite.value) return
+  await navigator.clipboard.writeText(linkConvite.value)
+  linkCopiado.value = true
+  toast.success('Link copiado.')
 }
 
 async function onResgatar() {
@@ -129,17 +144,33 @@ async function onResgatar() {
           <div>
             <h3 class="text-sm font-medium">Convidar</h3>
             <p class="mt-1 text-sm text-muted-foreground">
-              Gere um código e passe para a outra pessoa. Vale por 7 dias e um uso só.
+              Gere um link e mande para a outra pessoa — vale por 7 dias e um uso só. Quem
+              abrir e ainda não tiver conta, cria uma e já entra direto neste espaço.
             </p>
 
-            <div v-if="codigoGerado" class="mt-3 flex items-center gap-2">
-              <code class="flex-1 rounded-lg border bg-muted px-3 py-2 text-center text-lg font-semibold tracking-[0.3em]">
-                {{ codigoGerado }}
-              </code>
-              <Button variant="outline" size="icon" aria-label="Copiar código" @click="copiarCodigo">
-                <CheckIcon v-if="copiado" class="size-4 text-primary" />
-                <CopyIcon v-else class="size-4" />
-              </Button>
+            <div v-if="linkConvite" class="mt-3 space-y-2">
+              <div class="flex items-center gap-2">
+                <code class="flex-1 truncate rounded-lg border bg-muted px-3 py-2 text-sm">
+                  {{ linkConvite }}
+                </code>
+                <Button variant="outline" size="icon" aria-label="Copiar link" @click="copiarLink">
+                  <CheckIcon v-if="linkCopiado" class="size-4 text-primary" />
+                  <LinkIcon v-else class="size-4" />
+                </Button>
+              </div>
+
+              <details class="text-sm text-muted-foreground">
+                <summary class="cursor-pointer select-none">Prefiro passar um código</summary>
+                <div class="mt-2 flex items-center gap-2">
+                  <code class="flex-1 rounded-lg border bg-muted px-3 py-2 text-center font-semibold tracking-[0.3em]">
+                    {{ codigoGerado }}
+                  </code>
+                  <Button variant="outline" size="icon" aria-label="Copiar código" @click="copiarCodigo">
+                    <CheckIcon v-if="copiado" class="size-4 text-primary" />
+                    <CopyIcon v-else class="size-4" />
+                  </Button>
+                </div>
+              </details>
             </div>
 
             <Button
@@ -149,7 +180,7 @@ async function onResgatar() {
               :disabled="criarConvite.isPending.value"
               @click="onGerarConvite"
             >
-              {{ criarConvite.isPending.value ? 'Gerando…' : 'Gerar código de convite' }}
+              {{ criarConvite.isPending.value ? 'Gerando…' : 'Gerar convite' }}
             </Button>
           </div>
         </template>
