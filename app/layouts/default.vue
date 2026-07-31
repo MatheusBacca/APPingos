@@ -3,6 +3,17 @@
 // Nenhuma página precisa se preocupar com isso.
 const { isPending, isError, error } = useEspacos()
 const store = useSpaceStore()
+
+// O link de confirmação de e-mail do Supabase manda direto para a Site URL
+// (`/`), não para `/confirmar` — o `callback` do redirectOptions só vale para
+// fluxos que a gente mesmo controla o `redirectTo` (OAuth, magic link). Por
+// isso o convite pendente é resolvido aqui, na primeira página autenticada
+// que carregar, e não só em /confirmar.
+const user = useSupabaseUser()
+const { resolverSeHouver } = useConvitePendente()
+watch(user, async (novo) => {
+  if (novo) await resolverSeHouver()
+}, { immediate: true })
 </script>
 
 <template>
