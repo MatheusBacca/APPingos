@@ -105,6 +105,37 @@ módulo de Orçamento (segundo motor: série temporal com meta).
 
 ---
 
+## 2026-08-03 — Filmes numa tela só, com arrastar entre grupos
+
+**Contexto:** o módulo estava em três abas (Agenda, Buscar, Nossa lista), e o painel do
+calendário listava os filmes sem data como texto — pouco convidativo para usar.
+
+**Feito:**
+- **Abas removidas.** `/filmes` agora é uma tela única, na ordem: busca → calendário →
+  segmentação por status. `/filmes/buscar` e `/filmes/lista` deixaram de existir.
+- O painel do calendário virou três grupos de **capas em grid de 5 colunas** —
+  Disponível · Queremos ver · Assistidos — e o cartaz **se arrasta entre eles**.
+- Soltar em "Queremos ver" ou "Assistidos" abre um diálogo de data. O padrão é a data que a
+  outra pessoa já escolheu (entrar junto é o caso comum) ou hoje — e dá para trocar por
+  qualquer data passada, que é o ponto da retroatividade. Se a data cair em outro mês, o
+  calendário navega até lá sozinho, senão o cartaz "sumia".
+- **Bolinhas de membros no rodapé do cartaz:** inicial do nome, no máximo 3 sobrepostas
+  (as demais viram um "+N"), com tooltip listando quem está ali.
+- Quando alguém está num grupo e você não, um **"+" aparece ao passar o mouse** no cartaz e
+  te coloca junto — com a data da outra pessoa já preenchida.
+
+**Decisão: os grupos são a união do que as duas pessoas marcaram.** Se ela quer ver e eu
+ainda não, o cartaz aparece em "Queremos ver" com a bolinha dela e o "+" para eu entrar. A
+alternativa — cada um ver só o próprio recorte — deixaria o espaço compartilhado sem serventia
+justamente na tela que existe para combinar o que ver. "Disponível" é a exceção: só entra o
+que ninguém datou, e ele ignora o mês visível, porque é estoque e não data.
+
+**Limitação conhecida:** arrastar usa a API de drag and drop do HTML5, que **não funciona em
+tela de toque**. No celular, o caminho é o "+" no cartaz ou a tela do filme. Vale trocar por
+uma biblioteca de gestos se o uso no celular incomodar.
+
+---
+
 ## 2026-07-31 — Exclusão de espaço pelo dono
 
 **Contexto:** um espaço de casal, uma vez criado, era para sempre — não havia como excluí-lo

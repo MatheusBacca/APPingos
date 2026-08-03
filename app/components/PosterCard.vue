@@ -24,6 +24,10 @@ const props = defineProps<{
       </div>
 
       <slot name="overlay" />
+
+      <div v-if="$slots.rodape" class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-1.5 pt-6">
+        <slot name="rodape" />
+      </div>
     </div>
 
     <p class="mt-2 line-clamp-2 text-sm font-medium leading-snug">

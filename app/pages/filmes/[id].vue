@@ -101,7 +101,7 @@ async function onRemover() {
   try {
     await remover.mutateAsync(entryId)
     toast.success('Removido.')
-    await router.push('/filmes/lista')
+    await router.push('/filmes')
   }
   catch (e) {
     toast.error(mensagemDeErro(e, 'Não deu para remover.'))
