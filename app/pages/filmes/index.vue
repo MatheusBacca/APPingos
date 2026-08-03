@@ -122,9 +122,12 @@ const marcadores = computed<MarcadorDia[]>(() => {
 /**
  * O recorte do dia/mês visível.
  *
- * "Disponível" ignora o filtro por não ter data nenhuma — é o estoque de
- * interesse. Um assistido sem data ("não lembro") também escapa do filtro,
- * senão marcá-lo assim faria o cartaz sumir da tela.
+ * "Queremos ver" e "Assistidos" seguem o calendário: só entra o que está
+ * datado no dia selecionado (ou no mês, quando nenhum dia está). Um assistido
+ * sem data ("não lembro") não tem mês a que pertencer e por isso não aparece
+ * aqui — ele vive em Nossa lista, onde não há recorte de data.
+ *
+ * "Disponível" é o estoque de interesse: sem data nenhuma, ignora o filtro.
  */
 function noRecorteVisivel(item: ItemDoEspaco, recorte: Recorte): boolean {
   if (recorte === 'disponivel') return true
@@ -132,7 +135,7 @@ function noRecorteVisivel(item: ItemDoEspaco, recorte: Recorte): boolean {
   return item.avaliacoes.some((av) => {
     if (recorteDa(av) !== recorte) return false
     const data = dataDoRecorte(av, recorte)
-    if (!data) return true
+    if (!data) return false
     return diaSelecionado.value ? data === diaSelecionado.value : mesmoMes(data, mes.value)
   })
 }
@@ -146,6 +149,16 @@ const porRecorte = computed<Record<Recorte, ItemDoEspaco[]>>(() => {
   }
   return grupos
 })
+
+/**
+ * Assistidos sem data ficam fora do painel por não terem mês. Sem este aviso
+ * eles simplesmente sumiriam da tela ao serem marcados como "não lembro".
+ */
+const assistidosSemData = computed(() =>
+  (itens.value ?? []).filter(item =>
+    item.avaliacoes.some(av => recorteDa(av) === 'visto' && !av.visto_em),
+  ).length,
+)
 
 const tituloDoPainel = computed(() =>
   diaSelecionado.value ? formatarDia(diaSelecionado.value) : formatarMes(mes.value),
@@ -394,6 +407,14 @@ function confirmarData(semData = false) {
             />
             <p v-else class="px-1 pb-1 text-sm text-muted-foreground">
               {{ recorte === 'disponivel' ? 'Nenhum interesse sem data.' : 'Nada neste recorte.' }}
+            </p>
+
+            <p v-if="recorte === 'visto' && assistidosSemData" class="mt-1 px-1 text-xs text-muted-foreground">
+              +{{ assistidosSemData }} sem data, em
+              <NuxtLink
+                :to="{ path: '/filmes/lista', query: { recorte: 'visto' } }"
+                class="text-primary hover:underline"
+              >Nossa lista</NuxtLink>.
             </p>
           </section>
 
