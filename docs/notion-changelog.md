@@ -105,6 +105,24 @@ módulo de Orçamento (segundo motor: série temporal com meta).
 
 ---
 
+## 2026-08-03 — Recorte "Assistindo"
+
+Para série, que leva dias: um estado entre "queremos ver" e "assistidos". **Sem data** — é um
+intervalo, não um dia — então ele ignora o filtro de mês do calendário, como "Disponível".
+
+Não precisou de migration: `status` já aceitava `'vendo'` desde o catálogo, sem uso na tela.
+A ordem dos recortes virou o ciclo: Queremos ver → Assistindo → Assistidos → Disponível.
+
+**Duas armadilhas que apareceram no caminho:**
+- `visto_em` preenchido vence o status na hora de decidir o recorte. Mover para "Assistindo"
+  precisa limpar a data, senão o item volta para "Assistidos" na próxima leitura. Vale também
+  para o seletor de status na tela do filme, que agora limpa a data ao sair de "Assistido".
+- Os rótulos estavam divergindo: a tela do filme dizia "Vendo"/"Visto" e os recortes diziam
+  outra coisa. `STATUS_ROTULO` passou a usar os mesmos nomes dos recortes — o mesmo estado não
+  pode ter dois nomes no app.
+
+---
+
 ## 2026-08-03 — Mover no celular, e o filtro de mês sem exceção
 
 **Feito:**

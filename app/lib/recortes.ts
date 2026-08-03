@@ -6,20 +6,28 @@ import type { Avaliacao, ItemDoEspaco } from '~/types/catalogo'
  * Compartilhado entre a Agenda e a Nossa lista para as duas contarem a mesma
  * história — antes cada tela tinha a sua ideia de "onde este filme está".
  */
-export type Recorte = 'planejado' | 'visto' | 'disponivel'
+export type Recorte = 'planejado' | 'vendo' | 'visto' | 'disponivel'
 
-export const RECORTES: Recorte[] = ['planejado', 'visto', 'disponivel']
+/** Na ordem do ciclo: vai ver → está vendo → viu → só interesse. */
+export const RECORTES: Recorte[] = ['planejado', 'vendo', 'visto', 'disponivel']
 
 export const RECORTE_ROTULO: Record<Recorte, string> = {
   planejado: 'Queremos ver',
+  vendo: 'Assistindo',
   visto: 'Assistidos',
   disponivel: 'Disponível',
 }
 
 export const RECORTE_DESCRICAO: Record<Recorte, string> = {
   planejado: 'Com data marcada.',
+  vendo: 'Em andamento — séries que levam dias.',
   visto: 'Já assistidos — com ou sem data.',
   disponivel: 'Interesse registrado, ainda sem data.',
+}
+
+/** Recortes sem data própria: não entram no filtro de mês do calendário. */
+export function recorteTemData(recorte: Recorte): boolean {
+  return recorte === 'planejado' || recorte === 'visto'
 }
 
 export function ehRecorte(valor: unknown): valor is Recorte {
@@ -34,11 +42,15 @@ export function ehRecorte(valor: unknown): valor is Recorte {
  * presumir que todo mundo do espaço quer ver tudo que foi adicionado.
  *
  * "Assistido" aceita não ter data — o `status` basta, para quem não lembra
- * quando viu.
+ * quando viu. "Assistindo" nunca tem data: é um intervalo, não um dia.
+ *
+ * A ordem das checagens é o ciclo ao contrário: quem já viu não está vendo, e
+ * quem está vendo não está mais esperando a data que marcou.
  */
 export function recorteDa(av: Avaliacao | undefined | null): Recorte | null {
   if (!av) return null
   if (av.status === 'visto' || av.visto_em) return 'visto'
+  if (av.status === 'vendo') return 'vendo'
   if (av.planejado_para) return 'planejado'
   return 'disponivel'
 }

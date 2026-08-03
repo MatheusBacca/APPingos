@@ -16,7 +16,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatarDia, formatarMes, hojeIso, mesmoMes, primeiroDoMes } from '@/lib/datas'
-import { RECORTES, RECORTE_ROTULO, avaliacaoDe, dataDoRecorte, itemNoRecorte, recorteDa } from '@/lib/recortes'
+import { RECORTES, RECORTE_ROTULO, avaliacaoDe, dataDoRecorte, itemNoRecorte, recorteDa, recorteTemData } from '@/lib/recortes'
 import type { Recorte } from '@/lib/recortes'
 import type { ResultadoBusca } from '~~/server/utils/tmdb'
 import type { ItemDoEspaco, ItemParaAdicionar, MarcadorDia } from '~/types/catalogo'
@@ -127,10 +127,11 @@ const marcadores = computed<MarcadorDia[]>(() => {
  * sem data ("não lembro") não tem mês a que pertencer e por isso não aparece
  * aqui — ele vive em Nossa lista, onde não há recorte de data.
  *
- * "Disponível" é o estoque de interesse: sem data nenhuma, ignora o filtro.
+ * "Disponível" e "Assistindo" não têm data — o primeiro é estoque de interesse,
+ * o segundo é um intervalo em andamento. Os dois ignoram o filtro.
  */
 function noRecorteVisivel(item: ItemDoEspaco, recorte: Recorte): boolean {
-  if (recorte === 'disponivel') return true
+  if (!recorteTemData(recorte)) return true
 
   return item.avaliacoes.some((av) => {
     if (recorteDa(av) !== recorte) return false
@@ -141,7 +142,7 @@ function noRecorteVisivel(item: ItemDoEspaco, recorte: Recorte): boolean {
 }
 
 const porRecorte = computed<Record<Recorte, ItemDoEspaco[]>>(() => {
-  const grupos = { planejado: [], visto: [], disponivel: [] } as Record<Recorte, ItemDoEspaco[]>
+  const grupos = { planejado: [], vendo: [], visto: [], disponivel: [] } as Record<Recorte, ItemDoEspaco[]>
   for (const item of itens.value ?? []) {
     for (const recorte of RECORTES) {
       if (itemNoRecorte(item, recorte) && noRecorteVisivel(item, recorte)) grupos[recorte].push(item)
@@ -149,6 +150,13 @@ const porRecorte = computed<Record<Recorte, ItemDoEspaco[]>>(() => {
   }
   return grupos
 })
+
+const VAZIO: Record<Recorte, string> = {
+  planejado: 'Nada marcado neste recorte.',
+  vendo: 'Nada em andamento.',
+  visto: 'Nada assistido neste recorte.',
+  disponivel: 'Nenhum interesse sem data.',
+}
 
 /**
  * Assistidos sem data ficam fora do painel por não terem mês. Sem este aviso
@@ -196,6 +204,12 @@ async function mover(item: ItemDoEspaco, recorte: Recorte, data: string | null) 
       await avaliar.mutateAsync({ entryId: item.id, status: 'quero', planejado_para: null, visto_em: null })
       toast.success(`"${item.media.titulo}" na sua lista de interesse.`)
     }
+    else if (recorte === 'vendo') {
+      // Sem data: "assistindo" é um intervalo, não um dia. `visto_em` sai para
+      // o item não cair de volta em "assistidos" na próxima leitura.
+      await avaliar.mutateAsync({ entryId: item.id, status: 'vendo', visto_em: null })
+      toast.success(`"${item.media.titulo}" em andamento.`)
+    }
     else if (recorte === 'planejado') {
       const convidados = await planejar.mutateAsync({ entryId: item.id, data: data! })
       toast.success(convidados
@@ -227,8 +241,8 @@ async function mover(item: ItemDoEspaco, recorte: Recorte, data: string | null) 
 
 function acionar(item: ItemDoEspaco, recorte: Recorte) {
   if (recorteDa(avaliacaoDe(item, usuarioId.value)) === recorte) return
-  if (recorte === 'disponivel') mover(item, recorte, null)
-  else pedirData(item, recorte)
+  if (recorteTemData(recorte)) pedirData(item, recorte)
+  else mover(item, recorte, null)
 }
 
 function aoSoltar(e: DragEvent, recorte: Recorte) {
@@ -379,8 +393,9 @@ function confirmarData(semData = false) {
           >
             <div class="mb-2 flex items-center justify-between gap-2">
               <h3 class="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <!-- Só os recortes com data têm marcador no calendário. -->
                 <span
-                  v-if="recorte !== 'disponivel'"
+                  v-if="recorteTemData(recorte)"
                   class="size-1.5 rounded-full"
                   :class="recorte === 'visto' ? 'bg-emerald-500' : 'bg-sky-500'"
                 />
@@ -407,7 +422,7 @@ function confirmarData(semData = false) {
               @mover="acionar"
             />
             <p v-else class="px-1 pb-1 text-sm text-muted-foreground">
-              {{ recorte === 'disponivel' ? 'Nenhum interesse sem data.' : 'Nada neste recorte.' }}
+              {{ VAZIO[recorte] }}
             </p>
 
             <p v-if="recorte === 'visto' && assistidosSemData" class="mt-1 px-1 text-xs text-muted-foreground">

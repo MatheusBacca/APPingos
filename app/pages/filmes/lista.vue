@@ -11,6 +11,7 @@ import {
   ehRecorte,
   itemNoRecorte,
   recorteDa,
+  recorteTemData,
 } from '@/lib/recortes'
 import type { Recorte } from '@/lib/recortes'
 import type { ItemDoEspaco } from '~/types/catalogo'
@@ -75,6 +76,9 @@ async function entrar(item: ItemDoEspaco, recorte: Recorte) {
     if (recorte === 'disponivel') {
       await avaliar.mutateAsync({ entryId: item.id, status: 'quero', planejado_para: null, visto_em: null })
     }
+    else if (recorte === 'vendo') {
+      await avaliar.mutateAsync({ entryId: item.id, status: 'vendo', visto_em: null })
+    }
     else if (recorte === 'planejado') {
       await planejar.mutateAsync({ entryId: item.id, data: datas[0] ?? new Date().toISOString().slice(0, 10) })
     }
@@ -132,7 +136,7 @@ async function entrar(item: ItemDoEspaco, recorte: Recorte) {
       <section v-for="recorte in visiveis" :key="recorte">
         <h2 class="mb-1 flex items-center gap-2 text-sm font-medium">
           <span
-            v-if="recorte !== 'disponivel'"
+            v-if="recorteTemData(recorte)"
             class="size-1.5 rounded-full"
             :class="recorte === 'visto' ? 'bg-emerald-500' : 'bg-sky-500'"
           />

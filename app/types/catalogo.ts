@@ -1,10 +1,12 @@
 export type TipoMidia = 'filme' | 'serie' | 'livro' | 'musica' | 'jogo'
 export type StatusItem = 'quero' | 'vendo' | 'visto' | 'abandonei'
 
+// Mesmos rótulos dos recortes da tela de Filmes (ver `app/lib/recortes.ts`),
+// para o mesmo estado não ter dois nomes no app.
 export const STATUS_ROTULO: Record<StatusItem, string> = {
   quero: 'Quero ver',
-  vendo: 'Vendo',
-  visto: 'Visto',
+  vendo: 'Assistindo',
+  visto: 'Assistido',
   abandonei: 'Abandonei',
 }
 

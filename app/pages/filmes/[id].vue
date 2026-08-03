@@ -155,9 +155,17 @@ async function onRemover() {
             {{ item.media.sinopse }}
           </p>
 
+          <!--
+            Sair de "Visto" limpa a data: "estou assistindo" contradiz "terminei
+            no dia X", e sem isto o recorte continuaria mostrando o item como
+            assistido, porque `visto_em` preenchido vence o status.
+          -->
           <StatusSelect
             :status="minhaAvaliacao?.status ?? 'quero'"
-            @update:status="salvarCampo({ status: $event }, 'Não deu para salvar.')"
+            @update:status="salvarCampo(
+              $event === 'visto' ? { status: $event } : { status: $event, visto_em: null },
+              'Não deu para salvar.',
+            )"
           />
         </div>
       </div>
