@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { mensagemDeErro } from '@/lib/utils'
-import { CheckIcon, CopyIcon, HeartIcon, LinkIcon, TriangleAlertIcon, UserIcon } from '@lucide/vue'
+import { CheckIcon, ChevronsUpDownIcon, CopyIcon, HeartIcon, LinkIcon, TriangleAlertIcon, UserIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,9 +12,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { PAPEL_ROTULO } from '~/types/database.types'
 
 useHead({ title: 'Espaços · APPingos' })
 
@@ -25,6 +32,7 @@ const criarEspaco = useCriarEspaco()
 const criarConvite = useCriarConvite()
 const resgatarConvite = useResgatarConvite()
 const deletarEspaco = useDeletarEspaco()
+const definirPapel = useDefinirPapel()
 
 // Vem de useMembros() e não de uma query local: as duas usariam a chave de
 // cache ['membros'] com formatos diferentes, e quem carregasse primeiro
@@ -81,6 +89,25 @@ async function copiarLink() {
   await navigator.clipboard.writeText(linkConvite.value)
   linkCopiado.value = true
   toast.success('Link copiado.')
+}
+
+// ---- Cargos (só o dono muda) -----------------------------------------------
+
+const souDono = computed(() => store.espacoAtivo?.papel === 'dono')
+
+const PAPEL_DESCRICAO: Record<'admin' | 'membro', string> = {
+  admin: 'Pode marcar quem assistiu junto, no lugar da pessoa.',
+  membro: 'Só mexe nos próprios registros.',
+}
+
+async function onDefinirPapel(userId: string, papel: 'admin' | 'membro') {
+  try {
+    await definirPapel.mutateAsync({ userId, papel })
+    toast.success(`Cargo alterado para ${PAPEL_ROTULO[papel]}.`)
+  }
+  catch (e) {
+    toast.error(mensagemDeErro(e, 'Não deu para mudar o cargo.'))
+  }
 }
 
 // ---- Exclusão do espaço (só o dono) ----------------------------------------
@@ -172,7 +199,37 @@ async function onResgatar() {
                 {{ membro.nome.charAt(0).toUpperCase() }}
               </span>
               <span class="flex-1">{{ membro.nome }}</span>
-              <span class="text-xs text-muted-foreground">{{ membro.papel }}</span>
+
+              <!-- O dono não muda de cargo por aqui: transferir posse é outra história. -->
+              <span v-if="!souDono || membro.papel === 'dono'" class="text-xs text-muted-foreground">
+                {{ PAPEL_ROTULO[membro.papel] }}
+              </span>
+
+              <DropdownMenu v-else>
+                <DropdownMenuTrigger as-child>
+                  <button
+                    type="button"
+                    class="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+                    :disabled="definirPapel.isPending.value"
+                    :aria-label="`Cargo de ${membro.nome}`"
+                  >
+                    {{ PAPEL_ROTULO[membro.papel] }}
+                    <ChevronsUpDownIcon class="size-3" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" class="w-52">
+                  <DropdownMenuItem
+                    v-for="papel in (['admin', 'membro'] as const)"
+                    :key="papel"
+                    class="flex-col items-start gap-0"
+                    :disabled="membro.papel === papel"
+                    @select="onDefinirPapel(membro.user_id, papel)"
+                  >
+                    <span class="font-medium">{{ PAPEL_ROTULO[papel] }}</span>
+                    <span class="text-xs text-muted-foreground">{{ PAPEL_DESCRICAO[papel] }}</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </li>
           </ul>
           <Skeleton v-else-if="membros.isPending.value" class="h-7 w-full" />

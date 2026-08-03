@@ -16,8 +16,19 @@ export type Database = GeneratedDatabase
  * ao mexer no CHECK de uma migration, ajuste aqui também.
  * Ver supabase/migrations/20260730120000_foundation.sql
  */
-export type Papel = 'dono' | 'membro'
+export type Papel = 'dono' | 'admin' | 'membro'
 export type TipoEspaco = 'pessoal' | 'casal'
+
+export const PAPEL_ROTULO: Record<Papel, string> = {
+  dono: 'Dono',
+  admin: 'Admin',
+  membro: 'Membro',
+}
+
+/** Dono é admin por definição — espelha `is_space_admin` no banco. */
+export function ehAdmin(papel: Papel | string | undefined | null): boolean {
+  return papel === 'dono' || papel === 'admin'
+}
 
 /** Espaço + o papel do usuário atual nele. */
 export interface EspacoComPapel {

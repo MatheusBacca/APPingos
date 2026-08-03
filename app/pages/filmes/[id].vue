@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { mensagemDeErro } from '@/lib/utils'
-import { LockIcon, Trash2Icon } from '@lucide/vue'
+import { LockIcon, Trash2Icon, UsersIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { formatarDia } from '@/lib/datas'
+import { ehAdmin } from '~/types/database.types'
 import type { StatusItem } from '~/types/catalogo'
 
 const route = useRoute()
@@ -94,6 +96,51 @@ async function salvarCampo(campos: Partial<{ status: StatusItem, planejado_para:
 
 function onMudarData(campo: 'planejado_para' | 'visto_em', valor: string) {
   salvarCampo({ [campo]: valor || null }, 'Não deu para salvar a data.')
+}
+
+// ---- "Assistiram comigo" (dono/admin) ---------------------------------------
+
+const store = useSpaceStore()
+const marcarCompanhia = useMarcarAssistiramComigo()
+const selecionados = ref<string[]>([])
+const marcandoCompanhia = ref(false)
+
+const podeMarcarCompanhia = computed(() =>
+  ehAdmin(store.espacoAtivo?.papel)
+  && !!minhaAvaliacao.value?.visto_em
+  && candidatosACompanhia.value.length > 0,
+)
+
+/** Todo mundo menos eu, com o que já está registrado para cada um. */
+const candidatosACompanhia = computed(() =>
+  (membros.value ?? [])
+    .filter(m => m.user_id !== usuarioId.value)
+    .map((membro) => {
+      const av = item.value?.avaliacoes.find(a => a.user_id === membro.user_id)
+      return {
+        membro,
+        situacao: av?.visto_em
+          ? (av.visto_em === minhaAvaliacao.value?.visto_em
+              ? 'já com a mesma data'
+              : `hoje marcado em ${formatarDia(av.visto_em)}`)
+          : 'sem data de assistido',
+      }
+    }),
+)
+
+async function onMarcarCompanhia() {
+  marcandoCompanhia.value = true
+  try {
+    const total = await marcarCompanhia.mutateAsync({ entryId, usuarios: selecionados.value })
+    selecionados.value = []
+    toast.success(total === 1 ? 'Marcado para uma pessoa.' : `Marcado para ${total} pessoas.`)
+  }
+  catch (e) {
+    toast.error(mensagemDeErro(e, 'Não deu para marcar.'))
+  }
+  finally {
+    marcandoCompanhia.value = false
+  }
 }
 
 async function onRemover() {
@@ -196,6 +243,44 @@ async function onRemover() {
             />
           </div>
         </div>
+      </section>
+
+      <!-- Só dono/admin, e só depois de ter a própria data: é ela que será copiada. -->
+      <section v-if="podeMarcarCompanhia">
+        <h2 class="mb-1 flex items-center gap-2 text-sm font-medium">
+          <UsersIcon class="size-4 text-muted-foreground" />
+          Quem assistiu com você
+        </h2>
+        <p class="mb-3 text-xs text-muted-foreground">
+          Marca a mesma data que a sua ({{ formatarDia(minhaAvaliacao!.visto_em!) }}) para quem
+          estava junto. A nota e a resenha continuam sendo de cada um.
+        </p>
+
+        <ul class="space-y-2">
+          <li v-for="companhia in candidatosACompanhia" :key="companhia.membro.user_id" class="flex items-center gap-2 text-sm">
+            <input
+              :id="`comigo-${companhia.membro.user_id}`"
+              v-model="selecionados"
+              type="checkbox"
+              :value="companhia.membro.user_id"
+              class="size-4 rounded border-input"
+            >
+            <label :for="`comigo-${companhia.membro.user_id}`" class="flex-1">
+              {{ companhia.membro.nome }}
+            </label>
+            <span class="text-xs text-muted-foreground">{{ companhia.situacao }}</span>
+          </li>
+        </ul>
+
+        <Button
+          class="mt-3"
+          size="sm"
+          variant="outline"
+          :disabled="!selecionados.length || marcandoCompanhia"
+          @click="onMarcarCompanhia"
+        >
+          {{ marcandoCompanhia ? 'Salvando…' : 'Assistiram comigo' }}
+        </Button>
       </section>
 
       <section>

@@ -416,10 +416,19 @@ export type Database = {
         Returns: string
       }
       criar_convite: { Args: { p_space: string }; Returns: string }
+      definir_papel: {
+        Args: { p_papel: string; p_space: string; p_user: string }
+        Returns: undefined
+      }
       deletar_espaco: { Args: { p_space: string }; Returns: undefined }
       gerar_codigo_convite: { Args: never; Returns: string }
+      is_space_admin: { Args: { p_space: string }; Returns: boolean }
       is_space_member: { Args: { p_space: string }; Returns: boolean }
       is_space_owner: { Args: { p_space: string }; Returns: boolean }
+      marcar_assistiram_comigo: {
+        Args: { p_entry: string; p_usuarios: string[] }
+        Returns: number
+      }
       planejar_filme: {
         Args: { p_data: string; p_entry: string }
         Returns: number

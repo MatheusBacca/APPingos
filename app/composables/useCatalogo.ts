@@ -136,6 +136,34 @@ export function usePlanejarFilme() {
   )
 }
 
+/**
+ * Dono/admin marca quem assistiu junto, copiando a própria data.
+ *
+ * Via RPC porque escreve na avaliação de outra pessoa — a RLS de `rating` só
+ * permite escrever na própria linha, e continua assim para o resto do app.
+ */
+export function useMarcarAssistiramComigo() {
+  const supabase = useSupabaseClient()
+  const queryClient = useQueryClient()
+  const store = useSpaceStore()
+
+  return useSpaceMutation<{ entryId: string, usuarios: string[] }, number>(
+    async (_spaceId, { entryId, usuarios }) => {
+      const { data, error } = await supabase.rpc('marcar_assistiram_comigo', {
+        p_entry: entryId,
+        p_usuarios: usuarios,
+      })
+      if (error) throw error
+
+      await queryClient.invalidateQueries({
+        queryKey: ['space', store.espacoAtivoId, 'catalogo', 'item', entryId],
+      })
+      return (data ?? 0) as number
+    },
+    [['catalogo']],
+  )
+}
+
 export function useRemoverItem() {
   const supabase = useSupabaseClient()
 

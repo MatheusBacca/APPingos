@@ -105,6 +105,34 @@ módulo de Orçamento (segundo motor: série temporal com meta).
 
 ---
 
+## 2026-08-03 — Papel "admin" no espaço
+
+**Contexto:** existiam só dois níveis — dono e todo o resto. Faltava um meio-termo para quem
+pode agir em nome do espaço sem poder destruí-lo.
+
+**Feito:**
+- `membership.papel` aceita `'admin'`. Quem entra por convite continua `'membro'`.
+- Só o **dono** promove e rebaixa, pela página de Espaços. A RPC `definir_papel` recusa
+  qualquer outro, recusa o dono mudando o próprio cargo, e **não aceita `'dono'` como valor** —
+  transferência de posse fica de fora até ser pensada direito. Um espaço com dois donos, ou com
+  nenhum, é um estado que ninguém quer descobrir depois.
+- Primeiro poder do admin: **"Quem assistiu com você"** na tela do filme. Ele marca quem estava
+  junto, e essas pessoas herdam a mesma data de assistido que a dele.
+
+**Decisão: dono é admin por definição.** `is_space_admin` cobre os dois, para nenhuma policy
+precisar escrever "dono ou admin" à mão e esquecer um caso.
+
+**O que a RPC não faz, de propósito:** ela copia só a data. Nota e resenha continuam de cada
+um — a data é um fato compartilhado ("estávamos juntos"), a opinião não é. Verificado: ao
+marcar a companheira, a nota 5 e o carimbo de avaliação enviada dela continuaram intactos, só
+a data mudou. Ela também exige que o admin já tenha a **própria** data preenchida: é ela que
+vai ser copiada, e sem isso não há o que copiar.
+
+A tela mostra a situação atual de cada pessoa antes de marcar ("hoje marcado em 14 de agosto"),
+para o admin ver o que está prestes a sobrescrever em vez de descobrir depois.
+
+---
+
 ## 2026-08-03 — Recorte "Assistindo"
 
 Para série, que leva dias: um estado entre "queremos ver" e "assistidos". **Sem data** — é um
