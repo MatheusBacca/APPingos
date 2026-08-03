@@ -24,7 +24,11 @@ export interface Avaliacao {
   status: StatusItem
   nota: number | null
   resenha: string | null
+  /** Datas em ISO curto (YYYY-MM-DD) — são `date` no banco, sem fuso. */
+  planejado_para: string | null
   visto_em: string | null
+  /** Carimbo do "Enviar". Preenchido = nota e resenha não mudam mais. */
+  enviado_em: string | null
 }
 
 export interface ItemDoEspaco {
@@ -32,6 +36,17 @@ export interface ItemDoEspaco {
   created_at: string
   media: MediaItem
   avaliacoes: Avaliacao[]
+}
+
+/** Um item marcado num dia do calendário. */
+export interface MarcadorDia {
+  /** YYYY-MM-DD */
+  data: string
+  entryId: string
+  titulo: string
+  /** Nome de quem marcou — no espaço de casal, a mesma data pode ser de um só. */
+  quem: string
+  tom: 'planejado' | 'visto'
 }
 
 /** Payload aceito pela RPC adicionar_item. */

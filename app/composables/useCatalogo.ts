@@ -7,7 +7,7 @@ const SELECT = `
   id,
   created_at,
   media:media_item!inner(id, tipo, titulo, titulo_original, ano, capa_url, sinopse, metadados),
-  avaliacoes:rating(user_id, status, nota, resenha, visto_em)
+  avaliacoes:rating(user_id, status, nota, resenha, planejado_para, visto_em, enviado_em)
 `
 
 /**
@@ -77,7 +77,9 @@ interface AvaliacaoInput {
   status?: StatusItem
   nota?: number | null
   resenha?: string | null
+  planejado_para?: string | null
   visto_em?: string | null
+  enviado_em?: string | null
 }
 
 export function useAvaliar() {

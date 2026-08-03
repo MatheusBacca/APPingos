@@ -220,8 +220,10 @@ export type Database = {
       rating: {
         Row: {
           entry_id: string
+          enviado_em: string | null
           id: string
           nota: number | null
+          planejado_para: string | null
           resenha: string | null
           status: string
           updated_at: string
@@ -230,8 +232,10 @@ export type Database = {
         }
         Insert: {
           entry_id: string
+          enviado_em?: string | null
           id?: string
           nota?: number | null
+          planejado_para?: string | null
           resenha?: string | null
           status?: string
           updated_at?: string
@@ -240,8 +244,10 @@ export type Database = {
         }
         Update: {
           entry_id?: string
+          enviado_em?: string | null
           id?: string
           nota?: number | null
+          planejado_para?: string | null
           resenha?: string | null
           status?: string
           updated_at?: string

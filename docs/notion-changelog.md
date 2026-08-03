@@ -137,3 +137,42 @@ ao usuário. Centralizado em `mensagemDeErro()` (`app/lib/utils.ts`).
 **Também nesta sessão:** documento de planejamento de Stories/timeline
 (`notion-plano-stories-timeline.md`) — decisão de escopo registrada: publicações permanentes,
 não efêmeras.
+
+---
+
+## 2026-08-03 — Agenda de filmes e avaliação fechada
+
+**Feito:**
+- Migration `20260731140000_agenda_avaliacao.sql`: `planejado_para` e `enviado_em` em `rating`,
+  mais um trigger que congela nota e resenha depois do envio
+- `/filmes` virou a **Agenda**: calendário do mês com as datas marcadas e um painel à direita
+  com "Queremos ver" e "Assistidos". A busca foi para `/filmes/buscar`; três abas agora
+- Card do filme refeito: botão **Voltar**, campos de data, e um formulário único de
+  estrelas + resenha com um só botão "Enviar" (a resenha é opcional). Depois de enviar, a
+  avaliação vira registro fixo
+- Validado com as duas contas: a trava foi testada chamando a API direto, não só pela tela
+
+**Decisão: as datas são pessoais, não do casal.** Ficam em `rating`, junto da avaliação. No
+espaço de casal cada um marca a sua, e o calendário mostra as duas com o nome de quem marcou —
+"ela viu no dia 14, eu vi no dia 13" é informação, não duplicidade. Foi também a deixa para
+uma feature futura: deixar o usuário decidir compartilhar um registro pessoal com o espaço,
+e a partir daí os outros membros interagirem com ele.
+
+**Datas como texto, nunca como `Date`.** O banco guarda `date` (sem hora, sem fuso). Passar
+`'2026-08-05'` por `new Date()` interpreta em UTC e, no nosso fuso, devolve o dia 4 — o
+clássico "o filme aparece um dia antes". `app/lib/datas.ts` centraliza isso: a data é texto
+`YYYY-MM-DD` do banco até a tela, e só o cálculo da grade do mês usa `Date`, sempre local.
+
+**Dois bugs corrigidos, ambos relatados ou achados testando:**
+1. **Nome de quem avaliou aparecia como "Alguém".** `espacos.vue` e `useMembros()` usavam a
+   mesma chave de cache `['membros']` com formatos de retorno diferentes — quem carregasse
+   primeiro entregava o objeto errado para a outra tela. Unificado em `useMembros()`.
+2. **O rascunho da avaliação era apagado ao salvar uma data.** O watcher re-semeava
+   nota/resenha a cada mudança de `minhaAvaliacao`, e salvar a data revalida o item: as
+   estrelas voltavam ao estado do banco no meio do preenchimento. Agora o rascunho é semeado
+   uma vez só.
+
+**Também nesta sessão:** planos para o Notion de
+[Notas](./notion-plano-notas.md) (o editor de documentos, com Markdown como fonte da verdade)
+e [Interesses](./notion-plano-interesses.md) (registrar a ideia crua e depois convertê-la em
+objetivo/viagem/orçamento).

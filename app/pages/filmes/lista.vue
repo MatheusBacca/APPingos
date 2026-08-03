@@ -26,28 +26,14 @@ const grupos = computed(() => {
 
 <template>
   <div class="space-y-6">
-    <header class="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h1 class="text-2xl font-semibold tracking-tight">Filmes & Séries</h1>
-        <p class="mt-1 text-sm text-muted-foreground">Agrupado pelo seu status.</p>
-      </div>
-
-      <nav class="flex gap-1 rounded-lg border bg-card p-1 text-sm">
-        <NuxtLink to="/filmes" class="rounded-md px-3 py-1.5 font-medium text-muted-foreground hover:text-foreground">
-          Buscar
-        </NuxtLink>
-        <NuxtLink to="/filmes/lista" class="rounded-md px-3 py-1.5 font-medium text-primary">
-          Nossa lista
-        </NuxtLink>
-      </nav>
-    </header>
+    <FilmesAbas subtitulo="Agrupado pelo seu status." />
 
     <div v-if="isPending" class="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-6">
       <Skeleton v-for="i in 6" :key="i" class="aspect-[2/3] w-full rounded-lg" />
     </div>
 
     <p v-else-if="!itens?.length" class="text-sm text-muted-foreground">
-      Nada por aqui ainda. <NuxtLink to="/filmes" class="text-primary hover:underline">Busque algo</NuxtLink> para começar.
+      Nada por aqui ainda. <NuxtLink to="/filmes/buscar" class="text-primary hover:underline">Busque algo</NuxtLink> para começar.
     </p>
 
     <template v-else>

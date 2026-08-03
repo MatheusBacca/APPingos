@@ -26,21 +26,11 @@ const criarConvite = useCriarConvite()
 const resgatarConvite = useResgatarConvite()
 const deletarEspaco = useDeletarEspaco()
 
-// Membros do espaço ativo. A policy de membership devolve todo mundo do espaço,
-// então aqui não filtramos por usuário.
-const membros = useSpaceQuery(['membros'], async (spaceId) => {
-  const { data, error } = await supabase
-    .from('membership')
-    .select('user_id, papel, profile:profile(nome, avatar_url)')
-    .eq('space_id', spaceId)
-
-  if (error) throw error
-  return data as unknown as Array<{
-    user_id: string
-    papel: string
-    profile: { nome: string, avatar_url: string | null } | null
-  }>
-})
+// Vem de useMembros() e não de uma query local: as duas usariam a chave de
+// cache ['membros'] com formatos diferentes, e quem carregasse primeiro
+// entregava o objeto errado para a outra tela — era por isso que o nome de quem
+// avaliou aparecia como "Alguém" no card do filme.
+const membros = useMembros()
 
 const nomeNovoEspaco = ref('')
 const codigoGerado = ref<string | null>(null)
@@ -179,9 +169,9 @@ async function onResgatar() {
               class="flex items-center gap-2 text-sm"
             >
               <span class="grid size-7 place-items-center rounded-full bg-muted text-xs font-medium">
-                {{ (membro.profile?.nome ?? '?').charAt(0).toUpperCase() }}
+                {{ membro.nome.charAt(0).toUpperCase() }}
               </span>
-              <span class="flex-1">{{ membro.profile?.nome ?? 'Sem nome' }}</span>
+              <span class="flex-1">{{ membro.nome }}</span>
               <span class="text-xs text-muted-foreground">{{ membro.papel }}</span>
             </li>
           </ul>
