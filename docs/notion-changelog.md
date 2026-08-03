@@ -105,6 +105,29 @@ módulo de Orçamento (segundo motor: série temporal com meta).
 
 ---
 
+## 2026-08-03 — Mover no celular, e o filtro de mês sem exceção
+
+**Feito:**
+- "Queremos ver" e "Assistidos" no painel do calendário passam a seguir o dia/mês visível
+  **sem exceção**. Um assistido sem data não tem mês a que pertencer e vive em Nossa lista; a
+  seção mostra "+N sem data, em Nossa lista" para não virar sumiço silencioso.
+- **Menu "mover para…"** em cada cartaz, com os três destinos e o atual marcado. É o caminho
+  do celular, onde arrastar não funciona.
+
+**Por que menu e não arrastar no celular.** O arraste em si é fácil; o problema é a rolagem.
+No toque, o navegador decide **no início do gesto** se o dedo rola a página ou é da aplicação,
+pela CSS `touch-action`. Para capturar o arraste, o cartaz precisaria de `touch-action: none` —
+e aí não dá mais para rolar a página passando o dedo sobre um pôster, numa grade que é quase
+toda pôster.
+
+As saídas seriam uma alça de arraste (alvo pequeno, e sem como testar com dedo de verdade
+aqui) ou uma biblioteca como o Sortable.js — que resolve, mas quer ser dona do array, e as
+nossas listas são computadas do servidor: cada movimento precisaria de lógica de reverter.
+Dois toques certeiros num menu batem um long-press que erra fácil, então o menu ficou como
+solução, não como remendo. O arraste continua no desktop.
+
+---
+
 ## 2026-08-03 — Interesse, convite para assistir junto e "não lembro"
 
 **Contexto:** a tela presumia que todo mundo do espaço queria ver tudo que fosse adicionado —

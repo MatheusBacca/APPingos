@@ -1,4 +1,14 @@
 <script setup lang="ts">
+import { CheckIcon, MoveHorizontalIcon } from '@lucide/vue'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { RECORTES, RECORTE_ROTULO } from '@/lib/recortes'
+import type { Recorte } from '@/lib/recortes'
 import type { Membro } from '~/composables/useMembros'
 import type { ItemDoEspaco } from '~/types/catalogo'
 
@@ -9,11 +19,13 @@ const props = withDefaults(defineProps<{
   /** Falso quando eu já estou neste estado: nada a somar. */
   podeEntrar: boolean
   entrando: boolean
-  /** Só os tópicos do calendário aceitam arraste; a lista de baixo, não. */
+  /** Onde EU estou neste filme — marca o item atual no menu. */
+  meuRecorte?: Recorte | null
+  /** Só os recortes do calendário aceitam arraste; a lista, não. */
   arrastavel?: boolean
-}>(), { arrastavel: true })
+}>(), { arrastavel: true, meuRecorte: null })
 
-const emit = defineEmits<{ entrar: [] }>()
+const emit = defineEmits<{ entrar: [], mover: [Recorte] }>()
 
 const arrastando = ref(false)
 
@@ -49,5 +61,37 @@ function onDragStart(e: DragEvent) {
         </template>
       </PosterCard>
     </NuxtLink>
+
+    <!--
+      Fora do link, e sempre visível: no celular não existe hover, e arrastar
+      não funciona em tela de toque. Este menu é o caminho de lá.
+    -->
+    <DropdownMenu>
+      <DropdownMenuTrigger as-child>
+        <button
+          type="button"
+          class="absolute right-1 top-1 grid size-6 place-items-center rounded-md bg-black/50 text-white backdrop-blur-sm transition-opacity hover:bg-black/70 focus-visible:opacity-100"
+          :aria-label="`Mover ${item.media.titulo}`"
+          @click.stop.prevent
+        >
+          <MoveHorizontalIcon class="size-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent align="end" class="w-44">
+        <DropdownMenuLabel class="text-xs text-muted-foreground">Mover para</DropdownMenuLabel>
+        <DropdownMenuItem
+          v-for="destino in RECORTES"
+          :key="destino"
+          class="gap-2"
+          :disabled="destino === meuRecorte"
+          @select="emit('mover', destino)"
+        >
+          <CheckIcon v-if="destino === meuRecorte" class="size-4 text-primary" />
+          <span v-else class="size-4" />
+          {{ RECORTE_ROTULO[destino] }}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   </div>
 </template>

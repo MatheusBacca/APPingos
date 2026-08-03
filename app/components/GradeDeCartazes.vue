@@ -18,7 +18,10 @@ const props = withDefaults(defineProps<{
   classeGrade: 'grid-cols-5',
 })
 
-const emit = defineEmits<{ entrar: [ItemDoEspaco] }>()
+const emit = defineEmits<{
+  entrar: [ItemDoEspaco]
+  mover: [item: ItemDoEspaco, destino: Recorte]
+}>()
 
 const usuarioId = useUsuarioId()
 
@@ -42,7 +45,9 @@ function euEstouAqui(item: ItemDoEspaco): boolean {
       :membros-no-estado="membrosNoRecorte(item)"
       :pode-entrar="!euEstouAqui(item)"
       :entrando="emAndamento.has(`${item.id}:${recorte}`)"
+      :meu-recorte="recorteDa(avaliacaoDe(item, usuarioId))"
       @entrar="emit('entrar', item)"
+      @mover="emit('mover', item, $event)"
     />
   </div>
 </template>

@@ -404,6 +404,7 @@ function confirmarData(semData = false) {
               :membros="membros ?? []"
               :em-andamento="emAndamento"
               @entrar="acionar($event, recorte)"
+              @mover="acionar"
             />
             <p v-else class="px-1 pb-1 text-sm text-muted-foreground">
               {{ recorte === 'disponivel' ? 'Nenhum interesse sem data.' : 'Nada neste recorte.' }}

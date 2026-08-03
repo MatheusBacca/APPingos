@@ -152,6 +152,7 @@ async function entrar(item: ItemDoEspaco, recorte: Recorte) {
           :arrastavel="false"
           classe-grade="grid-cols-3 sm:grid-cols-4 md:grid-cols-6"
           @entrar="entrar($event, recorte)"
+          @mover="entrar"
         />
         <p v-else class="text-sm text-muted-foreground">Nada aqui ainda.</p>
       </section>
