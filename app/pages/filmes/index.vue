@@ -2,7 +2,7 @@
 import { mensagemDeErro } from '@/lib/utils'
 import { useQuery } from '@tanstack/vue-query'
 import { refDebounced } from '@vueuse/core'
-import { PlusIcon, SearchIcon } from '@lucide/vue'
+import { CalendarOffIcon, PlusIcon, SearchIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -16,10 +16,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatarDia, formatarMes, hojeIso, mesmoMes, primeiroDoMes } from '@/lib/datas'
-import { STATUS_ROTULO } from '~/types/catalogo'
-import type { Membro } from '~/composables/useMembros'
+import { RECORTES, RECORTE_ROTULO, avaliacaoDe, dataDoRecorte, itemNoRecorte, recorteDa } from '@/lib/recortes'
+import type { Recorte } from '@/lib/recortes'
 import type { ResultadoBusca } from '~~/server/utils/tmdb'
-import type { Avaliacao, ItemDoEspaco, ItemParaAdicionar, MarcadorDia, StatusItem } from '~/types/catalogo'
+import type { ItemDoEspaco, ItemParaAdicionar, MarcadorDia } from '~/types/catalogo'
 
 useHead({ title: 'Filmes & Séries · APPingos' })
 
@@ -27,6 +27,33 @@ const usuarioId = useUsuarioId()
 const { data: itens, isPending } = useItens(['filme', 'serie'])
 const { data: membros } = useMembros()
 const avaliar = useAvaliar()
+const planejar = usePlanejarFilme()
+
+// ---- Convites para assistir junto -------------------------------------------
+
+const { data: convites } = useConvitesFilme()
+const responder = useResponderConvite()
+const respondendo = ref(new Set<string>())
+
+function nomeDoMembro(userId: string): string {
+  return membros.value?.find(m => m.user_id === userId)?.nome ?? 'Alguém'
+}
+
+async function onResponder(id: string, aceito: boolean) {
+  respondendo.value = new Set(respondendo.value).add(id)
+  try {
+    await responder.mutateAsync({ id, aceito })
+    toast.success(aceito ? 'Combinado!' : 'Convite recusado.')
+  }
+  catch (e) {
+    toast.error(mensagemDeErro(e, 'Não deu para responder.'))
+  }
+  finally {
+    const copia = new Set(respondendo.value)
+    copia.delete(id)
+    respondendo.value = copia
+  }
+}
 
 // ---- Busca -----------------------------------------------------------------
 
@@ -64,7 +91,7 @@ async function onAdicionar(resultado: ResultadoBusca) {
       metadados: { nota_tmdb: resultado.nota_tmdb },
     }
     await adicionar.mutateAsync(item)
-    toast.success(`"${resultado.titulo}" adicionado.`)
+    toast.success(`"${resultado.titulo}" adicionado à lista de interesse.`)
     termo.value = ''
   }
   catch (e) {
@@ -75,55 +102,10 @@ async function onAdicionar(resultado: ResultadoBusca) {
   }
 }
 
-// ---- Estado de cada pessoa num item ----------------------------------------
-
-type Topico = 'disponivel' | 'planejado' | 'visto'
-
-const TOPICO_ROTULO: Record<Topico, string> = {
-  disponivel: 'Disponível',
-  planejado: 'Queremos ver',
-  visto: 'Assistidos',
-}
-
-/**
- * Em que tópico a avaliação de UMA pessoa coloca o item.
- *
- * Quem já viu não continua em "queremos ver" mesmo tendo planejado antes — o
- * plano foi cumprido, e manter os dois lugares faria o mesmo cartaz aparecer
- * duas vezes para a mesma pessoa.
- */
-function topicoDa(av: Avaliacao | undefined): Topico {
-  if (av?.visto_em) return 'visto'
-  if (av?.planejado_para) return 'planejado'
-  return 'disponivel'
-}
-
-function avaliacaoDe(item: ItemDoEspaco, userId: string | null): Avaliacao | undefined {
-  return item.avaliacoes.find(a => a.user_id === userId)
-}
-
-/**
- * Quem está neste tópico para este item.
- *
- * Em "disponível" contam também os membros que nunca tocaram no item: não ter
- * avaliação é o mesmo que não ter data.
- */
-function membrosNoTopico(item: ItemDoEspaco, topico: Topico): Membro[] {
-  return (membros.value ?? []).filter(m => topicoDa(avaliacaoDe(item, m.user_id)) === topico)
-}
-
-function euEstouEm(item: ItemDoEspaco, topico: Topico): boolean {
-  return topicoDa(avaliacaoDe(item, usuarioId.value)) === topico
-}
-
 // ---- Calendário ------------------------------------------------------------
 
 const mes = ref(primeiroDoMes(hojeIso()))
 const diaSelecionado = ref<string | null>(null)
-
-function nomeDoMembro(userId: string): string {
-  return membros.value?.find(m => m.user_id === userId)?.nome ?? 'Alguém'
-}
 
 const marcadores = computed<MarcadorDia[]>(() => {
   const lista: MarcadorDia[] = []
@@ -137,37 +119,31 @@ const marcadores = computed<MarcadorDia[]>(() => {
   return lista
 })
 
-/** Um item entra no recorte do calendário se QUALQUER pessoa o datou ali. */
-function noRecorte(item: ItemDoEspaco, tom: 'planejado' | 'visto'): boolean {
+/**
+ * O recorte do dia/mês visível.
+ *
+ * "Disponível" ignora o filtro por não ter data nenhuma — é o estoque de
+ * interesse. Um assistido sem data ("não lembro") também escapa do filtro,
+ * senão marcá-lo assim faria o cartaz sumir da tela.
+ */
+function noRecorteVisivel(item: ItemDoEspaco, recorte: Recorte): boolean {
+  if (recorte === 'disponivel') return true
+
   return item.avaliacoes.some((av) => {
-    const data = tom === 'visto' ? av.visto_em : av.planejado_para
-    if (!data) return false
+    if (recorteDa(av) !== recorte) return false
+    const data = dataDoRecorte(av, recorte)
+    if (!data) return true
     return diaSelecionado.value ? data === diaSelecionado.value : mesmoMes(data, mes.value)
   })
 }
 
-/**
- * Os três tópicos são a UNIÃO do que as duas pessoas marcaram — se ela quer
- * ver e eu ainda não, o cartaz aparece em "queremos ver" com a bolinha dela e
- * o "+" para eu entrar junto. É o que faz o espaço ser compartilhado de fato.
- *
- * "Disponível" é a exceção: só entra o que ninguém datou, e por isso ele
- * ignora o mês visível — é o estoque, não uma data.
- */
-const porTopico = computed<Record<Topico, ItemDoEspaco[]>>(() => {
-  const grupos: Record<Topico, ItemDoEspaco[]> = { disponivel: [], planejado: [], visto: [] }
-
+const porRecorte = computed<Record<Recorte, ItemDoEspaco[]>>(() => {
+  const grupos = { planejado: [], visto: [], disponivel: [] } as Record<Recorte, ItemDoEspaco[]>
   for (const item of itens.value ?? []) {
-    const topicos = new Set(item.avaliacoes.map(av => topicoDa(av)))
-
-    if (!topicos.has('planejado') && !topicos.has('visto')) {
-      grupos.disponivel.push(item)
-      continue
+    for (const recorte of RECORTES) {
+      if (itemNoRecorte(item, recorte) && noRecorteVisivel(item, recorte)) grupos[recorte].push(item)
     }
-    if (topicos.has('planejado') && noRecorte(item, 'planejado')) grupos.planejado.push(item)
-    if (topicos.has('visto') && noRecorte(item, 'visto')) grupos.visto.push(item)
   }
-
   return grupos
 })
 
@@ -175,40 +151,49 @@ const tituloDoPainel = computed(() =>
   diaSelecionado.value ? formatarDia(diaSelecionado.value) : formatarMes(mes.value),
 )
 
-// ---- Mover entre tópicos ---------------------------------------------------
+// ---- Mover entre recortes ---------------------------------------------------
 
 const emAndamento = ref(new Set<string>())
-const alvoDoArraste = ref<Topico | null>(null)
+const alvoDoArraste = ref<Recorte | null>(null)
 
-const dialogoData = ref<{ item: ItemDoEspaco, topico: Topico } | null>(null)
+const dialogoData = ref<{ item: ItemDoEspaco, recorte: Recorte } | null>(null)
 const dataEscolhida = ref(hojeIso())
 
-/** Data que já existe no tópico (a da outra pessoa) — entrar junto é o padrão. */
-function dataSugerida(item: ItemDoEspaco, topico: Topico): string {
-  const campo = topico === 'visto' ? 'visto_em' : 'planejado_para'
-  const datas = item.avaliacoes.map(av => av[campo]).filter((d): d is string => !!d).sort()
+/** Data que alguém já escolheu neste recorte — ir junto é o caso comum. */
+function dataSugerida(item: ItemDoEspaco, recorte: Recorte): string {
+  const datas = item.avaliacoes
+    .map(av => dataDoRecorte(av, recorte))
+    .filter((d): d is string => !!d)
+    .sort()
   return datas[0] ?? diaSelecionado.value ?? hojeIso()
 }
 
-function pedirData(item: ItemDoEspaco, topico: Topico) {
-  dataEscolhida.value = dataSugerida(item, topico)
-  dialogoData.value = { item, topico }
+function pedirData(item: ItemDoEspaco, recorte: Recorte) {
+  dataEscolhida.value = dataSugerida(item, recorte)
+  dialogoData.value = { item, recorte }
 }
 
-async function mover(item: ItemDoEspaco, topico: Topico, data?: string) {
-  const chave = `${item.id}:${topico}`
+async function mover(item: ItemDoEspaco, recorte: Recorte, data: string | null) {
+  const chave = `${item.id}:${recorte}`
   if (emAndamento.value.has(chave)) return
   emAndamento.value = new Set(emAndamento.value).add(chave)
 
   try {
-    if (topico === 'disponivel') {
-      await avaliar.mutateAsync({ entryId: item.id, planejado_para: null, visto_em: null, status: 'quero' })
+    if (recorte === 'disponivel') {
+      await avaliar.mutateAsync({ entryId: item.id, status: 'quero', planejado_para: null, visto_em: null })
+      toast.success(`"${item.media.titulo}" na sua lista de interesse.`)
     }
-    else if (topico === 'planejado') {
-      await avaliar.mutateAsync({ entryId: item.id, planejado_para: data!, visto_em: null, status: 'quero' })
+    else if (recorte === 'planejado') {
+      const convidados = await planejar.mutateAsync({ entryId: item.id, data: data! })
+      toast.success(convidados
+        ? `Marcado — ${convidados === 1 ? 'um convite enviado' : `${convidados} convites enviados`}.`
+        : `"${item.media.titulo}" marcado para ${formatarDia(data!)}.`)
     }
     else {
-      await avaliar.mutateAsync({ entryId: item.id, visto_em: data!, status: 'visto' })
+      await avaliar.mutateAsync({ entryId: item.id, status: 'visto', visto_em: data })
+      toast.success(data
+        ? `"${item.media.titulo}" assistido em ${formatarDia(data)}.`
+        : `"${item.media.titulo}" marcado como assistido.`)
     }
 
     // Sem isto o cartaz "some" ao ser movido para uma data de outro mês.
@@ -216,7 +201,6 @@ async function mover(item: ItemDoEspaco, topico: Topico, data?: string) {
       mes.value = primeiroDoMes(data)
       diaSelecionado.value = null
     }
-    toast.success(`"${item.media.titulo}" em ${TOPICO_ROTULO[topico]}.`)
   }
   catch (e) {
     toast.error(mensagemDeErro(e, 'Não deu para mover.'))
@@ -228,76 +212,66 @@ async function mover(item: ItemDoEspaco, topico: Topico, data?: string) {
   }
 }
 
-/** Soltar em "disponível" limpa as datas; nos outros dois, pergunta a data. */
-function aoSoltar(e: DragEvent, topico: Topico) {
+function acionar(item: ItemDoEspaco, recorte: Recorte) {
+  if (recorteDa(avaliacaoDe(item, usuarioId.value)) === recorte) return
+  if (recorte === 'disponivel') mover(item, recorte, null)
+  else pedirData(item, recorte)
+}
+
+function aoSoltar(e: DragEvent, recorte: Recorte) {
   alvoDoArraste.value = null
   const entryId = e.dataTransfer?.getData('text/plain')
   const item = (itens.value ?? []).find(i => i.id === entryId)
-  if (!item || euEstouEm(item, topico)) return
-
-  if (topico === 'disponivel') mover(item, topico)
-  else pedirData(item, topico)
+  if (item) acionar(item, recorte)
 }
 
-function confirmarData() {
+function confirmarData(semData = false) {
   const alvo = dialogoData.value
   if (!alvo) return
   dialogoData.value = null
-  mover(alvo.item, alvo.topico, dataEscolhida.value)
-}
-
-/** O "+" do rodapé: entrar no tópico onde o cartaz já está. */
-function entrarNoTopico(item: ItemDoEspaco, topico: Topico) {
-  if (topico === 'disponivel') mover(item, topico)
-  else pedirData(item, topico)
-}
-
-// ---- Segmentação por status (a lista de sempre) ----------------------------
-
-function meuStatus(item: ItemDoEspaco): StatusItem {
-  return avaliacaoDe(item, usuarioId.value)?.status ?? 'quero'
-}
-
-const porStatus = computed(() => {
-  const grupos = new Map<StatusItem, ItemDoEspaco[]>()
-  for (const status of Object.keys(STATUS_ROTULO) as StatusItem[]) grupos.set(status, [])
-  for (const item of itens.value ?? []) grupos.get(meuStatus(item))!.push(item)
-  return grupos
-})
-
-function membrosComStatus(item: ItemDoEspaco, status: StatusItem): Membro[] {
-  return (membros.value ?? []).filter(m => (avaliacaoDe(item, m.user_id)?.status ?? 'quero') === status)
-}
-
-async function assumirStatus(item: ItemDoEspaco, status: StatusItem) {
-  const chave = `${item.id}:${status}`
-  if (emAndamento.value.has(chave)) return
-  emAndamento.value = new Set(emAndamento.value).add(chave)
-  try {
-    await avaliar.mutateAsync({ entryId: item.id, status })
-    toast.success(`"${item.media.titulo}" em ${STATUS_ROTULO[status]}.`)
-  }
-  catch (e) {
-    toast.error(mensagemDeErro(e, 'Não deu para salvar.'))
-  }
-  finally {
-    const copia = new Set(emAndamento.value)
-    copia.delete(chave)
-    emAndamento.value = copia
-  }
+  mover(alvo.item, alvo.recorte, semData ? null : dataEscolhida.value)
 }
 </script>
 
 <template>
-  <div class="space-y-8">
-    <header>
-      <h1 class="text-2xl font-semibold tracking-tight">Filmes & Séries</h1>
-      <p class="mt-1 text-sm text-muted-foreground">
-        Busque, marquem as datas e avaliem juntos.
-      </p>
-    </header>
+  <div class="space-y-6">
+    <FilmesAbas subtitulo="Busque, marquem as datas e avaliem juntos." />
 
-    <!-- 1. Busca -->
+    <!-- Convites para assistir junto -->
+    <section v-if="convites?.length" class="space-y-2">
+      <div
+        v-for="convite in convites"
+        :key="convite.id"
+        class="flex flex-wrap items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 p-3"
+      >
+        <div class="min-w-0 flex-1 text-sm">
+          <p>
+            <strong>{{ nomeDoMembro(convite.de_user_id) }}</strong> quer ver
+            <strong>{{ convite.entry?.media?.titulo ?? 'um filme' }}</strong>
+            em <strong>{{ formatarDia(convite.data_proposta) }}</strong>. Topa?
+          </p>
+        </div>
+        <div class="flex shrink-0 gap-2">
+          <Button
+            size="sm"
+            :disabled="respondendo.has(convite.id)"
+            @click="onResponder(convite.id, true)"
+          >
+            Topo
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            :disabled="respondendo.has(convite.id)"
+            @click="onResponder(convite.id, false)"
+          >
+            Dessa vez não
+          </Button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Busca -->
     <section class="space-y-4">
       <div class="relative">
         <SearchIcon class="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -340,7 +314,7 @@ async function assumirStatus(item: ItemDoEspaco, status: StatusItem) {
                 @click="onAdicionar(resultado)"
               >
                 <PlusIcon class="size-3.5" />
-                {{ idsAdicionando.has(resultado.fonte_id) ? 'Adicionando…' : 'Adicionar' }}
+                {{ idsAdicionando.has(resultado.fonte_id) ? 'Adicionando…' : 'Tenho interesse' }}
               </button>
               <span
                 v-else
@@ -354,7 +328,7 @@ async function assumirStatus(item: ItemDoEspaco, status: StatusItem) {
       </template>
     </section>
 
-    <!-- 2. Calendário + tópicos -->
+    <!-- Calendário + recortes -->
     <section v-if="!buscando">
       <div v-if="isPending" class="grid gap-4 lg:grid-cols-[20rem_1fr]">
         <Skeleton class="h-80 w-full rounded-lg" />
@@ -368,7 +342,7 @@ async function assumirStatus(item: ItemDoEspaco, status: StatusItem) {
           :marcadores="marcadores"
         />
 
-        <div class="min-w-0 space-y-5 rounded-lg border bg-card p-4">
+        <div class="min-w-0 space-y-4 rounded-lg border bg-card p-4">
           <div class="flex items-baseline justify-between gap-2">
             <h2 class="text-sm font-medium">{{ tituloDoPainel }}</h2>
             <button
@@ -381,44 +355,51 @@ async function assumirStatus(item: ItemDoEspaco, status: StatusItem) {
             </button>
           </div>
 
+          <section
+            v-for="recorte in RECORTES"
+            :key="recorte"
+            class="rounded-lg border border-dashed p-2 transition-colors"
+            :class="alvoDoArraste === recorte ? 'border-primary bg-primary/5' : 'border-transparent'"
+            @dragover.prevent="alvoDoArraste = recorte"
+            @dragleave="alvoDoArraste = alvoDoArraste === recorte ? null : alvoDoArraste"
+            @drop.prevent="aoSoltar($event, recorte)"
+          >
+            <div class="mb-2 flex items-center justify-between gap-2">
+              <h3 class="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <span
+                  v-if="recorte !== 'disponivel'"
+                  class="size-1.5 rounded-full"
+                  :class="recorte === 'visto' ? 'bg-emerald-500' : 'bg-sky-500'"
+                />
+                {{ RECORTE_ROTULO[recorte] }}
+                <span class="rounded-full bg-muted px-1.5 text-[10px]">{{ porRecorte[recorte].length }}</span>
+              </h3>
+
+              <NuxtLink
+                :to="{ path: '/filmes/lista', query: { recorte } }"
+                class="shrink-0 text-xs text-primary hover:underline"
+              >
+                Ver todos
+              </NuxtLink>
+            </div>
+
+            <!-- Uma linha de cinco: o painel é um resumo; o resto vive em Nossa lista. -->
+            <GradeDeCartazes
+              v-if="porRecorte[recorte].length"
+              :itens="porRecorte[recorte].slice(0, 5)"
+              :recorte="recorte"
+              :membros="membros ?? []"
+              :em-andamento="emAndamento"
+              @entrar="acionar($event, recorte)"
+            />
+            <p v-else class="px-1 pb-1 text-sm text-muted-foreground">
+              {{ recorte === 'disponivel' ? 'Nenhum interesse sem data.' : 'Nada neste recorte.' }}
+            </p>
+          </section>
+
           <p class="text-xs text-muted-foreground">
             Arraste um cartaz entre os grupos para marcar a data.
           </p>
-
-          <section
-            v-for="topico in (['disponivel', 'planejado', 'visto'] as Topico[])"
-            :key="topico"
-            class="rounded-lg border border-dashed p-2 transition-colors"
-            :class="alvoDoArraste === topico ? 'border-primary bg-primary/5' : 'border-transparent'"
-            @dragover.prevent="alvoDoArraste = topico"
-            @dragleave="alvoDoArraste = alvoDoArraste === topico ? null : alvoDoArraste"
-            @drop.prevent="aoSoltar($event, topico)"
-          >
-            <h3 class="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              <span
-                v-if="topico !== 'disponivel'"
-                class="size-1.5 rounded-full"
-                :class="topico === 'visto' ? 'bg-emerald-500' : 'bg-sky-500'"
-              />
-              {{ TOPICO_ROTULO[topico] }}
-              <span class="rounded-full bg-muted px-1.5 text-[10px]">{{ porTopico[topico].length }}</span>
-            </h3>
-
-            <div v-if="porTopico[topico].length" class="grid grid-cols-5 gap-2">
-              <CartazDoEspaco
-                v-for="item in porTopico[topico]"
-                :key="item.id"
-                :item="item"
-                :membros-no-estado="membrosNoTopico(item, topico)"
-                :pode-entrar="!euEstouEm(item, topico)"
-                :entrando="emAndamento.has(`${item.id}:${topico}`)"
-                @entrar="entrarNoTopico(item, topico)"
-              />
-            </div>
-            <p v-else class="px-1 pb-1 text-sm text-muted-foreground">
-              {{ topico === 'disponivel' ? 'Tudo já tem data.' : 'Nada neste recorte.' }}
-            </p>
-          </section>
 
           <p v-if="!itens?.length" class="text-sm text-muted-foreground">
             Ainda não há nada na lista — busque um filme acima para começar.
@@ -427,54 +408,45 @@ async function assumirStatus(item: ItemDoEspaco, status: StatusItem) {
       </div>
     </section>
 
-    <!-- 3. Segmentado pelo meu status -->
-    <section v-if="!buscando && itens?.length" class="space-y-6">
-      <template v-for="[status, lista] in porStatus" :key="status">
-        <section v-if="lista.length">
-          <h2 class="mb-3 flex items-center gap-2 text-sm font-medium">
-            {{ STATUS_ROTULO[status] }}
-            <span class="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-              {{ lista.length }}
-            </span>
-          </h2>
-
-          <div class="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-6">
-            <CartazDoEspaco
-              v-for="item in lista"
-              :key="item.id"
-              :item="item"
-              :arrastavel="false"
-              :membros-no-estado="membrosComStatus(item, status)"
-              :pode-entrar="meuStatus(item) !== status"
-              :entrando="emAndamento.has(`${item.id}:${status}`)"
-              @entrar="assumirStatus(item, status)"
-            />
-          </div>
-        </section>
-      </template>
-    </section>
-
     <Dialog :open="!!dialogoData" @update:open="dialogoData = null">
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {{ dialogoData ? TOPICO_ROTULO[dialogoData.topico] : '' }}
+            {{ dialogoData ? RECORTE_ROTULO[dialogoData.recorte] : '' }}
           </DialogTitle>
           <DialogDescription>
-            {{ dialogoData?.topico === 'visto'
+            {{ dialogoData?.recorte === 'visto'
               ? `Quando você assistiu "${dialogoData?.item.media.titulo}"?`
               : `Para quando querem ver "${dialogoData?.item.media.titulo}"?` }}
           </DialogDescription>
         </DialogHeader>
 
         <div class="space-y-2">
-          <Label for="data-topico">Data</Label>
-          <Input id="data-topico" v-model="dataEscolhida" type="date" />
+          <Label for="data-recorte">Data</Label>
+          <Input id="data-recorte" v-model="dataEscolhida" type="date" />
         </div>
 
-        <DialogFooter>
-          <Button variant="ghost" @click="dialogoData = null">Cancelar</Button>
-          <Button :disabled="!dataEscolhida" @click="confirmarData">Confirmar</Button>
+        <p v-if="dialogoData?.recorte === 'planejado'" class="text-xs text-muted-foreground">
+          Quem já tinha interesse recebe um convite para ir junto.
+        </p>
+
+        <DialogFooter class="sm:justify-between">
+          <!-- Só faz sentido em "assistidos": um plano sem data não é um plano. -->
+          <Button
+            v-if="dialogoData?.recorte === 'visto'"
+            variant="ghost"
+            class="gap-1.5"
+            @click="confirmarData(true)"
+          >
+            <CalendarOffIcon class="size-4" />
+            Não lembro
+          </Button>
+          <span v-else />
+
+          <span class="flex gap-2">
+            <Button variant="ghost" @click="dialogoData = null">Cancelar</Button>
+            <Button :disabled="!dataEscolhida" @click="confirmarData()">Confirmar</Button>
+          </span>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -109,6 +109,33 @@ export function useAvaliar() {
   )
 }
 
+/**
+ * Marcar "queremos ver" numa data — via RPC, e não pelo upsert direto, porque
+ * o mesmo passo precisa convidar quem tinha interesse e ainda não datou nada.
+ * Devolve quantas pessoas foram convidadas.
+ */
+export function usePlanejarFilme() {
+  const supabase = useSupabaseClient()
+  const queryClient = useQueryClient()
+  const store = useSpaceStore()
+
+  return useSpaceMutation<{ entryId: string, data: string }, number>(
+    async (_spaceId, { entryId, data }) => {
+      const { data: convidados, error } = await supabase.rpc('planejar_filme', {
+        p_entry: entryId,
+        p_data: data,
+      })
+      if (error) throw error
+
+      await queryClient.invalidateQueries({
+        queryKey: ['space', store.espacoAtivoId, 'catalogo', 'item', entryId],
+      })
+      return (convidados ?? 0) as number
+    },
+    [['catalogo'], ['convites-filme']],
+  )
+}
+
 export function useRemoverItem() {
   const supabase = useSupabaseClient()
 

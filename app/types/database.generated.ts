@@ -79,6 +79,47 @@ export type Database = {
           },
         ]
       }
+      convite_filme: {
+        Row: {
+          aceito: boolean | null
+          created_at: string
+          data_proposta: string
+          de_user_id: string
+          entry_id: string
+          id: string
+          para_user_id: string
+          respondido_em: string | null
+        }
+        Insert: {
+          aceito?: boolean | null
+          created_at?: string
+          data_proposta: string
+          de_user_id: string
+          entry_id: string
+          id?: string
+          para_user_id: string
+          respondido_em?: string | null
+        }
+        Update: {
+          aceito?: boolean | null
+          created_at?: string
+          data_proposta?: string
+          de_user_id?: string
+          entry_id?: string
+          id?: string
+          para_user_id?: string
+          respondido_em?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "convite_filme_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "entry"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       entry: {
         Row: {
           added_by: string
@@ -379,7 +420,15 @@ export type Database = {
       gerar_codigo_convite: { Args: never; Returns: string }
       is_space_member: { Args: { p_space: string }; Returns: boolean }
       is_space_owner: { Args: { p_space: string }; Returns: boolean }
+      planejar_filme: {
+        Args: { p_data: string; p_entry: string }
+        Returns: number
+      }
       resgatar_convite: { Args: { p_codigo: string }; Returns: string }
+      responder_convite: {
+        Args: { p_aceito: boolean; p_convite: string }
+        Returns: undefined
+      }
       shares_space_with: { Args: { p_user: string }; Returns: boolean }
     }
     Enums: {

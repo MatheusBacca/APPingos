@@ -105,6 +105,33 @@ módulo de Orçamento (segundo motor: série temporal com meta).
 
 ---
 
+## 2026-08-03 — Interesse, convite para assistir junto e "não lembro"
+
+**Contexto:** a tela presumia que todo mundo do espaço queria ver tudo que fosse adicionado —
+em "Disponível" apareciam as bolinhas dos dois membros em todo cartaz, sem informação nenhuma.
+
+**A mudança de conceito:** ter uma linha em `rating` passa a significar **interesse**. Quem
+nunca tocou no filme não tem linha e não está em recorte nenhum. É o que faz a bolinha voltar
+a dizer alguma coisa.
+
+Em cima disso vem o **convite para assistir junto**: quando alguém marca uma data, quem tinha
+interesse e ainda não datou nada recebe um convite em tela no módulo, e responde sim ou não.
+Aceitar copia a data proposta para a avaliação da pessoa; recusar mantém o interesse, só não
+vai naquela data. Tabela `convite_filme`, com escrita apenas pelas RPCs `planejar_filme` e
+`responder_convite` — sem policy de insert/update, ninguém fabrica nem responde convite alheio.
+
+**Também nesta rodada:**
+- **"Não lembro"** ao marcar como assistido: "assistido" passa a ser o `status`, e a data é
+  opcional. Um assistido sem data escapa do filtro de mês, senão marcá-lo assim faria o
+  cartaz sumir da tela.
+- **Abas de volta:** Início | Nossa lista. Cada recorte da agenda virou **uma linha de cinco**
+  com um "Ver todos" que leva a `/filmes/lista?recorte=…` já filtrado.
+- **Ordem dos recortes:** Queremos ver → Assistidos → Disponível.
+- A regra de "onde este filme está" saiu de dentro das páginas para `app/lib/recortes.ts`, e
+  as duas telas passaram a ler dela — antes cada uma tinha a sua versão.
+
+---
+
 ## 2026-08-03 — Filmes numa tela só, com arrastar entre grupos
 
 **Contexto:** o módulo estava em três abas (Agenda, Buscar, Nossa lista), e o painel do
