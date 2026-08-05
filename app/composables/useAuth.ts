@@ -1,4 +1,6 @@
 import { useQueryClient } from '@tanstack/vue-query'
+import { useConvitePendente } from '~/composables/useConvitePendente'
+import { useSpaceStore } from '~/stores/space'
 
 export function useAuth() {
   const supabase = useSupabaseClient()

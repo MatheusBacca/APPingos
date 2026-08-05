@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { CheckIcon, ChevronsUpDownIcon, HeartIcon, PlusIcon, UserIcon } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
+import { useSpaceStore } from '~/stores/space'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,23 +11,31 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
+/** Compacto = só o ícone, para a sidebar recolhida. O menu é o mesmo. */
+withDefaults(defineProps<{ compacto?: boolean }>(), { compacto: false })
+
 const store = useSpaceStore()
 </script>
 
 <template>
   <DropdownMenu>
     <DropdownMenuTrigger as-child>
-      <Button variant="ghost" class="h-auto w-full justify-between gap-2 px-2 py-2">
+      <Button
+        variant="ghost"
+        :class="compacto ? 'size-9 px-0' : 'h-auto w-full justify-between gap-2 px-2 py-2'"
+        :title="compacto ? store.espacoAtivo?.nome : undefined"
+        :aria-label="compacto ? `Espaço: ${store.espacoAtivo?.nome ?? ''}` : undefined"
+      >
         <span class="flex min-w-0 items-center gap-2">
           <component
             :is="store.espacoAtivo?.tipo === 'casal' ? HeartIcon : UserIcon"
             class="size-4 shrink-0 text-muted-foreground"
           />
-          <span class="truncate text-sm font-medium">
+          <span v-if="!compacto" class="truncate text-sm font-medium">
             {{ store.espacoAtivo?.nome ?? 'Carregando…' }}
           </span>
         </span>
-        <ChevronsUpDownIcon class="size-4 shrink-0 text-muted-foreground" />
+        <ChevronsUpDownIcon v-if="!compacto" class="size-4 shrink-0 text-muted-foreground" />
       </Button>
     </DropdownMenuTrigger>
 

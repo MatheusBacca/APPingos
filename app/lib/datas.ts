@@ -74,8 +74,27 @@ export function formatarDia(iso: string): string {
   })
 }
 
-export function formatarMes(mesIso: string): string {
+/** Só o nome do mês — "Julho". Para rótulo curto, onde o ano é óbvio. */
+export function nomeDoMes(mesIso: string): string {
   const { ano, mes } = partesDaData(mesIso)
   const nome = new Date(ano, mes - 1, 1).toLocaleDateString('pt-BR', { month: 'long' })
-  return `${nome.charAt(0).toUpperCase()}${nome.slice(1)} de ${ano}`
+  return `${nome.charAt(0).toUpperCase()}${nome.slice(1)}`
+}
+
+export function formatarMes(mesIso: string): string {
+  return `${nomeDoMes(mesIso)} de ${partesDaData(mesIso).ano}`
+}
+
+/**
+ * "sáb, 9 de ago" — a data de relance, para o painel de resumos.
+ *
+ * O dia da semana entra porque a pergunta que o painel responde é "que filme a
+ * gente marcou para sábado", e não "para o dia 9". Os pontos das abreviações do
+ * pt-BR ("sáb., 9 de ago.") saem: numa linha curta eles só fazem ruído.
+ */
+export function formatarDiaCurto(iso: string): string {
+  const { ano, mes, dia } = partesDaData(iso)
+  return new Date(ano, mes - 1, dia)
+    .toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' })
+    .replace(/\./g, '')
 }

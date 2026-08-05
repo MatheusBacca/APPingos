@@ -20,6 +20,10 @@ import { RECORTES, RECORTE_ROTULO, avaliacaoDe, dataDoRecorte, itemNoRecorte, re
 import type { Recorte } from '@/lib/recortes'
 import type { ResultadoBusca } from '~~/server/utils/tmdb'
 import type { ItemDoEspaco, ItemParaAdicionar, MarcadorDia } from '~/types/catalogo'
+import { useItens, useAdicionarItem, useAvaliar, usePlanejarFilme } from '~/composables/useCatalogo'
+import { useConvitesFilme, useResponderConvite } from '~/composables/useConvitesFilme'
+import { useMembros } from '~/composables/useMembros'
+import { useUsuarioId } from '~/composables/useUsuarioId'
 
 useHead({ title: 'Filmes & Séries · APPingos' })
 

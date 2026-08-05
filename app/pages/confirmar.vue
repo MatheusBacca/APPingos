@@ -1,3 +1,4 @@
+import { useConvitePendente } from '~/composables/useConvitePendente'
 <script setup lang="ts">
 // Destino do redirect do Supabase depois do link de confirmação / OAuth.
 // O módulo já trocou o code por sessão antes de chegar aqui.

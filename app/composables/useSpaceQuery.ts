@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { MaybeRefOrGetter } from 'vue'
+import { useSpaceStore } from '~/stores/space'
 
 /**
  * Query com escopo no espaço ativo.

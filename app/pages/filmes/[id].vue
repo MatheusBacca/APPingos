@@ -9,6 +9,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { formatarDia } from '@/lib/datas'
 import { ehAdmin } from '~/types/database.types'
 import type { StatusItem } from '~/types/catalogo'
+import { useItem, useAvaliar, useMarcarAssistiramComigo, useRemoverItem } from '~/composables/useCatalogo'
+import { useMembros } from '~/composables/useMembros'
+import { useUsuarioId } from '~/composables/useUsuarioId'
+import { useSpaceStore } from '~/stores/space'
 
 const route = useRoute()
 const entryId = route.params.id as string

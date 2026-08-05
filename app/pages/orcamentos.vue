@@ -10,6 +10,9 @@ import { ehAdmin } from '~/types/database.types'
 import { CLASSE_COR, fracaoDe } from '~/types/orcamento'
 import type { CompraDoMes } from '~/types/orcamento'
 import type { Barra } from '~/components/GraficoBarras.vue'
+import { useMembros } from '~/composables/useMembros'
+import { useComprasDoMes, useSerieMensal, useSerieSemanal, useCategorias, useRemoverCompra } from '~/composables/useOrcamento'
+import { useUsuarioId } from '~/composables/useUsuarioId'
 
 useHead({ title: 'Orçamentos · APPingos' })
 
@@ -216,7 +219,9 @@ async function onRemover(compra: CompraDoMes) {
     <SaldoDoMes
       :compras="compras ?? []"
       :membros="membros ?? []"
+      :competencia="competencia"
       :fechado="situacao === 'fechado'"
+      :futuro="situacao === 'futuro'"
     />
 
     <p v-if="situacao === 'futuro'" class="text-sm text-muted-foreground">

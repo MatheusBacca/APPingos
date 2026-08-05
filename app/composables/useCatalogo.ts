@@ -2,6 +2,9 @@ import { useQueryClient } from '@tanstack/vue-query'
 import type { MaybeRefOrGetter } from 'vue'
 import type { ItemDoEspaco, ItemParaAdicionar, StatusItem, TipoMidia } from '~/types/catalogo'
 import type { Json } from '~/types/database.generated'
+import { useSpaceQuery, useSpaceMutation } from '~/composables/useSpaceQuery'
+import { useUsuarioId } from '~/composables/useUsuarioId'
+import { useSpaceStore } from '~/stores/space'
 
 const SELECT = `
   id,

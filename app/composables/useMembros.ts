@@ -1,5 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import type { Papel } from '~/types/database.types'
+import { useSpaceQuery } from '~/composables/useSpaceQuery'
+import { useSpaceStore } from '~/stores/space'
 
 export interface Membro {
   user_id: string

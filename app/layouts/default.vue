@@ -1,5 +1,10 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
+import { useAvisoEspacoDeletado } from '~/composables/useAvisoEspacoDeletado'
+import { useConvitePendente } from '~/composables/useConvitePendente'
+import { useEspacos } from '~/composables/useEspacos'
+import { useSidebar } from '~/composables/useSidebar'
+import { useSpaceStore } from '~/stores/space'
 import {
   Dialog,
   DialogContent,
@@ -29,6 +34,9 @@ watch(user, async (novo) => {
 // não há mais para onde "entrar". O aviso precisa alcançar a pessoa em qualquer
 // tela que ela abrir depois.
 const { aviso, marcarLido } = useAvisoEspacoDeletado()
+
+// A sidebar decide a própria largura; aqui o conteúdo acompanha o recuo.
+const { aberta } = useSidebar()
 </script>
 
 <template>
@@ -51,7 +59,7 @@ const { aviso, marcarLido } = useAvisoEspacoDeletado()
       <ThemeToggle />
     </header>
 
-    <main class="md:pl-64">
+    <main class="transition-[padding] duration-200" :class="aberta ? 'md:pl-64' : 'md:pl-16'">
       <div class="mx-auto w-full max-w-5xl px-4 pb-24 pt-4 md:px-8 md:pb-12 md:pt-8">
         <div v-if="isError" class="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">
           <p class="font-medium text-destructive">Não consegui carregar os seus espaços.</p>

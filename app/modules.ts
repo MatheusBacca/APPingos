@@ -8,7 +8,14 @@
  * `naBarra` controla quais aparecem na bottom bar do mobile — cabem 5 no
  * máximo antes de virar um alvo de toque pequeno demais. O resto vive no
  * "Mais".
+ *
+ * `resumo` é o painel: o módulo registra aqui o composable que devolve as suas
+ * linhas de resumo, e o dashboard e a sidebar desenham as mesmas linhas. Ficou
+ * aqui, e não numa lista própria do painel, para a promessa acima continuar
+ * valendo — um lugar só a editar quando um módulo entra ou muda de nome.
  */
+import type { UsarResumo } from '~/types/resumo'
+
 export interface AppModule {
   slug: string
   rotulo: string
@@ -18,6 +25,8 @@ export interface AppModule {
   rota: string
   ativo: boolean
   naBarra: boolean
+  /** Sem isto o módulo simplesmente não aparece no painel de resumos. */
+  resumo?: UsarResumo
 }
 
 export const MODULOS: AppModule[] = [
@@ -29,6 +38,7 @@ export const MODULOS: AppModule[] = [
     rota: '/orcamentos',
     ativo: true,
     naBarra: true,
+    resumo: useResumoOrcamentos,
   },
   {
     slug: 'filmes',
@@ -38,6 +48,7 @@ export const MODULOS: AppModule[] = [
     rota: '/filmes',
     ativo: true,
     naBarra: true,
+    resumo: useResumoFilmes,
   },
   {
     slug: 'musicas',
@@ -87,3 +98,5 @@ export const MODULOS: AppModule[] = [
 ]
 
 export const MODULOS_ATIVOS = MODULOS.filter(m => m.ativo)
+
+export const MODULOS_COM_RESUMO = MODULOS.filter(m => m.resumo)

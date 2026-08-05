@@ -22,6 +22,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { PAPEL_ROTULO } from '~/types/database.types'
+import { useCriarEspaco, useDeletarEspaco, useCriarConvite, useResgatarConvite } from '~/composables/useEspacos'
+import { useMembros, useDefinirPapel } from '~/composables/useMembros'
+import { useSpaceQuery } from '~/composables/useSpaceQuery'
+import { useSpaceStore } from '~/stores/space'
 
 useHead({ title: 'Espaços · APPingos' })
 

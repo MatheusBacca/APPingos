@@ -14,6 +14,35 @@ export type Database = {
   }
   public: {
     Tables: {
+      acerto_mes: {
+        Row: {
+          competencia: string
+          pago_em: string
+          pago_por: string
+          space_id: string
+        }
+        Insert: {
+          competencia: string
+          pago_em?: string
+          pago_por: string
+          space_id: string
+        }
+        Update: {
+          competencia?: string
+          pago_em?: string
+          pago_por?: string
+          space_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "acerto_mes_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categoria: {
         Row: {
           cor: string

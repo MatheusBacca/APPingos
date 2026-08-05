@@ -1,4 +1,7 @@
 import { useQueryClient } from '@tanstack/vue-query'
+import { useSpaceQuery, useSpaceMutation } from '~/composables/useSpaceQuery'
+import { useUsuarioId } from '~/composables/useUsuarioId'
+import { useSpaceStore } from '~/stores/space'
 
 export interface ConviteFilme {
   id: string

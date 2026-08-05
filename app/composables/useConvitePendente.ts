@@ -1,5 +1,6 @@
 import { mensagemDeErro } from '@/lib/utils'
 import { toast } from 'vue-sonner'
+import { useResgatarConvite } from '~/composables/useEspacos'
 
 const CHAVE_LS = 'appingos:convite-pendente'
 

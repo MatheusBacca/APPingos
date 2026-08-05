@@ -9,17 +9,25 @@
  * cai para a lista de saldos por pessoa em vez de inventar um caminho errado.
  */
 import { toast } from 'vue-sonner'
-import { CheckIcon, CopyIcon } from '@lucide/vue'
+import { CheckIcon, CopyIcon, Undo2Icon } from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+import { formatarDia } from '@/lib/datas'
 import { formatarDinheiro, valorParaCopiar } from '@/lib/dinheiro'
+import { mensagemDeErro } from '@/lib/utils'
 import { saldoDoMes } from '~/types/orcamento'
 import type { CompraDoMes } from '~/types/orcamento'
 import type { Membro } from '~/composables/useMembros'
+import { useAcertos, useMarcarAcerto } from '~/composables/useOrcamento'
 
 const props = defineProps<{
   compras: CompraDoMes[]
   membros: Membro[]
+  /** Âncora do mês (YYYY-MM-01) — é o que o acerto marca. */
+  competencia: string
   /** Competência já fechada muda o texto de "parcial" para "final". */
   fechado: boolean
+  /** Mês que ainda não começou não oferece o botão de acerto. */
+  futuro: boolean
 }>()
 
 const saldos = computed(() =>
@@ -49,6 +57,31 @@ const acerto = computed(() => {
   return { quitado: false, valor, credor, devedor }
 })
 
+// ---- Pendente | Pago --------------------------------------------------------
+
+/*
+ * O acerto é o único estado do mês que não vem do calendário: "fechado" é a
+ * passagem do tempo, "pago" é uma decisão de gente. Qualquer membro marca e
+ * qualquer membro desmarca — quem paga costuma ser quem deve, mas quem confirma
+ * é quem recebe.
+ */
+const { data: acertos } = useAcertos()
+const marcar = useMarcarAcerto()
+
+const pagamento = computed(() =>
+  (acertos.value ?? []).find(a => a.competencia === props.competencia) ?? null,
+)
+
+async function alternarAcerto(pago: boolean) {
+  try {
+    await marcar.mutateAsync({ competencia: props.competencia, pago })
+    toast.success(pago ? 'Mês marcado como pago.' : 'O mês voltou para pendente.')
+  }
+  catch (e) {
+    toast.error(mensagemDeErro(e, 'Não deu para mudar o acerto do mês.'))
+  }
+}
+
 /*
  * Copiar o valor cru para colar no app do banco.
  *
@@ -75,8 +108,15 @@ async function copiarValor(valor: number) {
   <section class="space-y-3 rounded-lg border bg-card p-4">
     <div class="flex items-baseline justify-between gap-2">
       <h2 class="text-sm font-medium">Acerto do mês</h2>
-      <span class="text-xs text-muted-foreground">
-        {{ fechado ? 'Fechado' : 'Parcial — o mês ainda está aberto' }}
+
+      <span
+        v-if="pagamento"
+        class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100"
+      >
+        Pago
+      </span>
+      <span v-else class="text-xs text-muted-foreground">
+        {{ fechado ? 'Pendente — fechou e ainda não foi acertado' : 'Parcial — o mês ainda está aberto' }}
       </span>
     </div>
 
@@ -138,6 +178,46 @@ async function copiarValor(valor: number) {
       <p class="text-xs text-muted-foreground">
         Saldo positivo significa que essa pessoa adiantou mais do que a parte dela.
       </p>
+
+      <!--
+        O botão que fecha o ciclo do módulo: até aqui o mês só sabia que tinha
+        fechado (calendário), não que já tinha sido pago (gente). É esta marca
+        que faz o painel de resumos parar de cobrar a competência e passar a
+        mostrar o mês seguinte. Mês que ainda nem começou não oferece o botão —
+        não há o que acertar.
+      -->
+      <div v-if="!futuro" class="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+        <p class="text-xs text-muted-foreground">
+          <template v-if="pagamento">
+            Pago em {{ formatarDia(pagamento.pago_em.slice(0, 10)) }} por {{ nomeDoMembro(pagamento.pago_por) }}.
+          </template>
+          <template v-else>
+            Marque quando o dinheiro for transferido — qualquer um de vocês pode.
+          </template>
+        </p>
+
+        <Button
+          v-if="!pagamento"
+          size="sm"
+          class="gap-1.5"
+          :disabled="marcar.isPending.value"
+          @click="alternarAcerto(true)"
+        >
+          <CheckIcon class="size-4" />
+          Marcar como pago
+        </Button>
+        <Button
+          v-else
+          variant="ghost"
+          size="sm"
+          class="gap-1.5"
+          :disabled="marcar.isPending.value"
+          @click="alternarAcerto(false)"
+        >
+          <Undo2Icon class="size-4" />
+          Desfazer
+        </Button>
+      </div>
     </template>
   </section>
 </template>

@@ -82,13 +82,30 @@ migration versionada. Editar direto no dashboard cria deriva entre o banco real 
 ### Verificação antes de subir
 
 `nuxt build` passa mesmo com variável inexistente em template (o Vue avalia como `undefined`)
-e com query errada contra o banco. Rode também:
+e com query errada contra o banco. Rode as três verificações de uma vez:
 
 ```bash
-npm run typecheck
+npm run verificar
 ```
 
-E, para o que nem o typecheck pega (schema, RLS, embeds do PostgREST), exercite o fluxo no
+Que é `npm run imports && npm run typecheck && npm test`:
+
+| comando | o que pega |
+| --- | --- |
+| `npm run imports` | arquivo do app contando com auto-import de `composables/`, `stores/` ou `utils/` |
+| `npm run typecheck` | tipos, incluindo os gerados do schema do Supabase |
+| `npm test` | a lógica pura dos módulos e os componentes que dá para montar fora do Nuxt |
+
+**Sobre o `imports`:** composable e store do projeto se importa à mão neste repositório. O
+registro de auto-import dessas pastas é remontado pelo dev server toda vez que um arquivo
+entra ou sai delas, e um transform do Vite que caia no meio dessa reconstrução é cacheado
+*sem* os imports injetados — o arquivo passa a estourar `X is not defined` só em runtime, sem
+erro de build nem de tipo, e derruba o app inteiro se for carregado no boot. Aconteceu em
+05/08/2026 com o painel de resumos. `node scripts/verificar-imports.mjs --corrigir` insere o
+que faltar. Presets do Vue e do Nuxt (`computed`, `ref`, `useHead`) e os composables do
+`@nuxtjs/supabase` seguem automáticos: vêm de pacotes que não mudam durante a sessão.
+
+E, para o que nenhuma das três pega (schema, RLS, embeds do PostgREST), exercite o fluxo no
 navegador contra o banco de verdade — foi assim que os três bugs de 31/07 apareceram.
 
 ### 3. Chave do TMDB (módulo Filmes/Séries)

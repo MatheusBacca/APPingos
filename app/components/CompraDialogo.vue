@@ -34,6 +34,8 @@ import type { CorCategoria, InformadoComo } from '~/types/database.types'
 import { formatarMes } from '@/lib/datas'
 import type { Categoria, CompraDoMes } from '~/types/orcamento'
 import type { Membro } from '~/composables/useMembros'
+import { useRegistrarCompra, useAtualizarCompra } from '~/composables/useOrcamento'
+import { useUsuarioId } from '~/composables/useUsuarioId'
 
 const props = defineProps<{
   membros: Membro[]

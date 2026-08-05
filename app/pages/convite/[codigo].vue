@@ -2,6 +2,7 @@
 import { HeartIcon, Loader2Icon } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useConvitePendente } from '~/composables/useConvitePendente'
 
 // Excluída do redirect de auth em nuxt.config.ts (supabase.redirectOptions.exclude)
 // — precisa ser vista tanto por quem já tem conta quanto por quem não tem.

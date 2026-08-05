@@ -4,6 +4,8 @@ import { parteDe } from '~/types/orcamento'
 import type { CorCategoria } from '~/types/database.types'
 import type { Json } from '~/types/database.generated'
 import type { Categoria, CompraDoMes, NovaCompra, Participante } from '~/types/orcamento'
+import { useSpaceQuery, useSpaceMutation } from '~/composables/useSpaceQuery'
+import { useUsuarioId } from '~/composables/useUsuarioId'
 
 const SELECT_COMPRA = `
   id, descricao, valor_total, data_compra, competencia_inicial, parcelas,
@@ -196,6 +198,67 @@ export function useSerieSemanal(competencia: MaybeRefOrGetter<string>) {
 
       return blocos
     },
+  )
+}
+
+export interface AcertoDoMes {
+  /** Âncora do mês, YYYY-MM-01. */
+  competencia: string
+  pago_em: string
+  pago_por: string
+}
+
+/**
+ * Os meses já acertados no espaço — presença da linha é o "pago".
+ *
+ * Uma consulta só, sem filtro de competência: são doze linhas por ano, e uma
+ * entrada de cache única serve tanto à tela de Orçamentos (que navega meses)
+ * quanto ao painel de resumos. Filtrar por mês criaria uma chave por mês
+ * visitado, e o painel refaria a consulta a cada navegação.
+ */
+export function useAcertos() {
+  const supabase = useSupabaseClient()
+
+  return useSpaceQuery(['orcamento', 'acertos'], async (spaceId): Promise<AcertoDoMes[]> => {
+    const { data, error } = await supabase
+      .from('acerto_mes')
+      .select('competencia, pago_em, pago_por')
+      .eq('space_id', spaceId)
+
+    if (error) throw error
+    return (data ?? []) as unknown as AcertoDoMes[]
+  })
+}
+
+/**
+ * Marcar ou desmarcar o acerto de um mês.
+ *
+ * Marcar é inserir, desmarcar é apagar — não há update, porque a única coisa
+ * que um update poderia mudar é quem marcou e quando, e reescrever a autoria de
+ * um fato já registrado não é uma operação que a tela deva oferecer.
+ */
+export function useMarcarAcerto() {
+  const supabase = useSupabaseClient()
+  const usuarioId = useUsuarioId()
+
+  return useSpaceMutation<{ competencia: string, pago: boolean }, void>(
+    async (spaceId, { competencia, pago }) => {
+      if (pago) {
+        const { error } = await supabase
+          .from('acerto_mes')
+          .insert({ space_id: spaceId, competencia, pago_por: usuarioId.value! })
+        if (error) throw error
+        return
+      }
+
+      const { error } = await supabase
+        .from('acerto_mes')
+        .delete()
+        .eq('space_id', spaceId)
+        .eq('competencia', competencia)
+      if (error) throw error
+    },
+    [['orcamento', 'acertos']],
   )
 }
 

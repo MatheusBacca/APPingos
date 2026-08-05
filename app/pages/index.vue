@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ArrowRightIcon } from '@lucide/vue'
 import { MODULOS } from '~/modules'
+import { useSpaceStore } from '~/stores/space'
 
 useHead({ title: 'Início · APPingos' })
 
@@ -37,7 +38,8 @@ const primeiroNome = computed(() => {
             <ModuleIcon :nome="modulo.icone" class="size-5" />
           </span>
 
-          <span class="min-w-0 flex-1">
+          <!-- div, e não span: o resumo desenha uma lista, que não pode viver dentro de um span -->
+          <div class="min-w-0 flex-1">
             <span class="flex items-center gap-2">
               <span class="font-medium">{{ modulo.rotulo }}</span>
               <span
@@ -47,10 +49,22 @@ const primeiroNome = computed(() => {
                 em breve
               </span>
             </span>
-            <span class="mt-0.5 block text-sm text-muted-foreground">
+
+            <!--
+              No mobile não existe painel lateral: a tela toda é o conteúdo e a
+              navegação vive na bottom bar. É aqui, no dashboard, que o resumo
+              alcança o celular — e o cartão que já existia vira a superfície.
+            -->
+            <ResumoDoModulo
+              v-if="modulo.resumo"
+              :key="modulo.slug"
+              :modulo="modulo"
+              variante="cartao"
+            />
+            <p v-else class="mt-0.5 text-sm text-muted-foreground">
               {{ modulo.descricao }}
-            </span>
-          </span>
+            </p>
+          </div>
 
           <ArrowRightIcon
             class="mt-2 size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"

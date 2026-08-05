@@ -15,6 +15,9 @@ import {
 } from '@/lib/recortes'
 import type { Recorte } from '@/lib/recortes'
 import type { ItemDoEspaco } from '~/types/catalogo'
+import { useItens, useAvaliar, usePlanejarFilme } from '~/composables/useCatalogo'
+import { useMembros } from '~/composables/useMembros'
+import { useUsuarioId } from '~/composables/useUsuarioId'
 
 useHead({ title: 'Nossa lista · Filmes & Séries · APPingos' })
 

@@ -3,6 +3,7 @@ import { avaliacaoDe, recorteDa } from '@/lib/recortes'
 import type { Recorte } from '@/lib/recortes'
 import type { Membro } from '~/composables/useMembros'
 import type { ItemDoEspaco } from '~/types/catalogo'
+import { useUsuarioId } from '~/composables/useUsuarioId'
 
 const props = withDefaults(defineProps<{
   itens: ItemDoEspaco[]

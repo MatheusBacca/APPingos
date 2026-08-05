@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
+import { useUsuarioId } from '~/composables/useUsuarioId'
 
 export interface AvisoEspacoDeletado {
   id: string

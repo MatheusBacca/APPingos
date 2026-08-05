@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { EspacoComPapel, Papel, TipoEspaco } from '~/types/database.types'
+import { useUsuarioId } from '~/composables/useUsuarioId'
+import { useSpaceStore } from '~/stores/space'
 
 interface MembershipComEspaco {
   papel: Papel
