@@ -19,6 +19,24 @@ export type Database = GeneratedDatabase
 export type Papel = 'dono' | 'admin' | 'membro'
 export type TipoEspaco = 'pessoal' | 'casal'
 
+/*
+ * Orçamentos — ver supabase/migrations/20260804180000_orcamento_compras.sql
+ *
+ * `informado_como` guarda só a unidade que a pessoa digitou, para o formulário
+ * devolver igual na edição. O rateio em si é sempre o peso: guardar percentual
+ * arredondado faria "R$ 500 de R$ 1.500" voltar como R$ 499,95.
+ */
+export type CorCategoria =
+  | 'cinza' | 'marrom' | 'laranja' | 'amarelo' | 'verde'
+  | 'azul' | 'roxo' | 'rosa' | 'vermelho'
+
+export type InformadoComo = 'percentual' | 'valor'
+
+export const CORES_CATEGORIA: CorCategoria[] = [
+  'cinza', 'marrom', 'laranja', 'amarelo', 'verde',
+  'azul', 'roxo', 'rosa', 'vermelho',
+]
+
 export const PAPEL_ROTULO: Record<Papel, string> = {
   dono: 'Dono',
   admin: 'Admin',

@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      categoria: {
+        Row: {
+          cor: string
+          created_at: string
+          id: string
+          nome: string
+          nome_norm: string | null
+          space_id: string
+        }
+        Insert: {
+          cor?: string
+          created_at?: string
+          id?: string
+          nome: string
+          nome_norm?: string | null
+          space_id: string
+        }
+        Update: {
+          cor?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          nome_norm?: string | null
+          space_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "categoria_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       collection: {
         Row: {
           created_at: string
@@ -76,6 +111,99 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "entry"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      compra: {
+        Row: {
+          categoria_id: string | null
+          competencia_inicial: string
+          created_at: string
+          data_compra: string
+          descricao: string
+          id: string
+          pago_por: string
+          parcelas: number
+          registrado_por: string
+          space_id: string
+          valor_total: number
+        }
+        Insert: {
+          categoria_id?: string | null
+          competencia_inicial: string
+          created_at?: string
+          data_compra?: string
+          descricao: string
+          id?: string
+          pago_por: string
+          parcelas?: number
+          registrado_por: string
+          space_id: string
+          valor_total: number
+        }
+        Update: {
+          categoria_id?: string | null
+          competencia_inicial?: string
+          created_at?: string
+          data_compra?: string
+          descricao?: string
+          id?: string
+          pago_por?: string
+          parcelas?: number
+          registrado_por?: string
+          space_id?: string
+          valor_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compra_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categoria"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compra_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compra_participante: {
+        Row: {
+          compra_id: string
+          informado_como: string
+          peso: number
+          user_id: string
+        }
+        Insert: {
+          compra_id: string
+          informado_como?: string
+          peso: number
+          user_id: string
+        }
+        Update: {
+          compra_id?: string
+          informado_como?: string
+          peso?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compra_participante_compra_id_fkey"
+            columns: ["compra_id"]
+            isOneToOne: false
+            referencedRelation: "compra"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compra_participante_compra_id_fkey"
+            columns: ["compra_id"]
+            isOneToOne: false
+            referencedRelation: "parcela_mensal"
+            referencedColumns: ["compra_id"]
           },
         ]
       }
@@ -403,12 +531,45 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      parcela_mensal: {
+        Row: {
+          competencia: string | null
+          compra_id: string | null
+          numero: number | null
+          space_id: string | null
+          total: number | null
+          valor: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compra_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       adicionar_item: {
         Args: { p_item: Json; p_space: string }
         Returns: string
+      }
+      atualizar_compra: {
+        Args: {
+          p_categoria_cor?: string
+          p_categoria_nome?: string
+          p_competencia_inicial: string
+          p_compra: string
+          p_data_compra: string
+          p_descricao: string
+          p_pago_por: string
+          p_parcelas: number
+          p_participantes: Json
+          p_valor_total: number
+        }
+        Returns: undefined
       }
       can_access_entry: { Args: { p_entry: string }; Returns: boolean }
       create_space: {
@@ -429,9 +590,28 @@ export type Database = {
         Args: { p_entry: string; p_usuarios: string[] }
         Returns: number
       }
+      obter_ou_criar_categoria: {
+        Args: { p_cor?: string; p_nome: string; p_space: string }
+        Returns: string
+      }
       planejar_filme: {
         Args: { p_data: string; p_entry: string }
         Returns: number
+      }
+      registrar_compra: {
+        Args: {
+          p_categoria_cor?: string
+          p_categoria_nome?: string
+          p_competencia_inicial: string
+          p_data_compra: string
+          p_descricao: string
+          p_pago_por: string
+          p_parcelas: number
+          p_participantes: Json
+          p_space: string
+          p_valor_total: number
+        }
+        Returns: string
       }
       resgatar_convite: { Args: { p_codigo: string }; Returns: string }
       responder_convite: {

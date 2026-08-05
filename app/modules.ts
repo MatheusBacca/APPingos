@@ -27,7 +27,7 @@ export const MODULOS: AppModule[] = [
     descricao: 'Gastos, receitas e metas — seus e do casal',
     icone: 'WalletIcon',
     rota: '/orcamentos',
-    ativo: false,
+    ativo: true,
     naBarra: true,
   },
   {

@@ -32,6 +32,40 @@ export function mesmoMes(iso: string, mesIso: string): boolean {
   return iso.slice(0, 7) === mesIso.slice(0, 7)
 }
 
+/**
+ * Anda meses na âncora do mês. `new Date(ano, mes - 1 + n, 1)` normaliza a
+ * virada de ano sozinho — dezembro + 1 vira janeiro do ano seguinte.
+ */
+export function somarMeses(mesIso: string, n: number): string {
+  const { ano, mes } = partesDaData(mesIso)
+  const d = new Date(ano, mes - 1 + n, 1)
+  return paraIso(d.getFullYear(), d.getMonth() + 1, 1)
+}
+
+/** Último dia do mês, para fechar intervalos `data_compra between mes and fim`. */
+export function ultimoDiaDoMes(mesIso: string): string {
+  const { ano, mes } = partesDaData(mesIso)
+  // Dia 0 do mês seguinte é o último dia deste — o Date normaliza a virada de ano.
+  const d = new Date(ano, mes, 0)
+  return paraIso(d.getFullYear(), d.getMonth() + 1, d.getDate())
+}
+
+export function mesAbreviado(mesIso: string): string {
+  const { ano, mes } = partesDaData(mesIso)
+  return new Date(ano, mes - 1, 1)
+    .toLocaleDateString('pt-BR', { month: 'short' })
+    .replace('.', '')
+}
+
+/** `YYYY-MM` do `<input type="month">` para a âncora `YYYY-MM-01` do banco. */
+export function deMesInput(valor: string): string {
+  return `${valor}-01`
+}
+
+export function paraMesInput(mesIso: string): string {
+  return mesIso.slice(0, 7)
+}
+
 export function formatarDia(iso: string): string {
   const { ano, mes, dia } = partesDaData(iso)
   return new Date(ano, mes - 1, dia).toLocaleDateString('pt-BR', {
