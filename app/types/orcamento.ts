@@ -21,6 +21,13 @@ export interface Participante {
 /** Uma compra vista de dentro de um mês: a parcela daquele mês, não o total. */
 export interface CompraDoMes {
   id: string
+  /**
+   * A que espaço a compra pertence. Vem junto porque a tela de Orçamentos pode
+   * mostrar duas gavetas ao mesmo tempo — o espaço ativo e o pessoal — e daí em
+   * diante é este campo que diz de qual delas a linha veio: qual selo mostrar,
+   * que cache invalidar ao editar, e o que fica de fora do acerto do mês.
+   */
+  space_id: string
   descricao: string
   valor_total: number
   data_compra: string
@@ -125,6 +132,37 @@ export function saldoDoMes(compras: CompraDoMes[], membrosIds: string[]): SaldoM
     const d = partes[i]!.valor
     return { user_id, pago: p, devido: d, saldo: centavos(p - d) }
   })
+}
+
+/** O que o mês custou, somando as parcelas que caem nele. */
+export function totalDoMes(compras: CompraDoMes[]): number {
+  return Math.round(compras.reduce((t, c) => t + c.valor, 0) * 100) / 100
+}
+
+/**
+ * "Quanto EU gastei no mês" — a sua parte do que é dividido, mais o que é só seu.
+ *
+ * É um número diferente do gasto do espaço, e os dois não se somam: metade do
+ * gasto do espaço é dívida da outra pessoa. Mostrar um "total" único misturando
+ * as duas coisas produziria um número que não responde a pergunta nenhuma, e é
+ * exatamente o erro que a tela evita ao exibir as duas leituras lado a lado.
+ *
+ * As compras pessoais entram inteiras: no espaço pessoal você é o único membro,
+ * então não há rateio a aplicar.
+ */
+export function meuBolso(
+  compartilhadas: CompraDoMes[],
+  pessoais: CompraDoMes[],
+  eu: string | null,
+): number {
+  if (!eu) return totalDoMes(pessoais)
+
+  const minhaParte = compartilhadas.reduce(
+    (t, c) => t + parteDe(c.participantes, eu, c.valor),
+    0,
+  )
+
+  return Math.round((minhaParte + pessoais.reduce((t, c) => t + c.valor, 0)) * 100) / 100
 }
 
 // ---- Cores das categorias --------------------------------------------------

@@ -7,7 +7,7 @@
  * elas aparece o clássico "você tem +1.150,61 e ela −1.150,62", sem explicação.
  */
 import { describe, expect, it } from 'vitest'
-import { saldoDoMes } from '~/types/orcamento'
+import { meuBolso, saldoDoMes, totalDoMes } from '~/types/orcamento'
 import type { CompraDoMes } from '~/types/orcamento'
 
 const EU = 'eu'
@@ -16,6 +16,7 @@ const ELA = 'ela'
 function compra(valor: number, pagoPor: string, pesos: Record<string, number>): CompraDoMes {
   return {
     id: `c-${valor}-${pagoPor}`,
+    space_id: 'casal',
     descricao: 'Compra',
     valor_total: valor,
     data_compra: '2026-08-01',
@@ -77,5 +78,58 @@ describe('saldoDoMes', () => {
       { user_id: EU, pago: 0, devido: 0, saldo: 0 },
       { user_id: ELA, pago: 0, devido: 0, saldo: 0 },
     ])
+  })
+
+  /*
+   * A invariante que sustenta a privacidade dos gastos pessoais: eles NUNCA são
+   * passados para cá pela tela, mas se um dia forem, o teste registra o que
+   * aconteceria — a outra pessoa passaria a "dever" parte de um gasto que ela
+   * nem consegue ver. Daí o acerto do mês ler `compras`, e não a lista visível.
+   */
+  it('conta qualquer compra que receba — filtrar o pessoal é papel de quem chama', () => {
+    const pessoal = { ...compra(80, EU, { [EU]: 1 }), space_id: 'pessoal' }
+    const saldos = saldoDoMes([pessoal], [EU, ELA])
+
+    expect(saldos.find(s => s.user_id === ELA)?.devido).toBe(0)
+    expect(saldos.find(s => s.user_id === EU)?.saldo).toBe(0)
+  })
+})
+
+describe('meuBolso', () => {
+  const pessoal = (valor: number): CompraDoMes => ({
+    ...compra(valor, EU, { [EU]: 1 }),
+    id: `p-${valor}`,
+    space_id: 'pessoal',
+  })
+
+  it('soma a sua parte do compartilhado com os pessoais inteiros', () => {
+    // 50 (metade de 100) + 30 = 80
+    const bolso = meuBolso([compra(100, ELA, { [EU]: 1, [ELA]: 1 })], [pessoal(30)], EU)
+
+    expect(bolso).toBe(80)
+  })
+
+  it('não é o gasto do espaço — os dois números não se somam', () => {
+    const compartilhadas = [compra(100, ELA, { [EU]: 1, [ELA]: 1 })]
+
+    expect(totalDoMes(compartilhadas)).toBe(100)
+    expect(meuBolso(compartilhadas, [], EU)).toBe(50)
+  })
+
+  it('ignora o rateio de quem não é você', () => {
+    const bolso = meuBolso([compra(1500, ELA, { [EU]: 500, [ELA]: 1000 })], [], EU)
+
+    expect(bolso).toBe(500)
+  })
+
+  it('sem usuário conhecido, sobra o que é indiscutivelmente seu', () => {
+    expect(meuBolso([compra(100, ELA, { [EU]: 1, [ELA]: 1 })], [pessoal(30)], null)).toBe(30)
+  })
+
+  it('arredonda uma vez só, no fim', () => {
+    // 1/3 de 100 = 33,333… — a soma com o pessoal fecha em centavos.
+    const bolso = meuBolso([compra(100, ELA, { [EU]: 1, [ELA]: 2 })], [pessoal(0.01)], EU)
+
+    expect(bolso).toBe(33.34)
   })
 })

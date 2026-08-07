@@ -10,6 +10,11 @@
  * - **Um matiz só.** Passado, mês corrente e futuro são estados ordenados no
  *   tempo, não identidades diferentes — então variam em intensidade do mesmo
  *   matiz, e não em cores distintas. Cor por identidade seria mentira aqui.
+ * - **O segmento empilhado é a exceção que confirma a regra.** `valorSecundario`
+ *   (os gastos pessoais, hoje) É uma identidade diferente dentro da mesma
+ *   medida, então ganha um preenchimento próprio — mas empilhado, na mesma
+ *   unidade e no mesmo eixo. Continua sendo um gráfico, uma escala; o que muda é
+ *   de que parte do total aquela altura veio.
  * - **Rótulo direto só no que importa** (o mês corrente). Número em cima de toda
  *   barra vira ruído e ninguém lê; o resto sai no eixo e no tooltip.
  * - **O tooltip nunca é o único caminho para o valor** — o botão "tabela" mostra
@@ -26,6 +31,11 @@ export interface Barra {
   /** Rótulo completo, para o tooltip e a tabela. */
   rotuloLongo: string
   valor: number
+  /**
+   * Parcela empilhada em cima de `valor`, na mesma unidade — os gastos pessoais
+   * do período. Ausente ou zero: a barra é uma só, como sempre foi.
+   */
+  valorSecundario?: number
   tom: 'passado' | 'atual' | 'futuro'
   /** Segunda linha do tooltip — a sua parte, por exemplo. */
   detalhe?: string
@@ -51,10 +61,13 @@ const props = withDefaults(defineProps<{
    * gráfico de barras. Ausente = usa as mesmas `barras`.
    */
   barrasTabela?: Barra[]
+  /** Como o segmento empilhado se chama na legenda e no tooltip. */
+  rotuloSecundario?: string
 }>(), {
   atualizando: false,
   vazio: 'Sem dados no período.',
   barrasTabela: undefined,
+  rotuloSecundario: 'Pessoal',
 })
 
 const linhasTabela = computed(() => props.barrasTabela ?? props.barras)
@@ -64,7 +77,12 @@ const emit = defineEmits<{ selecionar: [chave: string] }>()
 const mostrandoTabela = ref(false)
 const emFoco = ref<string | null>(null)
 
-const maximo = computed(() => Math.max(...props.barras.map(b => b.valor), 0))
+/** A barra inteira: o que é do espaço mais o que é pessoal. */
+function total(barra: Barra): number {
+  return barra.valor + (barra.valorSecundario ?? 0)
+}
+
+const maximo = computed(() => Math.max(...props.barras.map(total), 0))
 
 /** Altura em % do plot. Piso de 2% para uma barra de valor zero ainda existir. */
 function altura(valor: number): string {
@@ -72,11 +90,27 @@ function altura(valor: number): string {
   return `${Math.max((valor / maximo.value) * 100, 2)}%`
 }
 
+/** Quanto da própria barra o segmento pessoal ocupa. */
+function fatia(parte: number, inteiro: number): string {
+  if (inteiro <= 0) return '0%'
+  return `${Math.min((parte / inteiro) * 100, 100)}%`
+}
+
+const temSecundario = computed(() => props.barras.some(b => (b.valorSecundario ?? 0) > 0))
+
 const CLASSE_TOM: Record<Barra['tom'], string> = {
   passado: 'bg-primary/35',
   atual: 'bg-primary',
   futuro: 'bg-primary/15',
 }
+
+/*
+ * Cinza derivado do texto, e não uma cor da paleta semântica: verde e vermelho
+ * já querem dizer "a favor" e "contra" no módulo inteiro, e o gasto pessoal não
+ * é nem uma coisa nem outra. Derivar do `foreground` também resolve o tema
+ * escuro sem um segundo valor para manter em sincronia.
+ */
+const CLASSE_SECUNDARIO = 'bg-foreground/30'
 
 const tonsPresentes = computed(() => {
   const vistos = new Set(props.barras.map(b => b.tom))
@@ -124,8 +158,13 @@ const ROTULO_TOM: Record<Barra['tom'], string> = {
             <span v-if="barra.tom !== 'passado'" class="ml-1 text-xs text-muted-foreground">
               ({{ ROTULO_TOM[barra.tom] }})
             </span>
+            <!-- A quebra do total, em texto: é a versão legível do empilhamento -->
+            <span v-if="(barra.valorSecundario ?? 0) > 0" class="block text-xs text-muted-foreground">
+              {{ formatar(barra.valor) }} do espaço +
+              {{ formatar(barra.valorSecundario ?? 0) }} {{ rotuloSecundario.toLowerCase() }}
+            </span>
           </td>
-          <td class="py-1.5 text-right tabular-nums">{{ formatar(barra.valor) }}</td>
+          <td class="py-1.5 text-right tabular-nums">{{ formatar(total(barra)) }}</td>
           <td class="py-1.5 text-right tabular-nums">
             <!--
               Vermelho = gastou mais que o período anterior; verde = gastou
@@ -159,7 +198,9 @@ const ROTULO_TOM: Record<Barra['tom'], string> = {
           :key="barra.chave"
           type="button"
           class="group relative flex h-full flex-1 cursor-pointer flex-col justify-end rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          :aria-label="`${barra.rotuloLongo}: ${formatar(barra.valor)}`"
+          :aria-label="(barra.valorSecundario ?? 0) > 0
+            ? `${barra.rotuloLongo}: ${formatar(total(barra))}, sendo ${formatar(barra.valorSecundario ?? 0)} ${rotuloSecundario.toLowerCase()}`
+            : `${barra.rotuloLongo}: ${formatar(barra.valor)}`"
           @mouseenter="emFoco = barra.chave"
           @mouseleave="emFoco = null"
           @focus="emFoco = barra.chave"
@@ -168,24 +209,43 @@ const ROTULO_TOM: Record<Barra['tom'], string> = {
         >
           <!-- Rótulo direto só no mês corrente; o resto fica no eixo e no tooltip -->
           <span
-            v-if="barra.tom === 'atual' && barra.valor > 0"
+            v-if="barra.tom === 'atual' && total(barra) > 0"
             class="mb-1 text-center text-[10px] font-medium tabular-nums text-muted-foreground"
           >
-            {{ formatar(barra.valor) }}
+            {{ formatar(total(barra)) }}
           </span>
 
+          <!--
+            Empilhado, não lado a lado: as duas partes somam o mesmo total, e
+            barras vizinhas convidariam a comparar uma com a outra quando a
+            pergunta é quanto elas formam juntas.
+          -->
           <span
-            class="w-full rounded-t transition-[height]"
-            :class="CLASSE_TOM[barra.tom]"
-            :style="{ height: altura(barra.valor) }"
-          />
+            class="flex w-full flex-col justify-end transition-[height]"
+            :style="{ height: altura(total(barra)) }"
+          >
+            <span
+              v-if="(barra.valorSecundario ?? 0) > 0"
+              class="w-full rounded-t"
+              :class="CLASSE_SECUNDARIO"
+              :style="{ height: fatia(barra.valorSecundario ?? 0, total(barra)) }"
+            />
+            <span
+              class="w-full grow"
+              :class="[CLASSE_TOM[barra.tom], (barra.valorSecundario ?? 0) > 0 ? '' : 'rounded-t']"
+            />
+          </span>
 
           <span
             v-if="emFoco === barra.chave"
             class="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-2 py-1 text-xs shadow-md"
           >
             <span class="font-medium">{{ barra.rotuloLongo }}</span>
-            <span class="ml-2 tabular-nums">{{ formatar(barra.valor) }}</span>
+            <span class="ml-2 tabular-nums">{{ formatar(total(barra)) }}</span>
+            <span v-if="(barra.valorSecundario ?? 0) > 0" class="block text-muted-foreground">
+              Do espaço {{ formatar(barra.valor) }} ·
+              {{ rotuloSecundario.toLowerCase() }} {{ formatar(barra.valorSecundario ?? 0) }}
+            </span>
             <span v-if="barra.detalhe" class="block text-muted-foreground">{{ barra.detalhe }}</span>
           </span>
         </button>
@@ -205,10 +265,17 @@ const ROTULO_TOM: Record<Barra['tom'], string> = {
         </span>
       </div>
 
-      <div v-if="tonsPresentes.length > 1" class="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+      <div
+        v-if="tonsPresentes.length > 1 || temSecundario"
+        class="mt-3 flex flex-wrap gap-x-4 gap-y-1"
+      >
         <span v-for="tom in tonsPresentes" :key="tom" class="flex items-center gap-1.5 text-xs text-muted-foreground">
           <span class="size-2.5 rounded-sm" :class="CLASSE_TOM[tom]" />
           {{ ROTULO_TOM[tom] }}
+        </span>
+        <span v-if="temSecundario" class="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span class="size-2.5 rounded-sm" :class="CLASSE_SECUNDARIO" />
+          {{ rotuloSecundario }}
         </span>
       </div>
     </div>

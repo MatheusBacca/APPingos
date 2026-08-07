@@ -1,18 +1,40 @@
+import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import type { MaybeRefOrGetter } from 'vue'
 import { partesDaData, somarMeses, ultimoDiaDoMes } from '@/lib/datas'
 import { parteDe } from '~/types/orcamento'
 import type { CorCategoria } from '~/types/database.types'
 import type { Json } from '~/types/database.generated'
 import type { Categoria, CompraDoMes, NovaCompra, Participante } from '~/types/orcamento'
-import { useSpaceQuery, useSpaceMutation } from '~/composables/useSpaceQuery'
+import { useEspacoQuery, useEspacoMutation, useSpaceQuery, useSpaceMutation } from '~/composables/useSpaceQuery'
 import { useUsuarioId } from '~/composables/useUsuarioId'
+import { useSpaceStore } from '~/stores/space'
 
 const SELECT_COMPRA = `
-  id, descricao, valor_total, data_compra, competencia_inicial, parcelas,
+  id, space_id, descricao, valor_total, data_compra, competencia_inicial, parcelas,
   pago_por, registrado_por,
   categoria:categoria(id, nome, cor),
   participantes:compra_participante(user_id, peso, informado_como)
 `
+
+/**
+ * Qual espaço uma consulta do módulo usa.
+ *
+ * Ausente = o espaço ativo, que é o caso de todo mundo. As consultas de
+ * Orçamentos ganham este parâmetro porque a tela pode pedir a MESMA consulta
+ * duas vezes — uma para o espaço compartilhado, outra para o pessoal — e as
+ * duas precisam de entradas de cache separadas, o que `useEspacoQuery` já
+ * garante ao pôr o espaço na chave.
+ *
+ * `null` é uma resposta legítima: significa "não consulte agora" (o alternador
+ * de gastos pessoais está desligado), e desliga a query em vez de buscar nada.
+ */
+type Espaco = MaybeRefOrGetter<string | null | undefined>
+
+/** O espaço pedido, ou o ativo quando o chamador não pediu nenhum. */
+function alvoOuAtivo(espaco: Espaco | undefined) {
+  const store = useSpaceStore()
+  return computed(() => (espaco === undefined ? store.espacoAtivoId : toValue(espaco)))
+}
 
 /**
  * As compras que caem numa competência, já com a parcela daquele mês.
@@ -23,10 +45,11 @@ const SELECT_COMPRA = `
  * depois as compras daqueles ids mantém a matemática só no SQL, sem duplicar a
  * regra de arredondamento aqui em TypeScript.
  */
-export function useComprasDoMes(competencia: MaybeRefOrGetter<string>) {
+export function useComprasDoMes(competencia: MaybeRefOrGetter<string>, espaco?: Espaco) {
   const supabase = useSupabaseClient()
 
-  return useSpaceQuery(
+  return useEspacoQuery(
+    alvoOuAtivo(espaco),
     computed(() => ['orcamento', 'mes', toValue(competencia)]),
     async (spaceId): Promise<CompraDoMes[]> => {
       const mes = toValue(competencia)
@@ -86,11 +109,13 @@ export interface PontoMensal {
 export function useSerieMensal(
   competencia: MaybeRefOrGetter<string>,
   janela: { antes: number, depois: number } = { antes: 5, depois: 6 },
+  espaco?: Espaco,
 ) {
   const supabase = useSupabaseClient()
   const usuarioId = useUsuarioId()
 
-  return useSpaceQuery(
+  return useEspacoQuery(
+    alvoOuAtivo(espaco),
     computed(() => ['orcamento', 'serie', toValue(competencia)]),
     async (spaceId): Promise<PontoMensal[]> => {
       const centro = toValue(competencia)
@@ -160,10 +185,11 @@ export interface PontoSemanal {
  * Blocos por dia do mês (1–7, 8–14, …) em vez de semana ISO: uma semana ISO
  * atravessa a virada do mês e traria gasto de fora do recorte visível.
  */
-export function useSerieSemanal(competencia: MaybeRefOrGetter<string>) {
+export function useSerieSemanal(competencia: MaybeRefOrGetter<string>, espaco?: Espaco) {
   const supabase = useSupabaseClient()
 
-  return useSpaceQuery(
+  return useEspacoQuery(
+    alvoOuAtivo(espaco),
     computed(() => ['orcamento', 'semanal', toValue(competencia)]),
     async (spaceId): Promise<PontoSemanal[]> => {
       const mes = toValue(competencia)
@@ -262,11 +288,16 @@ export function useMarcarAcerto() {
   )
 }
 
-/** Categorias já usadas no espaço — a lista que o campo oferece ao digitar. */
-export function useCategorias() {
+/**
+ * Categorias já usadas no espaço — a lista que o campo oferece ao digitar.
+ *
+ * Cada espaço tem a sua: "Presentes" no seu pessoal não precisa (nem deve)
+ * aparecer no autocomplete do espaço do casal.
+ */
+export function useCategorias(espaco?: Espaco) {
   const supabase = useSupabaseClient()
 
-  return useSpaceQuery(['orcamento', 'categorias'], async (spaceId): Promise<Categoria[]> => {
+  return useEspacoQuery(alvoOuAtivo(espaco), ['orcamento', 'categorias'], async (spaceId): Promise<Categoria[]> => {
     const { data, error } = await supabase
       .from('categoria')
       .select('id, nome, cor')
@@ -285,11 +316,17 @@ export function useCategorias() {
  * dividiria por zero no rateio, em silêncio. A categoria é resolvida pelo nome
  * dentro da mesma chamada — é o que faz "Mercado" e "mercado" caírem na mesma
  * linha, independentemente de a pessoa ter escolhido da lista ou só digitado.
+ *
+ * `espaco` é o destino da gravação, e não precisa ser o espaço ativo: é assim
+ * que uma "compra pessoal" lançada de dentro do espaço do casal cai no espaço
+ * pessoal. Do lado do banco não muda nada — `registrar_compra` já recebe o
+ * espaço como parâmetro, e a policy de insert exige que você seja membro dele.
  */
-export function useRegistrarCompra() {
+export function useRegistrarCompra(espaco?: Espaco) {
   const supabase = useSupabaseClient()
 
-  return useSpaceMutation<NovaCompra, string>(
+  return useEspacoMutation<NovaCompra, string>(
+    alvoOuAtivo(espaco),
     async (spaceId, compra) => {
       const { data, error } = await supabase.rpc('registrar_compra', {
         p_space: spaceId,
@@ -316,11 +353,16 @@ export function useRegistrarCompra() {
  * Mudar `competencia_inicial` não exige nada além disto: as parcelas são
  * derivadas na view, então reexpandem sozinhas. Não há linha antiga para
  * consertar — foi para isso que o modelo evitou materializar parcela.
+ *
+ * `espaco` aqui não é destino — a RPC deriva o espaço da própria linha, e mover
+ * uma compra entre espaços não é operação suportada. Serve só para invalidar o
+ * cache certo quando a compra editada é pessoal e o espaço ativo é outro.
  */
-export function useAtualizarCompra() {
+export function useAtualizarCompra(espaco?: Espaco) {
   const supabase = useSupabaseClient()
 
-  return useSpaceMutation<NovaCompra & { id: string }, void>(
+  return useEspacoMutation<NovaCompra & { id: string }, void>(
+    alvoOuAtivo(espaco),
     async (_spaceId, compra) => {
       const { error } = await supabase.rpc('atualizar_compra', {
         p_compra: compra.id,
@@ -340,16 +382,24 @@ export function useAtualizarCompra() {
   )
 }
 
+/**
+ * Remover recebe a compra inteira, e não o id, por um motivo só: a linha carrega
+ * o `space_id`, e é ele que diz qual cache limpar. Uma compra pessoal removida
+ * de dentro do espaço do casal invalidaria a gaveta errada se a mutation
+ * assumisse o espaço ativo — e continuaria na tela até um F5.
+ */
 export function useRemoverCompra() {
   const supabase = useSupabaseClient()
+  const queryClient = useQueryClient()
 
-  return useSpaceMutation<string, void>(
-    async (_spaceId, compraId) => {
-      const { error } = await supabase.from('compra').delete().eq('id', compraId)
+  return useMutation({
+    mutationFn: async (compra: CompraDoMes) => {
+      const { error } = await supabase.from('compra').delete().eq('id', compra.id)
       if (error) throw error
     },
-    [['orcamento']],
-  )
+    onSuccess: (_dado, compra) =>
+      queryClient.invalidateQueries({ queryKey: ['space', compra.space_id, 'orcamento'] }),
+  })
 }
 
 /** Trocar a cor de uma categoria que já existe. */

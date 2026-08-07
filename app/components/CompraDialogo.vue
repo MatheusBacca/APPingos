@@ -6,6 +6,13 @@
  * ou reais — vira o PESO de cada participante, sem virar percentual pelo
  * caminho. "R$ 500 de R$ 1.500" grava peso 500 contra 1000, uma razão exata;
  * guardar 33,33% devolveria R$ 499,95 na hora de exibir.
+ *
+ * O segundo eixo do formulário é EM QUE GAVETA a compra cai. Num espaço
+ * compartilhado o default é "compartilhada" — é o caso comum de quem está com o
+ * espaço do casal aberto, e é o erro barato (aparece para os dois, e alguém
+ * corrige). O contrário esconderia da outra pessoa um lançamento que ela espera
+ * ver. "Pessoal" grava no espaço pessoal, que é onde a privacidade é garantida
+ * pela RLS e não por um filtro que alguém precise lembrar de aplicar.
  */
 import { toast } from 'vue-sonner'
 import { CheckIcon } from '@lucide/vue'
@@ -34,12 +41,16 @@ import type { CorCategoria, InformadoComo } from '~/types/database.types'
 import { formatarMes } from '@/lib/datas'
 import type { Categoria, CompraDoMes } from '~/types/orcamento'
 import type { Membro } from '~/composables/useMembros'
+import { useGastosPessoais } from '~/composables/useGastosPessoais'
 import { useRegistrarCompra, useAtualizarCompra } from '~/composables/useOrcamento'
 import { useUsuarioId } from '~/composables/useUsuarioId'
+import { useSpaceStore } from '~/stores/space'
 
 const props = defineProps<{
   membros: Membro[]
   categorias: Categoria[]
+  /** As do espaço pessoal — cada gaveta tem a sua lista. */
+  categoriasPessoais: Categoria[]
   competenciaVisivel: string
   /** Preenchida = edição; ausente = compra nova. */
   compra?: CompraDoMes | null
@@ -48,11 +59,38 @@ const props = defineProps<{
 const aberto = defineModel<boolean>('aberto', { required: true })
 
 const usuarioId = useUsuarioId()
-const registrar = useRegistrarCompra()
-const atualizar = useAtualizarCompra()
+const store = useSpaceStore()
+
+// ---- Em que gaveta a compra cai ---------------------------------------------
+
+const { espacoPessoalId, disponivel: podeEscolherGaveta, ligado } = useGastosPessoais()
+
+const GAVETAS = [
+  { valor: 'compartilhado' as const, rotulo: 'Compra compartilhada' },
+  { valor: 'pessoal' as const, rotulo: 'Compra pessoal' },
+]
+
+const modo = ref<'compartilhado' | 'pessoal'>('compartilhado')
+const pessoal = computed(() => modo.value === 'pessoal')
+
+/** No espaço pessoal não há escolha a fazer: tudo ali já é seu. */
+const espacoAtivoEhPessoal = computed(() =>
+  !!espacoPessoalId.value && espacoPessoalId.value === store.espacoAtivoId,
+)
+
+const espacoDestino = computed(() =>
+  pessoal.value ? espacoPessoalId.value : store.espacoAtivoId,
+)
+
+const registrar = useRegistrarCompra(espacoDestino)
+const atualizar = useAtualizarCompra(espacoDestino)
 
 const editando = computed(() => !!props.compra)
 const salvando = computed(() => registrar.isPending.value || atualizar.isPending.value)
+
+const categoriasDaGaveta = computed(() =>
+  pessoal.value ? props.categoriasPessoais : props.categorias,
+)
 
 const souAdmin = computed(() =>
   ehAdmin(props.membros.find(m => m.user_id === usuarioId.value)?.papel),
@@ -125,6 +163,7 @@ function ajustar(userId: string, valor: number) {
 }
 
 function reiniciar() {
+  modo.value = espacoAtivoEhPessoal.value ? 'pessoal' : 'compartilhado'
   descricao.value = ''
   valorTotal.value = undefined
   dataCompra.value = hojeIso()
@@ -145,6 +184,7 @@ function reiniciar() {
  * reversa, que é onde apareceria o centavo perdido.
  */
 function preencherCom(compra: CompraDoMes) {
+  modo.value = compra.space_id === espacoPessoalId.value ? 'pessoal' : 'compartilhado'
   descricao.value = compra.descricao
   valorTotal.value = Number(compra.valor_total)
   dataCompra.value = compra.data_compra
@@ -180,6 +220,20 @@ function trocarModo(modo: InformadoComo) {
   dividirIgualmente()
 }
 
+/**
+ * Trocar de gaveta não é só mudar o destino: um gasto pessoal não tem rateio nem
+ * "quem pagou" (é você, sempre), então os dois campos somem da tela. Ao voltar
+ * para compartilhada, o rateio só é refeito se tiver deixado de fechar — mexer
+ * num rateio que a pessoa digitou à mão seria perder o que ela escreveu.
+ */
+function trocarGaveta(nova: 'compartilhado' | 'pessoal') {
+  if (modo.value === nova || editando.value) return
+  modo.value = nova
+
+  if (nova === 'pessoal') pagoPor.value = usuarioId.value ?? ''
+  else if (!somaConfere.value) dividirIgualmente()
+}
+
 // ---- Derivados --------------------------------------------------------------
 
 const somaPartes = computed(() =>
@@ -205,8 +259,10 @@ const podeSalvar = computed(() =>
   && (valorTotal.value ?? 0) > 0
   && !!dataCompra.value
   && !!competencia.value
-  && !!pagoPor.value
-  && somaConfere.value
+  // Numa compra pessoal não há rateio a fechar nem pagador a escolher.
+  && (pessoal.value
+    ? !!usuarioId.value && !!espacoPessoalId.value
+    : !!pagoPor.value && somaConfere.value)
   && !salvando.value,
 )
 
@@ -238,21 +294,29 @@ const parcelaNoMesVisivel = computed(() => {
 async function salvar() {
   if (!podeSalvar.value) return
 
+  /*
+   * Numa compra pessoal o rateio é você inteiro: um participante, peso 1. A RPC
+   * exige ao menos um participante com peso positivo (uma compra sem rateio
+   * dividiria por zero no saldo), e no espaço pessoal você é o único membro que
+   * o trigger de validação aceitaria de qualquer forma.
+   */
   const dados = {
     descricao: descricao.value.trim(),
     valor_total: valorTotal.value!,
     data_compra: dataCompra.value,
     competencia_inicial: deMesInput(competencia.value),
     parcelas: Math.max(parcelas.value || 1, 1),
-    pago_por: pagoPor.value,
-    participantes: props.membros
-      .map(m => ({
-        user_id: m.user_id,
-        peso: Number(partes.value[m.user_id] ?? 0),
-        informado_como: modoRateio.value,
-      }))
-      // Quem não participa do rateio não entra — peso zero só polui a linha.
-      .filter(p => p.peso > 0),
+    pago_por: pessoal.value ? usuarioId.value! : pagoPor.value,
+    participantes: pessoal.value
+      ? [{ user_id: usuarioId.value!, peso: 1, informado_como: 'percentual' as InformadoComo }]
+      : props.membros
+          .map(m => ({
+            user_id: m.user_id,
+            peso: Number(partes.value[m.user_id] ?? 0),
+            informado_como: modoRateio.value,
+          }))
+          // Quem não participa do rateio não entra — peso zero só polui a linha.
+          .filter(p => p.peso > 0),
     categoria_nome: categoriaNome.value.trim() || null,
     categoria_cor: categoriaNome.value.trim() ? categoriaCor.value : null,
   }
@@ -264,7 +328,18 @@ async function salvar() {
     }
     else {
       await registrar.mutateAsync(dados)
-      toast.success('Compra registrada.')
+
+      /*
+       * Sem isto, lançar uma compra pessoal com o alternador desligado grava uma
+       * linha que não aparece em lugar nenhum da tela — o clássico "salvei e
+       * sumiu", que faz a pessoa lançar de novo. Ligar o alternador é mais
+       * honesto do que só avisar: mostra onde a compra caiu.
+       */
+      if (pessoal.value && podeEscolherGaveta.value) ligado.value = true
+
+      toast.success(pessoal.value
+        ? 'Lançada nos seus gastos pessoais.'
+        : 'Compra registrada.')
     }
     aberto.value = false
   }
@@ -282,11 +357,51 @@ async function salvar() {
       <DialogHeader>
         <DialogTitle>{{ editando ? 'Editar compra' : 'Nova compra' }}</DialogTitle>
         <DialogDescription>
-          Uma linha da lista: o que foi, quanto custou e como divide.
+          {{ pessoal
+            ? 'Um gasto que é só seu: o que foi e quanto custou.'
+            : 'Uma linha da lista: o que foi, quanto custou e como divide.' }}
         </DialogDescription>
       </DialogHeader>
 
       <div class="space-y-4">
+        <!--
+          A primeira pergunta do formulário, e não a última: ela decide se metade
+          dos campos abaixo existe. Só aparece num espaço compartilhado — dentro
+          do próprio pessoal não há escolha a fazer.
+        -->
+        <div v-if="podeEscolherGaveta" class="space-y-2">
+          <Label class="text-sm">Onde entra</Label>
+
+          <div class="flex gap-1 rounded-lg border p-1">
+            <Button
+              v-for="gaveta in GAVETAS"
+              :key="gaveta.valor"
+              type="button"
+              size="sm"
+              class="flex-1"
+              :variant="modo === gaveta.valor ? 'default' : 'ghost'"
+              :disabled="editando && modo !== gaveta.valor"
+              @click="trocarGaveta(gaveta.valor)"
+            >
+              {{ gaveta.rotulo }}
+            </Button>
+          </div>
+
+          <p class="text-xs text-muted-foreground">
+            <template v-if="pessoal">
+              Só você vê. Não entra no rateio nem no acerto do mês.
+            </template>
+            <template v-else>
+              Aparece para todo mundo do espaço e entra no acerto do mês.
+            </template>
+          </p>
+
+          <!-- Trocar de gaveta seria mudar a compra de espaço; ver o plano. -->
+          <p v-if="editando" class="text-xs text-muted-foreground">
+            Uma compra lançada não muda de lugar — para trocar, remova e lance de novo.
+          </p>
+        </div>
+
         <div class="space-y-2">
           <Label for="compra-descricao">Descrição</Label>
           <Input id="compra-descricao" v-model="descricao" placeholder="Mercado do mês" />
@@ -369,11 +484,11 @@ async function salvar() {
             id="compra-categoria"
             v-model:nome="categoriaNome"
             v-model:cor="categoriaCor"
-            :categorias="categorias"
+            :categorias="categoriasDaGaveta"
           />
         </div>
 
-        <div class="space-y-2">
+        <div v-if="!pessoal" class="space-y-2">
           <Label>Quem pagou</Label>
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
@@ -398,8 +513,8 @@ async function salvar() {
           </p>
         </div>
 
-        <!-- Rateio -->
-        <div class="space-y-3 rounded-lg border p-3">
+        <!-- Rateio — não existe numa compra pessoal: é você inteiro -->
+        <div v-if="!pessoal" class="space-y-3 rounded-lg border p-3">
           <div class="flex items-center justify-between gap-2">
             <Label class="text-sm">Como divide</Label>
             <div class="flex gap-1">

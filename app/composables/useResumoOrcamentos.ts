@@ -26,9 +26,10 @@
  */
 import { hojeIso, nomeDoMes, primeiroDoMes, somarMeses } from '@/lib/datas'
 import { formatarDinheiro } from '@/lib/dinheiro'
-import { saldoDoMes } from '~/types/orcamento'
+import { saldoDoMes, totalDoMes } from '~/types/orcamento'
 import type { CompraDoMes } from '~/types/orcamento'
 import type { LinhaResumo, UsarResumo } from '~/types/resumo'
+import { useGastosPessoais } from '~/composables/useGastosPessoais'
 import { useMembros } from '~/composables/useMembros'
 import { useComprasDoMes, useAcertos } from '~/composables/useOrcamento'
 import { useUsuarioId } from '~/composables/useUsuarioId'
@@ -86,10 +87,37 @@ export function linhaDoMes(
   }
 }
 
+/**
+ * O que saiu do seu bolso e não é de ninguém mais, no mês corrente.
+ *
+ * Sem tom: gasto pessoal não é dívida a favor nem contra — não há a quem dever.
+ * Vermelho aqui daria a entender uma cobrança que não existe.
+ */
+export function linhaPessoais(competencia: string, pessoais: CompraDoMes[]): LinhaResumo | null {
+  const total = totalDoMes(pessoais)
+  if (total < QUITADO) return null
+
+  return {
+    chave: `orcamento-pessoais-${competencia}`,
+    rotulo: 'Pessoais',
+    nota: nomeDoMes(competencia),
+    valor: formatarDinheiro(total),
+    valorDescrito: 'gastos só seus',
+    tom: 'neutro',
+  }
+}
+
 export const useResumoOrcamentos: UsarResumo = () => {
   const usuarioId = useUsuarioId()
   const { data: membros } = useMembros()
   const { data: acertos } = useAcertos()
+
+  /*
+   * O painel acompanha a escolha feita na tela de Orçamentos: quem desligou o
+   * alternador lá não quer os pessoais somando aqui. `espacoVisivel` é `null`
+   * nesse caso, e a consulta não dispara.
+   */
+  const { espacoVisivel } = useGastosPessoais()
 
   /*
    * O mês é fixado na montagem em vez de recalculado a cada leitura: o painel
@@ -113,6 +141,14 @@ export const useResumoOrcamentos: UsarResumo = () => {
   const { data: comprasA } = useComprasDoMes(computed(() => meses.value[0].competencia))
   const { data: comprasB } = useComprasDoMes(computed(() => meses.value[1].competencia))
 
+  /*
+   * Só o mês corrente, e não os dois: o painel cabe em três linhas, e "quanto
+   * eu já gastei este mês" é a pergunta que o pessoal responde. O mês fechado
+   * pessoal não cobra nada de ninguém — não há acerto pendente a lembrar.
+   */
+  const corrente = primeiroDoMes(hoje)
+  const { data: comprasPessoais } = useComprasDoMes(corrente, espacoVisivel)
+
   return computed<LinhaResumo[]>(() => {
     const ids = (membros.value ?? []).map(m => m.user_id)
     const eu = usuarioId.value
@@ -120,6 +156,7 @@ export const useResumoOrcamentos: UsarResumo = () => {
     return [
       linhaDoMes(meses.value[0], comprasA.value ?? [], ids, eu),
       linhaDoMes(meses.value[1], comprasB.value ?? [], ids, eu),
+      linhaPessoais(corrente, comprasPessoais.value ?? []),
     ].filter((linha): linha is LinhaResumo => linha !== null)
   })
 }

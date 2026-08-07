@@ -7,7 +7,7 @@
  * mês seguinte.
  */
 import { describe, expect, it } from 'vitest'
-import { linhaDoMes, mesesDoPainel } from '~/composables/useResumoOrcamentos'
+import { linhaDoMes, linhaPessoais, mesesDoPainel } from '~/composables/useResumoOrcamentos'
 import type { MesDoPainel } from '~/composables/useResumoOrcamentos'
 import type { CompraDoMes } from '~/types/orcamento'
 
@@ -18,6 +18,7 @@ const MEMBROS = [EU, ELA]
 function compra(valor: number, pagoPor: string): CompraDoMes {
   return {
     id: `c-${valor}-${pagoPor}`,
+    space_id: 'casal',
     descricao: 'Compra',
     valor_total: valor,
     data_compra: '2026-08-01',
@@ -95,5 +96,34 @@ describe('linhaDoMes', () => {
     const b = linhaDoMes(mes('2026-07-01', 'Aberto'), [compra(200, ELA)], MEMBROS, EU)
 
     expect(a?.chave).toBe(b?.chave)
+  })
+})
+
+describe('linhaPessoais', () => {
+  const pessoal = (valor: number): CompraDoMes => ({
+    ...compra(valor, EU),
+    id: `p-${valor}`,
+    space_id: 'pessoal',
+    participantes: [{ user_id: EU, peso: 1, informado_como: 'percentual' as const }],
+  })
+
+  it('soma os gastos do mês sem tom — não é dívida a favor nem contra', () => {
+    const linha = linhaPessoais('2026-08-01', [pessoal(30), pessoal(12.5)])
+
+    expect(linha).toMatchObject({ rotulo: 'Pessoais', nota: 'Agosto', tom: 'neutro' })
+    expect(linha?.valor).toContain('42,50')
+    // Sem sinal: não há direção, ninguém deve nada a ninguém.
+    expect(linha?.valor).not.toContain('−')
+    expect(linha?.valor).not.toContain('+')
+  })
+
+  it('não ocupa uma linha do painel quando não houve gasto pessoal', () => {
+    expect(linhaPessoais('2026-08-01', [])).toBeNull()
+  })
+
+  it('não colide com a chave da linha de dívida do mesmo mês', () => {
+    const divida = linhaDoMes(mes('2026-08-01', 'Aberto'), [compra(100, ELA)], MEMBROS, EU)
+
+    expect(linhaPessoais('2026-08-01', [pessoal(30)])?.chave).not.toBe(divida?.chave)
   })
 })
