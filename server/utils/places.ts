@@ -52,13 +52,24 @@ function chave(event: H3Event): string {
  * custo em zero, então ela não deve aparecer aqui por conveniência.
  */
 export async function buscarLugares(event: H3Event, termo: string): Promise<LugarSugerido[]> {
+  /*
+   * A chave é resolvida FORA do try, e isso não é estilo.
+   *
+   * Dentro dele, o 503 de "chave não configurada" seria pego pelo próprio catch
+   * abaixo e reembalado como 502 "Falha ao consultar o Google Places" — a
+   * mensagem que manda procurar problema no Google quando o problema é uma
+   * variável de ambiente que ninguém preencheu. Foi exatamente o que apareceu no
+   * primeiro deploy: 502 em produção, chave faltando na Vercel, e a mensagem
+   * apontando para o lugar errado.
+   */
+  const apiKey = chave(event)
   let data: { suggestions?: Sugestao[] }
 
   try {
     data = await $fetch<{ suggestions?: Sugestao[] }>(AUTOCOMPLETE, {
       method: 'POST',
       headers: {
-        'X-Goog-Api-Key': chave(event),
+        'X-Goog-Api-Key': apiKey,
         'X-Goog-FieldMask': CAMPOS,
       },
       // `regionCode` enviesa o resultado para o Brasil sem impedir buscar fora:

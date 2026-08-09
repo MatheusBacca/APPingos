@@ -56,6 +56,11 @@ function chave(event: H3Event): string {
 }
 
 async function tmdb<T>(event: H3Event, caminho: string, params: Record<string, string> = {}): Promise<T> {
+  // Fora do try: dentro dele, o 503 de "chave não configurada" seria pego pelo
+  // catch abaixo e viraria 502 "Falha ao consultar o TMDB" — a mensagem manda
+  // procurar problema no TMDB quando falta uma variável no .env.
+  const token = chave(event)
+
   try {
     // Autenticação por Bearer com o Read Access Token (v4), e não `?api_key=`
     // (v3): é o método que o TMDB recomenda hoje e mantém o segredo fora da URL,
@@ -65,7 +70,7 @@ async function tmdb<T>(event: H3Event, caminho: string, params: Record<string, s
     return await $fetch<T>(`${BASE}${caminho}`, {
       query: { language: 'pt-BR', ...params },
       headers: {
-        Authorization: `Bearer ${chave(event)}`,
+        Authorization: `Bearer ${token}`,
         accept: 'application/json',
       },
     }) as T
