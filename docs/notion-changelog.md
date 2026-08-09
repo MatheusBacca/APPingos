@@ -394,3 +394,33 @@ O preço do gesto é que ninguém o descobre por conta própria, então a barra 
 quando o roteiro tem três ou mais paradas roteáveis — abaixo disso selecionar é o mesmo que
 abrir tudo. `onLongPress` do @vueuse cuida do cancelamento por rolagem (10px de folga), e o gesto
 é ignorado quando começa num campo de texto, onde segurar é gesto do sistema.
+
+## 2026-08-09 (continuação) — Atalhos do Maps na lista e alerta de spoiler
+
+**Feito:**
+- Ícone de atalho no cabeçalho de cada dia, abrindo aquele dia no Maps. O recorte "Por dia"
+  saiu da barra: um ícone ao lado do "Dia 2" acerta o alvo melhor que um botão no outro canto
+  da tela, que obrigava a traduzir um "Dia 2" no outro
+- Atalho por parada, fora do `v-if="editavel"` — abrir um lugar no Maps não é editar, e vale
+  no roteiro de outra pessoa e no meio da seleção
+- Migration `20260809214557_viagens_alerta_de_spoiler.sql`: a RPC `segredos_do_espaco`
+- `usePontosPorLink`, porque agora dois lugares perguntam quantas paradas cabem num link
+
+**Decisão: desfoque de CSS não é privacidade.** O pedido era mostrar o roteiro secreto aos
+outros membros, ofuscado. Se o nome chegasse ao navegador para ser coberto por um `blur-sm`, o
+devtools entregaria a surpresa em dois cliques — e um card cujo trabalho é guardar segredo não
+pode depender de ninguém não olhar. A policy `roteiro_select` continua exatamente como nasceu,
+escondendo a linha inteira; ao lado dela nasceu um caminho deliberadamente estreito:
+
+    roteiro_select        -> a linha inteira, só para quem criou
+    segredos_do_espaco()  -> id, quem e quando, para o resto do espaço
+
+A lista de colunas da RPC É o contrato. O que não está nela não tem como vazar, nem por engano
+de `select`. As barras borradas do card não cobrem texto nenhum — não há texto a cobrir, e o
+borrão é metáfora, não fechadura.
+
+**Bug corrigido, e ele ficou mais provável com o card novo:** abrir na mão a URL de um roteiro
+que não é seu mostrava o erro cru do PostgREST ("Cannot coerce the result to a single JSON
+object"). `useRoteiro` passou a usar `maybeSingle` — não encontrar não é falha, é a resposta
+certa. A tela diz a mesma coisa para "não existe" e para "é segredo de outra pessoa", porque
+distinguir os dois já seria contar meia surpresa.

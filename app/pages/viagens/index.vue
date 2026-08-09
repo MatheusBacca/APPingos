@@ -6,15 +6,27 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { RoteiroParaSalvar } from '~/composables/useRoteiros'
 import { roteirosNovos } from '~/types/viagem'
-import { useRoteiros, useRoteirosVistos, useCriarRoteiro } from '~/composables/useRoteiros'
+import { useRoteiros, useRoteirosVistos, useCriarRoteiro, useSegredosDoEspaco } from '~/composables/useRoteiros'
+import { useMembros } from '~/composables/useMembros'
 
 useHead({ title: 'Viagens · APPingos' })
 
 const { data: roteiros, isPending, isError, error } = useRoteiros()
 const { data: vistos } = useRoteirosVistos()
+const { data: segredos } = useSegredosDoEspaco()
+const { data: membros } = useMembros()
 const criar = useCriarRoteiro()
 
 const dialogoAberto = ref(false)
+
+/** Só o primeiro nome: "Ana está montando algo" cabe no card, o nome inteiro não. */
+function primeiroNome(userId: string): string | null {
+  const nome = membros.value?.find(m => m.user_id === userId)?.nome
+  return nome ? nome.split(' ')[0] || nome : null
+}
+
+/** A grade tem conteúdo se há roteiro OU se há segredo alheio a anunciar. */
+const temAlgo = computed(() => !!roteiros.value?.length || !!segredos.value?.length)
 
 const novos = computed(() =>
   new Set(roteirosNovos(roteiros.value ?? [], vistos.value ?? [])),
@@ -58,12 +70,23 @@ async function onCriar(campos: RoteiroParaSalvar) {
       {{ mensagemDeErro(error, 'Não deu para carregar os roteiros.') }}
     </p>
 
-    <div v-else-if="roteiros?.length" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div v-else-if="temAlgo" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <RoteiroCard
         v-for="roteiro in roteiros"
         :key="roteiro.id"
         :roteiro="roteiro"
         :novo="novos.has(roteiro.id)"
+      />
+
+      <!--
+        Os segredos alheios vêm por último: eles não são conteúdo, são aviso.
+        Ficam depois do que a pessoa de fato pode abrir.
+      -->
+      <RoteiroSecretoCard
+        v-for="segredo in segredos"
+        :key="segredo.id"
+        :quem="primeiroNome(segredo.criado_por)"
+        :desde="segredo.created_at"
       />
     </div>
 

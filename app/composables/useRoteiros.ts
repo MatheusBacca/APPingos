@@ -40,20 +40,30 @@ export function useRoteiros() {
   })
 }
 
+/**
+ * Um roteiro, ou `null` quando ele não existe para quem está pedindo.
+ *
+ * `maybeSingle` e não `single` de propósito: um roteiro secreto de outra pessoa
+ * é invisível pela RLS, e com `single` isso chegava à tela como o erro cru do
+ * PostgREST ("Cannot coerce the result to a single JSON object"). Não encontrar
+ * não é falha — é a resposta certa, e agora dá para dizê-la em português. Vale
+ * mais desde que o card de spoiler existe: ele anuncia um id que a pessoa pode
+ * muito bem tentar abrir na mão.
+ */
 export function useRoteiro(id: MaybeRefOrGetter<string>) {
   const supabase = useSupabaseClient()
 
   return useSpaceQuery(
     computed(() => ['roteiro', toValue(id)]),
-    async (): Promise<RoteiroComParadas> => {
+    async (): Promise<RoteiroComParadas | null> => {
       const { data, error } = await supabase
         .from('roteiro')
         .select(`${CAMPOS}, paradas:parada(${CAMPOS_PARADA})`)
         .eq('id', toValue(id))
-        .single()
+        .maybeSingle()
 
       if (error) throw error
-      return data as unknown as RoteiroComParadas
+      return (data as unknown as RoteiroComParadas) ?? null
     },
     { enabled: computed(() => !!toValue(id)) },
   )
@@ -83,6 +93,32 @@ export function useRoteirosVistos() {
     },
     { enabled: computed(() => !!usuarioId.value) },
   )
+}
+
+/** Tudo que se sabe sobre o segredo de outra pessoa: que ele existe. */
+export interface SegredoDoEspaco {
+  id: string
+  criado_por: string
+  created_at: string
+}
+
+/**
+ * Os roteiros secretos dos OUTROS membros — sem nome, sem paradas, sem nada.
+ *
+ * Vem de uma RPC e não de `.from('roteiro')` de propósito: a RLS esconde a linha
+ * inteira, e é assim que tem que continuar. A função devolve três colunas, e
+ * essa lista é o contrato — o que não está nela não tem como chegar aqui, nem
+ * por engano de `select`, nem pelo devtools de quem quer estragar a surpresa.
+ */
+export function useSegredosDoEspaco() {
+  const supabase = useSupabaseClient()
+
+  return useSpaceQuery(['roteiros', 'segredos'], async (spaceId): Promise<SegredoDoEspaco[]> => {
+    const { data, error } = await supabase.rpc('segredos_do_espaco', { p_space: spaceId })
+
+    if (error) throw error
+    return data ?? []
+  })
 }
 
 export interface RoteiroParaSalvar {

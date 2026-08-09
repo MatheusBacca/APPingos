@@ -31,7 +31,13 @@ const salvarParadas = useSalvarParadas()
 const liberar = useLiberarRoteiro()
 const marcarVisto = useMarcarRoteiroVisto()
 
-useHead({ title: () => `${roteiro.value?.nome ?? 'Carregando…'} · APPingos` })
+useHead({
+  title: () => {
+    if (roteiro.value) return `${roteiro.value.nome} · APPingos`
+    // Sem isto a aba fica "Carregando…" para sempre num roteiro que não é seu.
+    return isPending.value ? 'Carregando… · APPingos' : 'Roteiro não encontrado · APPingos'
+  },
+})
 
 const souOCriador = computed(() => roteiro.value?.criado_por === usuarioId.value)
 const secreto = computed(() => roteiro.value?.visibilidade === 'segredo')
@@ -109,7 +115,7 @@ watchDebounced(rascunho, async () => {
  * comanda a lista — no modo seleção a lista mostra caixas e para de ser
  * editável, senão reordenar embaralharia o que está marcado.
  */
-const aberturaEm = ref<'tudo' | 'dia' | 'selecao'>('tudo')
+const aberturaEm = ref<'tudo' | 'selecao'>('tudo')
 const selecionadas = ref<number[]>([])
 
 const selecionando = computed(() => aberturaEm.value === 'selecao')
@@ -203,8 +209,21 @@ async function onApagar() {
     </div>
 
     <p v-else-if="isError" class="text-sm text-destructive">
-      {{ mensagemDeErro(error, 'Este roteiro não existe ou não é seu.') }}
+      {{ mensagemDeErro(error, 'Não deu para carregar este roteiro.') }}
     </p>
+
+    <!--
+      Carregou e não veio nada: ou o roteiro não existe, ou é um segredo de outra
+      pessoa. A tela diz a mesma coisa nos dois casos de propósito — distinguir
+      "não existe" de "existe mas é segredo" já seria contar meia surpresa.
+    -->
+    <div v-else-if="!roteiro" class="rounded-xl border border-dashed px-6 py-16 text-center">
+      <p class="font-medium">Este roteiro não é seu.</p>
+      <p class="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+        Ou ele não existe, ou alguém do espaço ainda está montando — e, se for o caso,
+        você vê quando essa pessoa liberar.
+      </p>
+    </div>
 
     <template v-else-if="roteiro">
       <header class="flex flex-wrap items-start justify-between gap-3">
@@ -265,7 +284,6 @@ async function onApagar() {
         v-model:abertura-em="aberturaEm"
         :paradas="rascunho"
         :modo="roteiro.modo_transporte"
-        :data-inicio="roteiro.data_inicio"
         :selecionadas="selecionadas"
       />
 
@@ -283,6 +301,7 @@ async function onApagar() {
         <ListaDeParadas
           :paradas="rascunho"
           :data-inicio="roteiro.data_inicio"
+          :modo="roteiro.modo_transporte"
           :editavel="!selecionando"
           :selecionavel="selecionando"
           :selecionadas="selecionadas"

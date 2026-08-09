@@ -780,6 +780,14 @@ export type Database = {
         Args: { p_paradas: Json; p_roteiro: string }
         Returns: number
       }
+      segredos_do_espaco: {
+        Args: { p_space: string }
+        Returns: {
+          created_at: string
+          criado_por: string
+          id: string
+        }[]
+      }
       shares_space_with: { Args: { p_user: string }; Returns: boolean }
     }
     Enums: {

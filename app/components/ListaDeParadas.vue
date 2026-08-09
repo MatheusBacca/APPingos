@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { onLongPress } from '@vueuse/core'
-import { ArrowDownIcon, ArrowUpIcon, MapPinIcon, PenLineIcon, XIcon } from '@lucide/vue'
+import { ArrowDownIcon, ArrowUpIcon, ExternalLinkIcon, MapIcon, MapPinIcon, PenLineIcon, XIcon } from '@lucide/vue'
 import { Input } from '@/components/ui/input'
-import type { ParadaParaSalvar } from '~/types/viagem'
-import { rotuloDoDia } from '~/types/viagem'
+import type { AberturaNoMaps, ModoTransporte, ParadaParaSalvar } from '~/types/viagem'
+import { aberturaNoMaps, agruparPorDia, rotuloDoDia, urlDoLugar, urlDoTrecho } from '~/types/viagem'
+import { usePontosPorLink } from '~/composables/usePontosPorLink'
 
 /**
  * A lista ordenável, com setas como mecanismo principal.
@@ -18,6 +19,8 @@ import { rotuloDoDia } from '~/types/viagem'
 const props = defineProps<{
   paradas: ParadaParaSalvar[]
   dataInicio: string | null
+  /** Como a rota é traçada nos atalhos do dia. */
+  modo: ModoTransporte
   /** Sem isto a lista é só leitura — é o caso do roteiro de outra pessoa. */
   editavel?: boolean
   /** Liga as caixas de marcar, para montar um percurso avulso. */
@@ -110,6 +113,26 @@ const inicioDeDia = computed(() =>
   props.paradas.map((p, i) => p.dia !== null && p.dia !== props.paradas[i - 1]?.dia),
 )
 
+/*
+ * O atalho do dia mora no cabeçalho dele, e não numa barra separada.
+ *
+ * Um botão longe da lista obriga a pessoa a traduzir "Dia 2" na tela para
+ * "Dia 2" no outro canto; aqui o alvo está ao lado do que ele abre. E o dia é
+ * agrupado inteiro, mesmo com paradas separadas na lista — o cabeçalho aparece
+ * na primeira delas, mas o link leva o dia todo.
+ */
+const pontosPorLink = usePontosPorLink()
+
+const aberturaDoDia = computed(() => {
+  const porDia = new Map<number | null, AberturaNoMaps<ParadaParaSalvar>>()
+
+  for (const grupo of agruparPorDia(props.paradas)) {
+    porDia.set(grupo.dia, aberturaNoMaps(grupo.paradas, pontosPorLink.value))
+  }
+
+  return porDia
+})
+
 function mover(de: number, para: number) {
   if (para < 0 || para >= props.paradas.length || de === para) return
 
@@ -150,9 +173,43 @@ function soltar(indice: number) {
     <template v-for="(parada, i) in paradas" :key="`${i}-${parada.nome}`">
       <li
         v-if="inicioDeDia[i]"
-        class="pt-2 text-xs font-medium uppercase tracking-wide text-muted-foreground first:pt-0"
+        class="flex items-center gap-2 pt-2 text-xs font-medium uppercase tracking-wide text-muted-foreground first:pt-0"
       >
         {{ rotuloDoDia(parada.dia, dataInicio) }}
+
+        <!--
+          Um ícone por trecho: um dia longo demais para um link só não pode virar
+          um atalho que leva metade do dia sem avisar. No caso comum é um só.
+        -->
+        <a
+          v-for="(trecho, t) in aberturaDoDia.get(parada.dia)?.trechos ?? []"
+          :key="t"
+          :href="urlDoTrecho(trecho, modo) ?? undefined"
+          target="_blank"
+          rel="noopener"
+          class="grid size-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          :title="(aberturaDoDia.get(parada.dia)?.trechos.length ?? 0) > 1
+            ? `Abrir no Maps — trecho ${t + 1}`
+            : 'Abrir este dia no Google Maps'"
+          :aria-label="(aberturaDoDia.get(parada.dia)?.trechos.length ?? 0) > 1
+            ? `Abrir ${rotuloDoDia(parada.dia, dataInicio)} no Google Maps, trecho ${t + 1} de ${aberturaDoDia.get(parada.dia)?.trechos.length}`
+            : `Abrir ${rotuloDoDia(parada.dia, dataInicio)} no Google Maps`"
+        >
+          <MapIcon class="size-3.5" />
+        </a>
+
+        <!-- Dia de uma parada só: não há rota, mas há lugar. -->
+        <a
+          v-if="aberturaDoDia.get(parada.dia)?.lugarUnico"
+          :href="urlDoLugar(aberturaDoDia.get(parada.dia)!.lugarUnico!) ?? undefined"
+          target="_blank"
+          rel="noopener"
+          class="grid size-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          :aria-label="`Abrir ${aberturaDoDia.get(parada.dia)!.lugarUnico!.nome} no Google Maps`"
+          title="Abrir este lugar no Google Maps"
+        >
+          <MapIcon class="size-3.5" />
+        </a>
       </li>
 
       <li
@@ -244,8 +301,26 @@ function soltar(indice: number) {
             </div>
           </div>
 
-          <div v-if="editavel" class="flex shrink-0 flex-col gap-1">
+          <div class="flex shrink-0 flex-col gap-1">
+            <!--
+              Fora do `v-if="editavel"` de propósito: abrir um lugar no Maps não
+              é editar. Vale no roteiro de outra pessoa e no meio da seleção, que
+              é justamente quando alguém quer conferir onde fica antes de marcar.
+            -->
+            <a
+              v-if="parada.google_place_id"
+              :href="urlDoLugar(parada) ?? undefined"
+              target="_blank"
+              rel="noopener"
+              class="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              :aria-label="`Abrir ${parada.nome} no Google Maps`"
+              title="Abrir no Google Maps"
+            >
+              <ExternalLinkIcon class="size-4" />
+            </a>
+
             <button
+              v-if="editavel"
               type="button"
               class="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-muted disabled:opacity-30"
               :disabled="i === 0"
@@ -255,6 +330,7 @@ function soltar(indice: number) {
               <ArrowUpIcon class="size-4" />
             </button>
             <button
+              v-if="editavel"
               type="button"
               class="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-muted disabled:opacity-30"
               :disabled="i === paradas.length - 1"
@@ -264,6 +340,7 @@ function soltar(indice: number) {
               <ArrowDownIcon class="size-4" />
             </button>
             <button
+              v-if="editavel"
               type="button"
               class="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
               :aria-label="`Remover ${parada.nome}`"
