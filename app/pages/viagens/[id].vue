@@ -1,21 +1,14 @@
 <script setup lang="ts">
 import { mensagemDeErro } from '@/lib/utils'
-import { useMediaQuery, watchDebounced } from '@vueuse/core'
-import { ExternalLinkIcon, LockIcon, PencilIcon, Trash2Icon } from '@lucide/vue'
+import { watchDebounced } from '@vueuse/core'
+import { LockIcon, PencilIcon, Trash2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatarDiaCurto } from '@/lib/datas'
 import type { ParadaParaSalvar } from '~/types/viagem'
 import type { RoteiroParaSalvar } from '~/composables/useRoteiros'
-import {
-  MAX_PONTOS_LINK_DESKTOP,
-  MAX_PONTOS_LINK_MOBILE,
-  MODOS_TRANSPORTE,
-  paradasOrdenadas,
-  trechosDoMaps,
-  urlDoTrecho,
-} from '~/types/viagem'
+import { MODOS_TRANSPORTE, paradasOrdenadas } from '~/types/viagem'
 import {
   paraSalvar,
   useApagarRoteiro,
@@ -108,20 +101,30 @@ watchDebounced(rascunho, async () => {
   }
 }, { debounce: 700, deep: true })
 
-// ---- Links do Google Maps --------------------------------------------------
+// ---- Abertura no Google Maps -----------------------------------------------
 
 /*
- * O limite do link depende do aparelho: a Maps URLs API aceita 3 waypoints no
- * navegador do celular e 9 fora dele — 5 e 11 pontos, contando origem e
- * destino. Um roteiro longo vira vários botões encadeados; quando cabe num
- * link só, é um botão só e a mecânica não aparece.
+ * Três recortes: o roteiro inteiro, um dia, ou o que estiver marcado. Quem
+ * monta os links é `LinksDoMaps`; aqui fica só a escolha, porque ela também
+ * comanda a lista — no modo seleção a lista mostra caixas e para de ser
+ * editável, senão reordenar embaralharia o que está marcado.
  */
-const noDesktop = useMediaQuery('(min-width: 768px)')
-const maxPontos = computed(() => noDesktop.value ? MAX_PONTOS_LINK_DESKTOP : MAX_PONTOS_LINK_MOBILE)
-const trechos = computed(() => trechosDoMaps(rascunho.value, maxPontos.value))
+const aberturaEm = ref<'tudo' | 'dia' | 'selecao'>('tudo')
+const selecionadas = ref<number[]>([])
 
-function linkDoTrecho(indice: number): string | null {
-  return urlDoTrecho(trechos.value[indice] ?? [], roteiro.value?.modo_transporte ?? 'driving')
+const selecionando = computed(() => aberturaEm.value === 'selecao')
+
+/*
+ * Trocar de modo zera a seleção. Ela é por índice, e voltar para "Tudo" libera
+ * a reordenação — guardar índices através disso seria guardar posições que
+ * podem já ser de outras paradas.
+ */
+watch(aberturaEm, () => { selecionadas.value = [] })
+
+function alternarSelecao(i: number) {
+  selecionadas.value = selecionadas.value.includes(i)
+    ? selecionadas.value.filter(n => n !== i)
+    : [...selecionadas.value, i]
 }
 
 const modo = computed(() =>
@@ -241,29 +244,13 @@ async function onApagar() {
 
       <MapaDoRoteiro :paradas="rascunho" :modo="roteiro.modo_transporte" />
 
-      <!-- Links do Maps -->
-      <section v-if="trechos.length" class="flex flex-wrap gap-2">
-        <Button
-          v-for="(trecho, i) in trechos"
-          :key="i"
-          as="a"
-          :href="linkDoTrecho(i) ?? undefined"
-          target="_blank"
-          rel="noopener"
-          variant="outline"
-          class="gap-1.5"
-        >
-          <ExternalLinkIcon class="size-4" />
-          {{ trechos.length === 1
-            ? 'Abrir no Google Maps'
-            : `Abrir no Maps — trecho ${i + 1} de ${trechos.length}` }}
-        </Button>
-      </section>
-
-      <p v-if="trechos.length > 1" class="-mt-4 text-xs text-muted-foreground">
-        O Google Maps não abre um roteiro deste tamanho num link só, então ele vai
-        em trechos — o fim de um é o começo do seguinte.
-      </p>
+      <LinksDoMaps
+        v-model:abertura-em="aberturaEm"
+        :paradas="rascunho"
+        :modo="roteiro.modo_transporte"
+        :data-inicio="roteiro.data_inicio"
+        :selecionadas="selecionadas"
+      />
 
       <!-- Paradas -->
       <section class="space-y-3">
@@ -274,13 +261,16 @@ async function onApagar() {
           </span>
         </div>
 
-        <BuscaDeLugar @adicionar="atualizarParadas([...rascunho, $event])" />
+        <BuscaDeLugar v-if="!selecionando" @adicionar="atualizarParadas([...rascunho, $event])" />
 
         <ListaDeParadas
           :paradas="rascunho"
           :data-inicio="roteiro.data_inicio"
-          editavel
+          :editavel="!selecionando"
+          :selecionavel="selecionando"
+          :selecionadas="selecionadas"
           @atualizar="atualizarParadas"
+          @alternar="alternarSelecao"
         />
       </section>
 

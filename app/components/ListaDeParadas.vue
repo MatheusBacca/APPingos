@@ -19,9 +19,31 @@ const props = defineProps<{
   dataInicio: string | null
   /** Sem isto a lista é só leitura — é o caso do roteiro de outra pessoa. */
   editavel?: boolean
+  /** Liga as caixas de marcar, para montar um percurso avulso. */
+  selecionavel?: boolean
+  /**
+   * Índices marcados. A seleção é por índice, e isso só é seguro porque marcar e
+   * reordenar não acontecem ao mesmo tempo: no modo seleção a lista não é
+   * editável. Se as duas coisas convivessem, mover a parada 2 para o fim
+   * embaralharia o que está marcado — bug que ninguém vê até o link abrir errado.
+   */
+  selecionadas?: number[]
 }>()
 
-const emit = defineEmits<{ atualizar: [ParadaParaSalvar[]] }>()
+/*
+ * A lista avisa QUAL parada foi tocada; quem monta o conjunto é o pai.
+ *
+ * Com `defineModel` aqui, dois toques no mesmo tick liam a lista defasada — o
+ * segundo enxergava o estado anterior ao primeiro e o sobrescrevia, e uma das
+ * duas paradas simplesmente não entrava. Emitir o índice tira o estado de um
+ * lugar onde ele só existia de passagem.
+ */
+const emit = defineEmits<{
+  atualizar: [ParadaParaSalvar[]]
+  alternar: [number]
+}>()
+
+const marcadas = computed(() => new Set(props.selecionadas ?? []))
 
 const arrastando = ref<number | null>(null)
 const alvo = ref<number | null>(null)
@@ -89,6 +111,25 @@ function soltar(indice: number) {
         @dragend="arrastando = null; alvo = null"
       >
         <div class="flex items-start gap-3">
+          <!--
+            Caixa só em parada que o Maps conhece: a seleção existe para montar
+            um link, e uma parada escrita à mão nunca entra em link nenhum.
+            Marcar o que não tem efeito é pior que não poder marcar.
+          -->
+          <input
+            v-if="selecionavel && parada.google_place_id"
+            :checked="marcadas.has(i)"
+            type="checkbox"
+            class="mt-1 size-4 shrink-0 accent-primary"
+            :aria-label="`Incluir ${parada.nome} na seleção`"
+            @change="emit('alternar', i)"
+          >
+          <span
+            v-else-if="selecionavel"
+            class="mt-1 size-4 shrink-0"
+            aria-hidden="true"
+          />
+
           <span
             class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-medium"
             aria-hidden="true"

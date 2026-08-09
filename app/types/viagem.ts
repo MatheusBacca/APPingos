@@ -97,6 +97,7 @@ export const MAX_PONTOS_EMBED = 22
 
 const BASE_EMBED = 'https://www.google.com/maps/embed/v1'
 const BASE_LINK = 'https://www.google.com/maps/dir/'
+const BASE_LUGAR = 'https://www.google.com/maps/search/'
 
 /**
  * O único lugar que ordena. Tudo daqui para baixo recebe a lista já na ordem.
@@ -118,6 +119,37 @@ export function paradasOrdenadas(paradas: Parada[]): Parada[] {
  */
 export function paradasNaRota<T extends PontoDoRoteiro>(paradas: T[]): T[] {
   return paradas.filter(p => !!p.google_place_id)
+}
+
+/**
+ * Os dias do roteiro, na ordem, com as paradas sem dia por último.
+ *
+ * Um dia junta TODAS as paradas marcadas com ele, mesmo que não estejam
+ * encostadas na lista. É o que faz sentido para quem vai abrir o dia no Maps:
+ * "o que a gente faz no sábado" é a pergunta, não "o que está entre a parada 3
+ * e a 7". Dentro do dia a ordem é a do roteiro.
+ *
+ * Sem dia vira um grupo com `dia: null` em vez de sumir ou virar "Dia 0": uma
+ * parada que ainda não foi encaixada no cronograma continua sendo parte do
+ * roteiro, e escondê-la faria a lista mentir sobre o que já foi planejado.
+ */
+export function agruparPorDia<T extends { dia: number | null }>(
+  paradas: T[],
+): { dia: number | null, paradas: T[] }[] {
+  const grupos = new Map<number | null, T[]>()
+
+  for (const parada of paradas) {
+    const chave = parada.dia ?? null
+    grupos.set(chave, [...(grupos.get(chave) ?? []), parada])
+  }
+
+  return [...grupos.entries()]
+    .map(([dia, paradas]) => ({ dia, paradas }))
+    .sort((a, b) => {
+      if (a.dia === null) return 1
+      if (b.dia === null) return -1
+      return a.dia - b.dia
+    })
 }
 
 /**
@@ -205,6 +237,71 @@ export function urlDoTrecho(trecho: PontoDoRoteiro[], modo: ModoTransporte): str
   }
 
   return `${BASE_LINK}?${params}`
+}
+
+/**
+ * O link que abre UM lugar no Google Maps, sem rota.
+ *
+ * Existe porque um recorte de uma parada só é comum e não é erro: o sábado em
+ * que vocês só vão ao hotel, a seleção de um lugar para conferir o horário. Sem
+ * isto, a tela ou esconderia o dia (mentindo sobre o roteiro) ou desenharia um
+ * botão de rota que não leva a lugar nenhum — o bug que já apareceu uma vez.
+ *
+ * `search` com `query_place_id` é a forma documentada da Maps URLs API: o texto
+ * é obrigatório e o id é quem desambigua.
+ */
+export function urlDoLugar(ponto: PontoDoRoteiro): string | null {
+  if (!ponto.google_place_id) return null
+
+  const params = new URLSearchParams({
+    api: '1',
+    query: ponto.nome,
+    query_place_id: ponto.google_place_id,
+  })
+
+  return `${BASE_LUGAR}?${params}`
+}
+
+/**
+ * Como abrir no Maps um recorte qualquer do roteiro.
+ *
+ * "O roteiro inteiro", "o dia 2" e "as quatro paradas que eu marquei" são a
+ * mesma operação sobre listas diferentes — por isso existe uma função só, e os
+ * três modos da tela são só três formas de escolher o recorte. Duplicar a
+ * lógica por modo seria três lugares para o limite de waypoints do celular
+ * ficar desatualizado.
+ */
+export interface AberturaNoMaps<T> {
+  /** Vazio quando o recorte não tem dois pontos roteáveis. */
+  trechos: T[][]
+  /** Preenchido só quando há exatamente um ponto: dá para abrir o lugar. */
+  lugarUnico: T | null
+  /** Quantas paradas do recorte o Google não sabe rotear. */
+  foraDaRota: number
+}
+
+export function aberturaNoMaps<T extends PontoDoRoteiro>(
+  paradas: T[],
+  maxPontos: number,
+): AberturaNoMaps<T> {
+  const pontos = paradasNaRota(paradas)
+
+  return {
+    trechos: trechosDoMaps(pontos, maxPontos),
+    lugarUnico: pontos.length === 1 ? pontos[0]! : null,
+    foraDaRota: paradas.length - pontos.length,
+  }
+}
+
+/** Uma abertura por dia do roteiro, na ordem dos dias. */
+export function aberturasPorDia<T extends PontoDoRoteiro & { dia: number | null }>(
+  paradas: T[],
+  maxPontos: number,
+): (AberturaNoMaps<T> & { dia: number | null })[] {
+  return agruparPorDia(paradas).map(grupo => ({
+    dia: grupo.dia,
+    ...aberturaNoMaps(grupo.paradas, maxPontos),
+  }))
 }
 
 /**

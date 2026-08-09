@@ -16,6 +16,9 @@ import {
   MAX_PONTOS_EMBED,
   MAX_PONTOS_LINK_DESKTOP,
   MAX_PONTOS_LINK_MOBILE,
+  aberturaNoMaps,
+  aberturasPorDia,
+  agruparPorDia,
   dataDoDia,
   embedTruncado,
   paradasNaRota,
@@ -25,6 +28,7 @@ import {
   rotuloDoDia,
   trechosDoMaps,
   urlDoEmbed,
+  urlDoLugar,
   urlDoTrecho,
 } from '~/types/viagem'
 import type { Parada, Roteiro } from '~/types/viagem'
@@ -211,6 +215,115 @@ describe('urlDoEmbed', () => {
     expect(params.get('destination')).toBe(`place_id:place-${MAX_PONTOS_EMBED - 1}`)
     expect(embedTruncado(muitas)).toBe(true)
     expect(embedTruncado(paradas(MAX_PONTOS_EMBED))).toBe(false)
+  })
+})
+
+describe('agruparPorDia', () => {
+  it('agrupa na ordem dos dias e joga o que não tem dia para o fim', () => {
+    const lista = [
+      parada(0, { dia: 2 }),
+      parada(1, { dia: null }),
+      parada(2, { dia: 1 }),
+      parada(3, { dia: 2 }),
+    ]
+
+    expect(agruparPorDia(lista).map(g => g.dia)).toEqual([1, 2, null])
+  })
+
+  /*
+   * "O que a gente faz no sábado" é a pergunta que o recorte por dia responde —
+   * não "o que está entre a parada 3 e a 7". Um dia interrompido no meio da
+   * lista continua sendo um dia só.
+   */
+  it('junta paradas do mesmo dia mesmo separadas na lista, mantendo a ordem', () => {
+    const lista = [
+      parada(0, { dia: 2 }),
+      parada(1, { dia: 1 }),
+      parada(2, { dia: 2 }),
+    ]
+
+    const dia2 = agruparPorDia(lista).find(g => g.dia === 2)!
+
+    expect(dia2.paradas.map(p => p.ordem)).toEqual([0, 2])
+  })
+})
+
+describe('urlDoLugar', () => {
+  it('abre o lugar por id, com o texto que a API exige junto', () => {
+    const params = new URL(urlDoLugar(parada(0))!).searchParams
+
+    expect(params.get('query_place_id')).toBe('place-0')
+    expect(params.get('query')).toBe('Parada 0')
+  })
+
+  it('não monta link para parada escrita à mão', () => {
+    expect(urlDoLugar(parada(0, { google_place_id: null }))).toBeNull()
+  })
+})
+
+describe('aberturaNoMaps', () => {
+  it('devolve os trechos quando há rota', () => {
+    const abertura = aberturaNoMaps(paradas(3), MAX_PONTOS_LINK_MOBILE)
+
+    expect(abertura.trechos).toHaveLength(1)
+    expect(abertura.lugarUnico).toBeNull()
+    expect(abertura.foraDaRota).toBe(0)
+  })
+
+  /*
+   * Um recorte de uma parada só não é erro: é o sábado em que só vão ao hotel.
+   * Sem `lugarUnico` a tela teria que escolher entre esconder o dia ou desenhar
+   * um botão de rota morto.
+   */
+  it('devolve o lugar único quando não há rota a traçar', () => {
+    const abertura = aberturaNoMaps(paradas(1), MAX_PONTOS_LINK_MOBILE)
+
+    expect(abertura.trechos).toEqual([])
+    expect(abertura.lugarUnico?.ordem).toBe(0)
+  })
+
+  it('conta as paradas que ficaram fora da rota', () => {
+    const lista = [parada(0), parada(1, { google_place_id: null }), parada(2)]
+    const abertura = aberturaNoMaps(lista, MAX_PONTOS_LINK_MOBILE)
+
+    expect(abertura.foraDaRota).toBe(1)
+    expect(abertura.trechos[0]!.map(p => p.ordem)).toEqual([0, 2])
+  })
+
+  it('não oferece nada quando o recorte só tem texto livre', () => {
+    const abertura = aberturaNoMaps([parada(0, { google_place_id: null })], MAX_PONTOS_LINK_MOBILE)
+
+    expect(abertura.trechos).toEqual([])
+    expect(abertura.lugarUnico).toBeNull()
+    expect(abertura.foraDaRota).toBe(1)
+  })
+})
+
+describe('aberturasPorDia', () => {
+  it('dá uma abertura por dia, cada uma com a própria rota', () => {
+    const lista = [
+      parada(0, { dia: 1 }),
+      parada(1, { dia: 1 }),
+      parada(2, { dia: 2 }),
+      parada(3, { dia: 2 }),
+      parada(4, { dia: null }),
+    ]
+
+    const dias = aberturasPorDia(lista, MAX_PONTOS_LINK_MOBILE)
+
+    expect(dias.map(d => d.dia)).toEqual([1, 2, null])
+    expect(dias[0]!.trechos[0]!.map(p => p.ordem)).toEqual([0, 1])
+    expect(dias[1]!.trechos[0]!.map(p => p.ordem)).toEqual([2, 3])
+    expect(dias[2]!.lugarUnico?.ordem).toBe(4)
+  })
+
+  it('quebra em trechos dentro do dia quando ele é longo demais para um link', () => {
+    const lista = paradas(8).map(p => ({ ...p, dia: 1 }))
+
+    const dias = aberturasPorDia(lista, MAX_PONTOS_LINK_MOBILE)
+
+    expect(dias).toHaveLength(1)
+    expect(dias[0]!.trechos).toHaveLength(2)
   })
 })
 

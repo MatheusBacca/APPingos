@@ -360,3 +360,25 @@ quinto valor no dia em que fizer sentido.
 **Também nesta sessão:** histórico de migrations do banco realinhado com os nomes de arquivo do
 git — três versões tinham derivado por terem sido aplicadas fora do `db push`, e um clone novo
 teria tentado reaplicá-las.
+
+**Ainda em 09/08 — três formas de abrir no Maps.** O botão único virou um recorte escolhido:
+o roteiro inteiro, um dia de cada vez, ou uma seleção avulsa de paradas. Os três são a mesma
+função (`aberturaNoMaps`) sobre listas diferentes — o limite de waypoints do celular continua
+num lugar só, porque três caminhos até o Maps não podem virar três lugares para ele ficar
+desatualizado.
+
+O recorte por dia junta TODAS as paradas daquele dia, mesmo separadas na lista: "o que a gente
+faz no sábado" é a pergunta, não "o que está entre a parada 3 e a 7". A seleção existe para
+planejar sem mexer no roteiro — marcar a 1 e a 4 dá um link direto entre elas.
+
+Um recorte de uma parada só ganhou `urlDoLugar` (Maps URLs em modo `search`): não há rota, mas
+há lugar. Sem isso a tela teria que escolher entre esconder o dia — mentindo sobre o roteiro —
+ou desenhar um botão de rota morto, que é o bug que já apareceu uma vez.
+
+No modo seleção a lista deixa de ser editável, e é de propósito: a seleção é por índice, e
+permitir reordenar enquanto há marcações embaralharia o que está marcado sem ninguém ver.
+
+**Bug achado no navegador:** dois toques seguidos em caixas de seleção registravam só um. O
+`defineModel` do filho devolve valor defasado quando o pai controla o ref — o segundo toque lia
+o estado anterior ao primeiro e o sobrescrevia. A lista passou a emitir QUAL parada foi tocada,
+e quem monta o conjunto é o pai.
