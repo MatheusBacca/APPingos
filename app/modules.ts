@@ -71,11 +71,12 @@ export const MODULOS: AppModule[] = [
   {
     slug: 'viagens',
     rotulo: 'Viagens',
-    descricao: 'Roteiros, checklists e lugares para ir',
+    descricao: 'Roteiros com as paradas na ordem, prontos para o Maps',
     icone: 'PlaneIcon',
     rota: '/viagens',
-    ativo: false,
-    naBarra: false,
+    ativo: true,
+    naBarra: true,
+    resumo: useResumoViagens,
   },
   {
     slug: 'objetivos',
@@ -84,7 +85,10 @@ export const MODULOS: AppModule[] = [
     icone: 'TargetIcon',
     rota: '/objetivos',
     ativo: false,
-    naBarra: true,
+    // Saiu da barra quando Viagens entrou: a grade tem 5 células (Início + três
+    // módulos + Mais), e um módulo que ainda é "em breve" não vale um slot que
+    // um módulo pronto quer. Volta para cá quando existir.
+    naBarra: false,
   },
   {
     slug: 'treinos',

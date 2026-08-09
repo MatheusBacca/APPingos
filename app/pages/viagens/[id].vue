@@ -1,0 +1,295 @@
+<script setup lang="ts">
+import { mensagemDeErro } from '@/lib/utils'
+import { useMediaQuery, watchDebounced } from '@vueuse/core'
+import { ExternalLinkIcon, LockIcon, PencilIcon, Trash2Icon } from '@lucide/vue'
+import { toast } from 'vue-sonner'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { formatarDiaCurto } from '@/lib/datas'
+import type { ParadaParaSalvar } from '~/types/viagem'
+import type { RoteiroParaSalvar } from '~/composables/useRoteiros'
+import {
+  MAX_PONTOS_LINK_DESKTOP,
+  MAX_PONTOS_LINK_MOBILE,
+  MODOS_TRANSPORTE,
+  paradasOrdenadas,
+  trechosDoMaps,
+  urlDoTrecho,
+} from '~/types/viagem'
+import {
+  paraSalvar,
+  useApagarRoteiro,
+  useAtualizarRoteiro,
+  useLiberarRoteiro,
+  useMarcarRoteiroVisto,
+  useRoteiro,
+  useSalvarParadas,
+} from '~/composables/useRoteiros'
+import { useUsuarioId } from '~/composables/useUsuarioId'
+
+const route = useRoute()
+const roteiroId = route.params.id as string
+const usuarioId = useUsuarioId()
+
+const { data: roteiro, isPending, isError, error } = useRoteiro(roteiroId)
+const atualizar = useAtualizarRoteiro()
+const apagar = useApagarRoteiro()
+const salvarParadas = useSalvarParadas()
+const liberar = useLiberarRoteiro()
+const marcarVisto = useMarcarRoteiroVisto()
+
+useHead({ title: () => `${roteiro.value?.nome ?? 'Carregando…'} · APPingos` })
+
+const souOCriador = computed(() => roteiro.value?.criado_por === usuarioId.value)
+const secreto = computed(() => roteiro.value?.visibilidade === 'segredo')
+
+/*
+ * Abrir É a leitura. Dispara uma vez, quando o roteiro chega, e falha em
+ * silêncio — o pior caso é o selo "Novo" continuar aparecendo, que é o estado
+ * de antes. Um toast de erro aqui só atrapalharia quem só queria ler.
+ */
+const jaMarquei = ref(false)
+watch(roteiro, (r) => {
+  if (!r || jaMarquei.value) return
+  jaMarquei.value = true
+  marcarVisto.mutate(r.id)
+}, { immediate: true })
+
+// ---- Paradas ---------------------------------------------------------------
+
+/*
+ * A tela edita um rascunho e o banco recebe a lista inteira, com atraso.
+ *
+ * Salvar a cada tecla da anotação seria uma RPC por caractere; um botão
+ * "Salvar" seria a forma clássica de perder o trabalho de alguém que fechou a
+ * aba. O meio-termo é gravar sozinho pouco depois da última mexida.
+ *
+ * O que está gravado é `ultimoSalvo`, e "sujo" é a comparação com ele — não uma
+ * bandeira que alguém liga e desliga. A diferença importa numa corrida real:
+ * mexer numa parada ENQUANTO o salvamento anterior está no ar. Com bandeira, o
+ * salvamento que volta desliga o "sujo" e a mexida seguinte nunca é gravada,
+ * sem erro nenhum na tela. Comparando com o que de fato foi gravado, a segunda
+ * mexida continua diferente e é salva na sequência.
+ *
+ * É também o que impede a revalidação da query de pisar no que está sendo
+ * editado — foi assim que o rascunho de avaliação em Filmes se perdia.
+ */
+const rascunho = ref<ParadaParaSalvar[]>([])
+const ultimoSalvo = ref<string | null>(null)
+
+const sujo = computed(() =>
+  ultimoSalvo.value !== null && JSON.stringify(rascunho.value) !== ultimoSalvo.value,
+)
+
+watch(() => roteiro.value?.paradas, (paradas) => {
+  if (!paradas || sujo.value) return
+
+  rascunho.value = paraSalvar(paradasOrdenadas(paradas))
+  ultimoSalvo.value = JSON.stringify(rascunho.value)
+}, { immediate: true, deep: true })
+
+function atualizarParadas(lista: ParadaParaSalvar[]) {
+  rascunho.value = lista
+}
+
+watchDebounced(rascunho, async () => {
+  if (!sujo.value) return
+
+  // Congelado ANTES da chamada: o que volta confirma esta lista, não a que a
+  // pessoa possa ter deixado na tela enquanto a RPC estava no ar.
+  const enviado = JSON.stringify(rascunho.value)
+
+  try {
+    await salvarParadas.mutateAsync({ roteiroId, paradas: JSON.parse(enviado) })
+    ultimoSalvo.value = enviado
+  }
+  catch (e) {
+    toast.error(mensagemDeErro(e, 'Não deu para salvar as paradas.'))
+  }
+}, { debounce: 700, deep: true })
+
+// ---- Links do Google Maps --------------------------------------------------
+
+/*
+ * O limite do link depende do aparelho: a Maps URLs API aceita 3 waypoints no
+ * navegador do celular e 9 fora dele — 5 e 11 pontos, contando origem e
+ * destino. Um roteiro longo vira vários botões encadeados; quando cabe num
+ * link só, é um botão só e a mecânica não aparece.
+ */
+const noDesktop = useMediaQuery('(min-width: 768px)')
+const maxPontos = computed(() => noDesktop.value ? MAX_PONTOS_LINK_DESKTOP : MAX_PONTOS_LINK_MOBILE)
+const trechos = computed(() => trechosDoMaps(rascunho.value, maxPontos.value))
+
+function linkDoTrecho(indice: number): string | null {
+  return urlDoTrecho(trechos.value[indice] ?? [], roteiro.value?.modo_transporte ?? 'driving')
+}
+
+const modo = computed(() =>
+  MODOS_TRANSPORTE.find(m => m.valor === roteiro.value?.modo_transporte),
+)
+
+const periodo = computed(() => {
+  const inicio = roteiro.value?.data_inicio
+  const fim = roteiro.value?.data_fim
+  if (!inicio) return null
+  return fim ? `${formatarDiaCurto(inicio)} → ${formatarDiaCurto(fim)}` : `A partir de ${formatarDiaCurto(inicio)}`
+})
+
+// ---- Cabeçalho: editar, liberar, apagar ------------------------------------
+
+const dialogoAberto = ref(false)
+
+async function onEditar(campos: RoteiroParaSalvar) {
+  try {
+    const { secreto: _ignorado, ...resto } = campos
+    await atualizar.mutateAsync({ id: roteiroId, campos: resto })
+    dialogoAberto.value = false
+  }
+  catch (e) {
+    toast.error(mensagemDeErro(e, 'Não deu para salvar o roteiro.'))
+  }
+}
+
+async function onLiberar() {
+  try {
+    await liberar.mutateAsync(roteiroId)
+    toast.success('Roteiro liberado — já aparece para o resto do espaço.')
+  }
+  catch (e) {
+    toast.error(mensagemDeErro(e, 'Não deu para liberar o roteiro.'))
+  }
+}
+
+async function onApagar() {
+  if (!confirm(`Apagar "${roteiro.value?.nome}" e todas as paradas?`)) return
+
+  try {
+    await apagar.mutateAsync(roteiroId)
+    await navigateTo('/viagens')
+  }
+  catch (e) {
+    toast.error(mensagemDeErro(e, 'Não deu para apagar o roteiro.'))
+  }
+}
+</script>
+
+<template>
+  <div class="space-y-6">
+    <BotaoVoltar to="/viagens" rotulo="Viagens" />
+
+    <div v-if="isPending" class="space-y-4">
+      <Skeleton class="h-8 w-64" />
+      <Skeleton class="aspect-video w-full rounded-lg" />
+    </div>
+
+    <p v-else-if="isError" class="text-sm text-destructive">
+      {{ mensagemDeErro(error, 'Este roteiro não existe ou não é seu.') }}
+    </p>
+
+    <template v-else-if="roteiro">
+      <header class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h1 class="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+            {{ roteiro.nome }}
+            <span
+              v-if="secreto"
+              class="flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"
+            >
+              <LockIcon class="size-3" />
+              Segredo
+            </span>
+          </h1>
+
+          <p v-if="roteiro.descricao" class="mt-1 text-sm text-muted-foreground">
+            {{ roteiro.descricao }}
+          </p>
+
+          <p class="mt-1 flex flex-wrap gap-x-3 text-sm text-muted-foreground">
+            <span v-if="periodo">{{ periodo }}</span>
+            <span v-if="modo">{{ modo.rotulo }}</span>
+          </p>
+        </div>
+
+        <div class="flex shrink-0 gap-2">
+          <Button variant="outline" size="sm" class="gap-1.5" @click="dialogoAberto = true">
+            <PencilIcon class="size-4" />
+            Editar
+          </Button>
+          <Button variant="ghost" size="sm" class="gap-1.5 text-destructive" @click="onApagar">
+            <Trash2Icon class="size-4" />
+            Apagar
+          </Button>
+        </div>
+      </header>
+
+      <!--
+        A faixa da revelação. Só quem criou vê, porque para o resto do espaço
+        este roteiro ainda não existe.
+      -->
+      <section
+        v-if="secreto && souOCriador"
+        class="flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3"
+      >
+        <p class="min-w-0 flex-1 text-sm">
+          Só você enxerga este roteiro. Ao liberar, ele aparece para o resto do
+          espaço com um aviso no painel — e não dá para escondê-lo de novo.
+        </p>
+        <Button size="sm" :disabled="liberar.isPending.value" @click="onLiberar">
+          {{ liberar.isPending.value ? 'Liberando…' : 'Liberar' }}
+        </Button>
+      </section>
+
+      <MapaDoRoteiro :paradas="rascunho" :modo="roteiro.modo_transporte" />
+
+      <!-- Links do Maps -->
+      <section v-if="trechos.length" class="flex flex-wrap gap-2">
+        <Button
+          v-for="(trecho, i) in trechos"
+          :key="i"
+          as="a"
+          :href="linkDoTrecho(i) ?? undefined"
+          target="_blank"
+          rel="noopener"
+          variant="outline"
+          class="gap-1.5"
+        >
+          <ExternalLinkIcon class="size-4" />
+          {{ trechos.length === 1
+            ? 'Abrir no Google Maps'
+            : `Abrir no Maps — trecho ${i + 1} de ${trechos.length}` }}
+        </Button>
+      </section>
+
+      <p v-if="trechos.length > 1" class="-mt-4 text-xs text-muted-foreground">
+        O Google Maps não abre um roteiro deste tamanho num link só, então ele vai
+        em trechos — o fim de um é o começo do seguinte.
+      </p>
+
+      <!-- Paradas -->
+      <section class="space-y-3">
+        <div class="flex items-baseline justify-between gap-2">
+          <h2 class="text-sm font-medium">Paradas</h2>
+          <span v-if="sujo || salvarParadas.isPending.value" class="text-xs text-muted-foreground">
+            Salvando…
+          </span>
+        </div>
+
+        <BuscaDeLugar @adicionar="atualizarParadas([...rascunho, $event])" />
+
+        <ListaDeParadas
+          :paradas="rascunho"
+          :data-inicio="roteiro.data_inicio"
+          editavel
+          @atualizar="atualizarParadas"
+        />
+      </section>
+
+      <RoteiroDialogo
+        v-model:open="dialogoAberto"
+        :roteiro="roteiro"
+        :salvando="atualizar.isPending.value"
+        @salvar="onEditar"
+      />
+    </template>
+  </div>
+</template>

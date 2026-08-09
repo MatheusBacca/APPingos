@@ -303,3 +303,60 @@ clássico "o filme aparece um dia antes". `app/lib/datas.ts` centraliza isso: a 
 [Notas](./notion-plano-notas.md) (o editor de documentos, com Markdown como fonte da verdade)
 e [Interesses](./notion-plano-interesses.md) (registrar a ideia crua e depois convertê-la em
 objetivo/viagem/orçamento).
+
+---
+
+## 2026-08-09 — Módulo de Viagens: roteiros com Google Maps
+
+**Contexto:** primeiro módulo do repo com integração externa de verdade. O TMDB é um proxy de
+leitura sem conta, sem cota e sem ToS que restrinja cache; o Google tem os três. Duas
+convenções nascem aqui — a primeira chave exposta ao navegador e o primeiro `runtimeConfig.public`.
+
+**Feito:**
+- Migration `20260809160118_viagens.sql`: `roteiro`, `parada`, `roteiro_visto`, o helper
+  `pode_ver_roteiro`, o trigger `validar_roteiro` e as RPCs `salvar_paradas`,
+  `liberar_roteiro`, `marcar_roteiro_visto`
+- Busca de lugares atrás de `/api/lugares/busca` (Places API New, Autocomplete), no molde do
+  proxy do TMDB; duas chaves do Google no `.env`, com restrições opostas
+- Telas `/viagens` e `/viagens/[id]`: grade de cards, mapa embutido, paradas ordenáveis,
+  botões "abrir no Google Maps" e o fluxo de segredo → liberar
+- `useResumoViagens` no painel, e o módulo virou `ativo: true` em `app/modules.ts`
+- 35 testes novos (`test/viagens.test.ts`, `test/resumo-viagens.test.ts`)
+
+**Decisão: o segredo é a única exceção à doutrina de privacidade do repo.** `useGastosPessoais`
+afirma a regra da casa — privacidade é estrutural (espaço pessoal vs. do casal), nunca uma flag
+na linha. Viagens quebra isso porque o roteiro-surpresa **precisa** nascer no espaço do casal:
+o ponto todo é o momento da revelação dentro dele, e mover depois significaria reescrever
+`space_id` e perder o histórico. A contrapartida é inegociável e está na policy de RLS, jamais
+num filtro do client — com a anon key na mão, um `select` cru volta vazio. Testado com dois
+usuários reais antes de qualquer tela existir.
+
+**Três limites do Google que não batem entre si.** A lista da tela mostra tudo; o mapa embutido
+aguenta 22 pontos; o link que abre o app do Maps aguenta 5 no celular e 11 no desktop
+("up to three waypoints supported on mobile browsers, and a maximum of nine otherwise"). Um
+roteiro de 12 paradas atravessa os três de forma diferente, e o modo de errar é silencioso: o
+link ignora o que não coube, sem erro nenhum. `trechosDoMaps` quebra o roteiro em trechos
+encadeados — o fim de um é o começo do seguinte —, com o tamanho escolhido em runtime pelo
+`useMediaQuery`. Quando cabe num link só, é um botão só e a mecânica não aparece.
+
+**Parada de texto livre é de primeira classe.** "Casa da vó" não está no Maps e mesmo assim
+pertence ao roteiro: conta na lista, no dia e na numeração, mas não entra na rota — não há como
+pedir direções até um lugar que o Google não indexa. A tela diz isso na hora de adicionar, e
+não depois, quando o mapa "esqueceu" a parada.
+
+**Avião ficou de fora do seletor de transporte.** Foi pedido, mas o Maps roteia `driving`,
+`walking`, `bicycling` e `transit` e nada mais. Um roteiro aéreo não é outro modo de
+transporte, é outro produto (trechos com horário, sem rota desenhável). O CHECK aceita um
+quinto valor no dia em que fizer sentido.
+
+**Dois bugs achados no navegador, não nos testes:**
+1. **Botão morto com uma parada só.** `trechosDoMaps` devolvia um "trecho de um ponto" e a tela
+   desenhava um "Abrir no Google Maps" que não levava a lugar nenhum — no momento mais comum do
+   módulo, o primeiro lugar de um roteiro novo. Uma rota precisa de origem E destino.
+2. **Bottom bar quebrada.** A grade tem 5 células (Início + três módulos + Mais) e ativar
+   Viagens fez virarem 6. Objetivos saiu da barra: ainda é "em breve", e não vale um slot que um
+   módulo pronto quer.
+
+**Também nesta sessão:** histórico de migrations do banco realinhado com os nomes de arquivo do
+git — três versões tinham derivado por terem sido aplicadas fora do `db push`, e um clone novo
+teria tentado reaplicá-las.

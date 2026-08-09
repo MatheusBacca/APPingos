@@ -108,13 +108,39 @@ que faltar. Presets do Vue e do Nuxt (`computed`, `ref`, `useHead`) e os composa
 E, para o que nenhuma das três pega (schema, RLS, embeds do PostgREST), exercite o fluxo no
 navegador contra o banco de verdade — foi assim que os três bugs de 31/07 apareceram.
 
-### 3. Chave do TMDB (módulo Filmes/Séries)
+### 4. Chave do TMDB (módulo Filmes/Séries)
 
 1. Em [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api), copie o
    **"API Read Access Token"** (v4) — **não** a "API Key" (v3). O app autentica por Bearer.
 2. Preencha `NUXT_TMDB_API_KEY` no `.env` — fica só no servidor, nunca chega ao browser
 
-### 4. Rodar
+### 5. Chaves do Google Maps (módulo Viagens)
+
+São **duas chaves do mesmo projeto**, e a separação é o ponto: uma delas é inerentemente
+pública (vai no `src` de um iframe) e a outra nunca pode sair do servidor. Uma chave só
+serviria às duas coisas — e seria pública com permissão de gastar cota paga.
+
+No [console do Google Cloud](https://console.cloud.google.com/):
+
+1. Crie um projeto e **ative o faturamento**. O uso previsto cabe na cota gratuita
+   (Autocomplete: 10.000/mês; Embed: ilimitado) — o faturamento existe porque o Google exige.
+2. Habilite **Places API (New)** e **Maps Embed API**.
+3. Em **APIs e serviços → Credenciais**, crie duas chaves de API:
+
+   | Chave | Restrição de aplicativo | Restrição de API |
+   | --- | --- | --- |
+   | servidor | **nenhuma** — chamada de servidor não manda referrer | só **Places API (New)** |
+   | navegador | **referenciadores HTTP**: `http://localhost:3000/*` e `https://SEU-APP.vercel.app/*` | só **Maps Embed API** |
+
+4. Em **Cotas**, limite `AutocompletePlacesRequest per day` a ~300. É rede de segurança, não
+   necessidade: 300/dia × 30 mantém o mês inteiro dentro do gratuito mesmo no pior caso.
+5. Preencha `NUXT_GOOGLE_PLACES_API_KEY` e `NUXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY` no `.env`.
+
+**Não esquecer no deploy:** o domínio do Vercel precisa entrar na lista de referrers da chave
+do navegador. Sem isso o mapa dá 403 em produção e só em produção — `localhost` continua
+funcionando, então o erro não aparece em nenhum teste local.
+
+### 6. Rodar
 
 ```bash
 npm run dev
@@ -150,12 +176,16 @@ O deploy é automático a cada push na branch `main`, uma vez conectado o reposi
 GitHub). O preset Nuxt é autodetectado — nada a mudar em `nuxt.config.ts`.
 
 Variáveis de ambiente a configurar no Vercel (Settings → Environment Variables, em
-**Production** e **Preview**): `SUPABASE_URL`, `SUPABASE_KEY`, `NUXT_TMDB_API_KEY` — os
-mesmos valores do `.env` local.
+**Production** e **Preview**): `SUPABASE_URL`, `SUPABASE_KEY`, `NUXT_TMDB_API_KEY`,
+`NUXT_GOOGLE_PLACES_API_KEY`, `NUXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY` — os mesmos valores do
+`.env` local.
 
-**Não esquecer:** no dashboard do Supabase, em **Authentication → URL Configuration**,
-adicionar o domínio do Vercel em Site URL / Redirect URLs. Sem isso o login funciona em
-`localhost` mas quebra em produção.
+**Não esquecer**, os dois pela mesma razão — funcionam em `localhost` e quebram só em produção:
+
+- No dashboard do Supabase, em **Authentication → URL Configuration**, adicionar o domínio do
+  Vercel em Site URL / Redirect URLs. Sem isso o login não volta.
+- No Google Cloud, adicionar o domínio do Vercel aos referrers da chave do Embed (seção 5).
+  Sem isso o mapa das Viagens dá 403.
 
 ## Ícones do PWA
 

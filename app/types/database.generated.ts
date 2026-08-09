@@ -394,6 +394,53 @@ export type Database = {
           },
         ]
       }
+      parada: {
+        Row: {
+          anotacao: string | null
+          atualizado_em: string
+          created_at: string
+          dia: number | null
+          endereco: string | null
+          google_place_id: string | null
+          id: string
+          nome: string
+          ordem: number
+          roteiro_id: string
+        }
+        Insert: {
+          anotacao?: string | null
+          atualizado_em?: string
+          created_at?: string
+          dia?: number | null
+          endereco?: string | null
+          google_place_id?: string | null
+          id?: string
+          nome: string
+          ordem: number
+          roteiro_id: string
+        }
+        Update: {
+          anotacao?: string | null
+          atualizado_em?: string
+          created_at?: string
+          dia?: number | null
+          endereco?: string | null
+          google_place_id?: string | null
+          id?: string
+          nome?: string
+          ordem?: number
+          roteiro_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parada_roteiro_id_fkey"
+            columns: ["roteiro_id"]
+            isOneToOne: false
+            referencedRelation: "roteiro"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profile: {
         Row: {
           avatar_url: string | null
@@ -465,6 +512,85 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profile"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roteiro: {
+        Row: {
+          created_at: string
+          criado_por: string
+          data_fim: string | null
+          data_inicio: string | null
+          descricao: string | null
+          id: string
+          liberado_em: string | null
+          modo_transporte: string
+          nome: string
+          space_id: string
+          updated_at: string
+          visibilidade: string
+        }
+        Insert: {
+          created_at?: string
+          criado_por: string
+          data_fim?: string | null
+          data_inicio?: string | null
+          descricao?: string | null
+          id?: string
+          liberado_em?: string | null
+          modo_transporte?: string
+          nome: string
+          space_id: string
+          updated_at?: string
+          visibilidade?: string
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string
+          data_fim?: string | null
+          data_inicio?: string | null
+          descricao?: string | null
+          id?: string
+          liberado_em?: string | null
+          modo_transporte?: string
+          nome?: string
+          space_id?: string
+          updated_at?: string
+          visibilidade?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roteiro_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roteiro_visto: {
+        Row: {
+          roteiro_id: string
+          user_id: string
+          visto_em: string
+        }
+        Insert: {
+          roteiro_id: string
+          user_id: string
+          visto_em?: string
+        }
+        Update: {
+          roteiro_id?: string
+          user_id?: string
+          visto_em?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roteiro_visto_roteiro_id_fkey"
+            columns: ["roteiro_id"]
+            isOneToOne: false
+            referencedRelation: "roteiro"
             referencedColumns: ["id"]
           },
         ]
@@ -615,10 +741,12 @@ export type Database = {
       is_space_admin: { Args: { p_space: string }; Returns: boolean }
       is_space_member: { Args: { p_space: string }; Returns: boolean }
       is_space_owner: { Args: { p_space: string }; Returns: boolean }
+      liberar_roteiro: { Args: { p_roteiro: string }; Returns: undefined }
       marcar_assistiram_comigo: {
         Args: { p_entry: string; p_usuarios: string[] }
         Returns: number
       }
+      marcar_roteiro_visto: { Args: { p_roteiro: string }; Returns: undefined }
       obter_ou_criar_categoria: {
         Args: { p_cor?: string; p_nome: string; p_space: string }
         Returns: string
@@ -627,6 +755,7 @@ export type Database = {
         Args: { p_data: string; p_entry: string }
         Returns: number
       }
+      pode_ver_roteiro: { Args: { p_roteiro: string }; Returns: boolean }
       registrar_compra: {
         Args: {
           p_categoria_cor?: string
@@ -646,6 +775,10 @@ export type Database = {
       responder_convite: {
         Args: { p_aceito: boolean; p_convite: string }
         Returns: undefined
+      }
+      salvar_paradas: {
+        Args: { p_paradas: Json; p_roteiro: string }
+        Returns: number
       }
       shares_space_with: { Args: { p_user: string }; Returns: boolean }
     }

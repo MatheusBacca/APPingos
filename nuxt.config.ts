@@ -105,8 +105,22 @@ export default defineNuxtConfig({
     },
   },
 
+  /*
+   * Duas chaves do Google, e não uma, porque elas têm naturezas opostas.
+   *
+   * A do Places vive atrás de `server/api/lugares/*` e nunca sai do servidor —
+   * como a do TMDB. A do Embed vai no `src` do iframe, então é inerentemente
+   * pública: não há como esconder, e fingir que dá seria pior que assumir. O que
+   * a protege não é o segredo, é a restrição por HTTP referrer no Google Cloud
+   * (localhost + o domínio do Vercel) somada ao limite de cota — por isso ela é
+   * limitada à Maps Embed API e a nada mais.
+   */
   runtimeConfig: {
     // servidor apenas — a chave do TMDB nunca vai para o client
     tmdbApiKey: '',
+    googlePlacesApiKey: '',
+    public: {
+      googleMapsEmbedKey: '',
+    },
   },
 })
