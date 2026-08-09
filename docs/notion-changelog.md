@@ -382,3 +382,15 @@ permitir reordenar enquanto há marcações embaralharia o que está marcado sem
 `defineModel` do filho devolve valor defasado quando o pai controla o ref — o segundo toque lia
 o estado anterior ao primeiro e o sobrescrevia. A lista passou a emitir QUAL parada foi tocada,
 e quem monta o conjunto é o pai.
+
+**E o modo seleção virou gesto.** Antes era uma terceira pílula ao lado de "Tudo" e "Por dia" —
+um modo com o mesmo peso visual dos outros dois, sendo que ele é temporário e os outros são
+formas de olhar o roteiro. Agora se entra segurando a parada no toque, ou passando o mouse e
+marcando a caixa que aparece: os gestos que a galeria de fotos e o e-mail já ensinaram. Enquanto
+a seleção está ativa a barra inteira passa a ser sobre ela, com contagem e "Sair da seleção";
+desmarcar a última fecha o modo sozinho.
+
+O preço do gesto é que ninguém o descobre por conta própria, então a barra ganha a dica em texto
+quando o roteiro tem três ou mais paradas roteáveis — abaixo disso selecionar é o mesmo que
+abrir tudo. `onLongPress` do @vueuse cuida do cancelamento por rolagem (10px de folga), e o gesto
+é ignorado quando começa num campo de texto, onde segurar é gesto do sistema.

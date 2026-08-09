@@ -115,16 +115,33 @@ const selecionadas = ref<number[]>([])
 const selecionando = computed(() => aberturaEm.value === 'selecao')
 
 /*
- * Trocar de modo zera a seleção. Ela é por índice, e voltar para "Tudo" libera
- * a reordenação — guardar índices através disso seria guardar posições que
- * podem já ser de outras paradas.
+ * Sair do modo zera a seleção. Ela é por índice, e fora dele a lista volta a ser
+ * reordenável — guardar índices através disso seria guardar posições que já
+ * podem ser de outras paradas. Entrar não zera: o gesto que abre o modo já traz
+ * a primeira parada marcada.
  */
-watch(aberturaEm, () => { selecionadas.value = [] })
+watch(aberturaEm, (modo) => {
+  if (modo !== 'selecao') selecionadas.value = []
+})
 
+/** Segurar no toque, ou marcar a caixa no mouse: abre o modo já com ela dentro. */
+function entrarNaSelecao(i: number) {
+  aberturaEm.value = 'selecao'
+  selecionadas.value = [i]
+}
+
+/*
+ * Desmarcar a última fecha o modo. É o que a galeria de fotos faz, e evita a
+ * tela ficar num estado que não serve para nada — modo seleção sem nada
+ * selecionado só tira a edição de quem esqueceu de sair.
+ */
 function alternarSelecao(i: number) {
-  selecionadas.value = selecionadas.value.includes(i)
+  const proxima = selecionadas.value.includes(i)
     ? selecionadas.value.filter(n => n !== i)
     : [...selecionadas.value, i]
+
+  selecionadas.value = proxima
+  if (!proxima.length) aberturaEm.value = 'tudo'
 }
 
 const modo = computed(() =>
@@ -271,6 +288,7 @@ async function onApagar() {
           :selecionadas="selecionadas"
           @atualizar="atualizarParadas"
           @alternar="alternarSelecao"
+          @entrar-na-selecao="entrarNaSelecao"
         />
       </section>
 

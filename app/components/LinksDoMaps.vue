@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useMediaQuery } from '@vueuse/core'
-import { ExternalLinkIcon, MapPinIcon } from '@lucide/vue'
+import { ExternalLinkIcon, MapPinIcon, XIcon } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import type { AberturaNoMaps, ModoTransporte, ParadaParaSalvar } from '~/types/viagem'
 import {
@@ -45,7 +45,18 @@ const modoDeAbertura = defineModel<'tudo' | 'dia' | 'selecao'>('aberturaEm', { r
 const noDesktop = useMediaQuery('(min-width: 768px)')
 const maxPontos = computed(() => noDesktop.value ? MAX_PONTOS_LINK_DESKTOP : MAX_PONTOS_LINK_MOBILE)
 
+const selecionando = computed(() => modoDeAbertura.value === 'selecao')
 const temDias = computed(() => props.paradas.some(p => p.dia !== null))
+
+/*
+ * Segurar no toque e passar o mouse são gestos que ninguém descobre sozinho.
+ * A dica aparece só quando há roteiro o bastante para a seleção fazer diferença
+ * — em duas paradas, selecionar é o mesmo que abrir tudo.
+ */
+const MINIMO_PARA_DICA = 3
+const mostrarDica = computed(() =>
+  !selecionando.value && props.paradas.filter(p => p.google_place_id).length >= MINIMO_PARA_DICA,
+)
 
 const selecionadasNaOrdem = computed(() =>
   [...props.selecionadas].sort((a, b) => a - b).map(i => props.paradas[i]).filter(p => !!p),
@@ -66,12 +77,11 @@ const recortes = computed<Recorte[]>(() => {
     }))
   }
 
-  if (modoDeAbertura.value === 'selecao') {
+  // O rótulo do recorte fica vazio: quantas são já está no título da barra.
+  if (selecionando.value) {
     return [{
       chave: 'selecao',
-      rotulo: selecionadasNaOrdem.value.length === 1
-        ? '1 selecionada'
-        : `${selecionadasNaOrdem.value.length} selecionadas`,
+      rotulo: '',
       abertura: aberturaNoMaps(selecionadasNaOrdem.value, maxPontos.value),
     }]
   }
@@ -83,8 +93,8 @@ const recortes = computed<Recorte[]>(() => {
   }]
 })
 
-/** No modo "tudo" o recorte é óbvio — o rótulo só faria ruído. */
-const mostrarRotulos = computed(() => modoDeAbertura.value !== 'tudo')
+/** Só o recorte por dia precisa se identificar — nos outros há um bloco só. */
+const mostrarRotulos = computed(() => modoDeAbertura.value === 'dia')
 
 const nenhumLink = computed(() =>
   recortes.value.every(r => !r.abertura.trechos.length && !r.abertura.lugarUnico),
@@ -99,19 +109,39 @@ function rotuloDoBotao(abertura: AberturaNoMaps<ParadaParaSalvar>, i: number): s
 
 <template>
   <section class="space-y-3">
-    <div class="flex flex-wrap items-center gap-2">
+    <!--
+      Na seleção a barra inteira passa a ser sobre ela: o recorte é temporário e
+      tem saída própria. Deixar as pílulas ao lado convidaria a trocar de modo no
+      meio da marcação, que é o mesmo que jogá-la fora sem dizer.
+    -->
+    <div v-if="selecionando" class="flex flex-wrap items-center gap-2">
+      <h2 class="mr-1 text-sm font-medium">
+        {{ selecionadasNaOrdem.length }}
+        {{ selecionadasNaOrdem.length === 1 ? 'parada selecionada' : 'paradas selecionadas' }}
+      </h2>
+
+      <button
+        type="button"
+        class="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        @click="modoDeAbertura = 'tudo'"
+      >
+        <XIcon class="size-3.5" />
+        Sair da seleção
+      </button>
+    </div>
+
+    <div v-else class="flex flex-wrap items-center gap-2">
       <h2 class="mr-1 text-sm font-medium">Abrir no Google Maps</h2>
 
       <div class="flex gap-1 rounded-lg bg-muted p-0.5">
         <button
           v-for="opcao in [
-            { valor: 'tudo' as const, rotulo: 'Tudo' },
+            { valor: 'tudo' as const, rotulo: 'Roteiro inteiro' },
             { valor: 'dia' as const, rotulo: 'Por dia' },
-            { valor: 'selecao' as const, rotulo: 'Seleção' },
           ]"
           :key="opcao.valor"
           type="button"
-          class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+          class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-40"
           :class="modoDeAbertura === opcao.valor
             ? 'bg-background shadow-sm'
             : 'text-muted-foreground hover:text-foreground'"
@@ -128,7 +158,7 @@ function rotuloDoBotao(abertura: AberturaNoMaps<ParadaParaSalvar>, i: number): s
       Nenhuma parada tem dia ainda — marque o dia de cada uma na lista abaixo.
     </p>
 
-    <p v-else-if="modoDeAbertura === 'selecao' && !selecionadas.length" class="text-xs text-muted-foreground">
+    <p v-else-if="selecionando && !selecionadas.length" class="text-xs text-muted-foreground">
       Marque as paradas abaixo para montar um percurso avulso, sem mexer no roteiro.
     </p>
 
@@ -199,6 +229,11 @@ function rotuloDoBotao(abertura: AberturaNoMaps<ParadaParaSalvar>, i: number): s
     <p v-if="modoDeAbertura === 'tudo' && recortes[0]!.abertura.trechos.length > 1" class="text-xs text-muted-foreground">
       O Google Maps não abre um roteiro deste tamanho num link só, então ele vai em
       trechos — o fim de um é o começo do seguinte.
+    </p>
+
+    <p v-if="mostrarDica" class="text-xs text-muted-foreground">
+      Para abrir só algumas paradas, segure uma delas na lista — ou passe o mouse e
+      marque a caixinha.
     </p>
   </section>
 </template>

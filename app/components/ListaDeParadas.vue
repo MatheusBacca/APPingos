@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onLongPress } from '@vueuse/core'
 import { ArrowDownIcon, ArrowUpIcon, MapPinIcon, PenLineIcon, XIcon } from '@lucide/vue'
 import { Input } from '@/components/ui/input'
 import type { ParadaParaSalvar } from '~/types/viagem'
@@ -41,9 +42,58 @@ const props = defineProps<{
 const emit = defineEmits<{
   atualizar: [ParadaParaSalvar[]]
   alternar: [number]
+  entrarNaSelecao: [number]
 }>()
 
 const marcadas = computed(() => new Set(props.selecionadas ?? []))
+
+/*
+ * Como se entra no modo seleção — o padrão que todo aparelho já ensinou.
+ *
+ * No toque, segurar a parada; no mouse, passar por cima e a caixa aparece. São
+ * os dois gestos que a pessoa já usa na galeria de fotos e no e-mail, então não
+ * há nada novo a aprender. O preço é que nenhum dos dois é descobrível sozinho:
+ * quem nunca segurou um item não sabe que dá. Por isso a barra do Maps ganha a
+ * dica em texto quando o roteiro tem paradas suficientes para valer a pena.
+ *
+ * `onLongPress` já cancela quando o dedo anda mais de 10px — rolar a lista não
+ * pode virar seleção, que é o jeito clássico de esta interação irritar.
+ */
+const lista = useTemplateRef<HTMLElement>('lista')
+const SEGURAR_MS = 450
+
+/** Verdadeiro entre o gesto disparar e o menu de contexto do sistema aparecer. */
+let acabouDeSegurar = false
+
+onLongPress(
+  lista,
+  (evento) => {
+    if (props.selecionavel) return
+
+    const alvo = evento.target as HTMLElement | null
+    // Segurar um campo de texto é gesto do sistema (copiar, colar) — não nosso.
+    if (alvo?.closest('input, textarea, button, a')) return
+
+    const linha = alvo?.closest<HTMLElement>('[data-indice]')
+    const i = Number(linha?.dataset.indice)
+    if (!Number.isInteger(i)) return
+
+    acabouDeSegurar = true
+    emit('entrarNaSelecao', i)
+  },
+  { delay: SEGURAR_MS, distanceThreshold: 10 },
+)
+
+/**
+ * O menu de contexto do sistema não pode brotar em cima da seleção que acabou
+ * de abrir. Só é barrado quando o gesto foi nosso — o botão direito no desktop
+ * continua funcionando normalmente.
+ */
+function aoMenuDeContexto(evento: Event) {
+  if (!acabouDeSegurar) return
+  evento.preventDefault()
+  acabouDeSegurar = false
+}
 
 const arrastando = ref<number | null>(null)
 const alvo = ref<number | null>(null)
@@ -91,7 +141,12 @@ function soltar(indice: number) {
 </script>
 
 <template>
-  <ol v-if="paradas.length" class="space-y-2">
+  <ol
+    v-if="paradas.length"
+    ref="lista"
+    class="space-y-2"
+    @contextmenu="aoMenuDeContexto"
+  >
     <template v-for="(parada, i) in paradas" :key="`${i}-${parada.nome}`">
       <li
         v-if="inicioDeDia[i]"
@@ -101,8 +156,12 @@ function soltar(indice: number) {
       </li>
 
       <li
-        class="rounded-lg border bg-card p-3 transition-colors"
-        :class="alvo === i ? 'border-primary bg-primary/5' : ''"
+        :data-indice="i"
+        class="group rounded-lg border bg-card p-3 transition-colors"
+        :class="[
+          alvo === i ? 'border-primary bg-primary/5' : '',
+          marcadas.has(i) ? 'border-primary bg-primary/5' : '',
+        ]"
         :draggable="editavel"
         @dragstart="arrastando = i"
         @dragover.prevent="alvo = i"
@@ -115,20 +174,22 @@ function soltar(indice: number) {
             Caixa só em parada que o Maps conhece: a seleção existe para montar
             um link, e uma parada escrita à mão nunca entra em link nenhum.
             Marcar o que não tem efeito é pior que não poder marcar.
+
+            Ela ocupa o espaço mesmo invisível, senão a linha inteira daria um
+            pulo lateral a cada passada do mouse. Fora do modo seleção, marcar é
+            o que ENTRA nele — é o mesmo toque que o gesto de segurar, para quem
+            está no mouse.
           -->
           <input
-            v-if="selecionavel && parada.google_place_id"
+            v-if="parada.google_place_id"
             :checked="marcadas.has(i)"
             type="checkbox"
-            class="mt-1 size-4 shrink-0 accent-primary"
-            :aria-label="`Incluir ${parada.nome} na seleção`"
-            @change="emit('alternar', i)"
+            class="mt-1 size-4 shrink-0 accent-primary transition-opacity focus-visible:opacity-100"
+            :class="selecionavel || marcadas.has(i) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
+            :aria-label="`Selecionar ${parada.nome}`"
+            @change="selecionavel ? emit('alternar', i) : emit('entrarNaSelecao', i)"
           >
-          <span
-            v-else-if="selecionavel"
-            class="mt-1 size-4 shrink-0"
-            aria-hidden="true"
-          />
+          <span v-else class="mt-1 size-4 shrink-0" aria-hidden="true" />
 
           <span
             class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-medium"
