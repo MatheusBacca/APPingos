@@ -443,18 +443,21 @@ export type Database = {
       }
       profile: {
         Row: {
+          apelido: string | null
           avatar_url: string | null
           created_at: string
           id: string
           nome: string
         }
         Insert: {
+          apelido?: string | null
           avatar_url?: string | null
           created_at?: string
           id: string
           nome: string
         }
         Update: {
+          apelido?: string | null
           avatar_url?: string | null
           created_at?: string
           id?: string

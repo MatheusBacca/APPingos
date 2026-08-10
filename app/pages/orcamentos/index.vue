@@ -100,7 +100,7 @@ const comprasVisiveis = computed(() =>
 )
 
 function nomeDoMembro(id: string): string {
-  return membros.value?.find(m => m.user_id === id)?.nome ?? 'Alguém'
+  return membros.value?.find(m => m.user_id === id)?.exibicao ?? 'Alguém'
 }
 
 // ---- Gráficos ---------------------------------------------------------------

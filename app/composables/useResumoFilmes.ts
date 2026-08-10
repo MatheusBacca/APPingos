@@ -33,7 +33,7 @@ export function linhasDeFilmes(
    * filme, que é a informação que a pessoa está procurando ali.
    */
   const nomeDe = (id: string) => {
-    const nome = membros.find(m => m.user_id === id)?.nome ?? 'Alguém'
+    const nome = membros.find(m => m.user_id === id)?.exibicao ?? 'Alguém'
     return nome.split(' ')[0] || nome
   }
 

@@ -35,7 +35,7 @@ const saldos = computed(() =>
 )
 
 const nomeDoMembro = (id: string) =>
-  props.membros.find(m => m.user_id === id)?.nome ?? 'Alguém'
+  props.membros.find(m => m.user_id === id)?.exibicao ?? 'Alguém'
 
 /** Só existe frase única quando são exatamente duas pessoas no espaço. */
 const acerto = computed(() => {

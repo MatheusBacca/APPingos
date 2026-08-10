@@ -40,7 +40,7 @@ const responder = useResponderConvite()
 const respondendo = ref(new Set<string>())
 
 function nomeDoMembro(userId: string): string {
-  return membros.value?.find(m => m.user_id === userId)?.nome ?? 'Alguém'
+  return membros.value?.find(m => m.user_id === userId)?.exibicao ?? 'Alguém'
 }
 
 async function onResponder(id: string, aceito: boolean) {

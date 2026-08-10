@@ -20,10 +20,15 @@ const criar = useCriarRoteiro()
 
 const dialogoAberto = ref(false)
 
-/** Só o primeiro nome: "Ana está montando algo" cabe no card, o nome inteiro não. */
+/**
+ * Só o primeiro nome: "Ana está montando algo" cabe no card, o nome inteiro não.
+ * O apelido vai inteiro — quem se apelidou de "Dona Ana" escolheu as duas
+ * palavras, e cortar a segunda desfaz a escolha.
+ */
 function primeiroNome(userId: string): string | null {
-  const nome = membros.value?.find(m => m.user_id === userId)?.nome
-  return nome ? nome.split(' ')[0] || nome : null
+  const membro = membros.value?.find(m => m.user_id === userId)
+  if (!membro) return null
+  return membro.apelido ?? (membro.nome.split(' ')[0] || membro.nome)
 }
 
 /** A grade tem conteúdo se há roteiro OU se há segredo alheio a anunciar. */

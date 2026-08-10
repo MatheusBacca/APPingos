@@ -424,3 +424,35 @@ que não é seu mostrava o erro cru do PostgREST ("Cannot coerce the result to a
 object"). `useRoteiro` passou a usar `maybeSingle` — não encontrar não é falha, é a resposta
 certa. A tela diz a mesma coisa para "não existe" e para "é segredo de outra pessoa", porque
 distinguir os dois já seria contar meia surpresa.
+
+## 2026-08-09 (continuação) — Apelidos
+
+**Feito:**
+- Migration `20260809230000_perfil_apelido.sql`: coluna `apelido` em `profile`, com trigger de
+  normalização e CHECK de 2 a 24 caracteres
+- `usePerfil` / `useDefinirApelido` — o perfil é da pessoa, não do espaço, e por isso é a
+  primeira query do app fora de `useSpaceQuery`
+- `Membro` ganhou `apelido` e `exibicao`; toda tela que mostrava `membro.nome` passou a mostrar
+  `membro.exibicao` (pilha de membros, saldo do mês, rateio da compra, avaliações, convites)
+- Card "Seu apelido" em `/espacos`, e a saudação do início passou a usar o perfil do banco em
+  vez do `user_metadata` do cadastro
+
+**Decisão: coluna nova, não `nome` editável.** Deixar a pessoa reescrever o próprio `nome`
+resolveria o pedido com zero coluna a mais — e apagaria o nome de cadastro no processo. São
+fatos diferentes: `nome` é quem a pessoa é, `apelido` é como ela quer ser chamada. Guardar os
+dois é o que permite a lista de membros mostrar "Bebê · Ana Paula" para quem acabou de entrar
+por convite e ainda não sabe quem é quem.
+
+**Decisão: `exibicao` pronto no `Membro`, em vez de `apelido ?? nome` em cada tela.** A regra
+de precedência tem uma armadilha silenciosa — apelido `''` passa pelo `??` e mostra uma pessoa
+sem nome — e havia oito telas para acertar. Uma delas erraria. `nomeDeExibicao()` decide uma
+vez, o campo chega pronto, e a tela nova não tem como esquecer a regra.
+
+**A normalização vive no banco.** `profile_update` deixa cada um escrever na própria linha
+direto pelo PostgREST, então o formulário não é o único caminho até a coluna. O trigger
+`profile_apelido_normalizado` é: ele transforma `'  '` em NULL antes do CHECK, e "sem apelido"
+passa a ter uma representação só.
+
+**Sem unicidade, de propósito.** Apelido não é @handle. Dois "Bebê" no mesmo espaço é escolha
+do casal, não erro de integridade — e um índice único aqui só produziria um erro
+incompreensível na hora de salvar.

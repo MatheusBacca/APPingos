@@ -266,7 +266,7 @@ const podeSalvar = computed(() =>
   && !salvando.value,
 )
 
-const nomeDoMembro = (id: string) => props.membros.find(m => m.user_id === id)?.nome ?? 'Alguém'
+const nomeDoMembro = (id: string) => props.membros.find(m => m.user_id === id)?.exibicao ?? 'Alguém'
 
 /**
  * Mexer na competência move TODAS as parcelas de uma vez — a view reexpande a
@@ -503,7 +503,7 @@ async function salvar() {
                 class="gap-2"
                 @select="pagoPor = membro.user_id"
               >
-                <span class="flex-1">{{ membro.nome }}</span>
+                <span class="flex-1">{{ membro.exibicao }}</span>
                 <CheckIcon v-if="membro.user_id === pagoPor" class="size-4 text-primary" />
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -532,7 +532,7 @@ async function salvar() {
           </div>
 
           <div v-for="membro in membros" :key="membro.user_id" class="flex items-center gap-3">
-            <span class="min-w-0 flex-1 truncate text-sm">{{ membro.nome }}</span>
+            <span class="min-w-0 flex-1 truncate text-sm">{{ membro.exibicao }}</span>
             <Input
               :model-value="partes[membro.user_id] ?? 0"
               type="number"

@@ -44,7 +44,7 @@ const aindaNaoAvaliaram = computed(() => {
 })
 
 function nomeDoMembro(userId: string): string {
-  return membros.value?.find(m => m.user_id === userId)?.nome ?? 'Alguém'
+  return membros.value?.find(m => m.user_id === userId)?.exibicao ?? 'Alguém'
 }
 
 // ---- Formulário de avaliação (estrelas + resenha juntos) --------------------
@@ -270,7 +270,7 @@ async function onRemover() {
               class="size-4 rounded border-input"
             >
             <label :for="`comigo-${companhia.membro.user_id}`" class="flex-1">
-              {{ companhia.membro.nome }}
+              {{ companhia.membro.exibicao }}
             </label>
             <span class="text-xs text-muted-foreground">{{ companhia.situacao }}</span>
           </li>

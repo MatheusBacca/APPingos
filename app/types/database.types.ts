@@ -37,6 +37,25 @@ export const CORES_CATEGORIA: CorCategoria[] = [
   'azul', 'roxo', 'rosa', 'vermelho',
 ]
 
+/*
+ * Apelido — ver supabase/migrations/20260809230000_perfil_apelido.sql
+ *
+ * Os limites espelham o CHECK da coluna. Existem aqui para o formulário barrar
+ * antes de ir ao banco: um `maxlength` no input é mais gentil que um erro de
+ * constraint traduzido para "não deu para salvar".
+ */
+export const APELIDO_MIN = 2
+export const APELIDO_MAX = 24
+
+/**
+ * Como o app chama uma pessoa: o apelido quando existe, o nome de cadastro
+ * quando não. É a única regra de precedência entre os dois, e mora aqui para
+ * não ser reescrita (errado) em cada tela que mostra gente.
+ */
+export function nomeDeExibicao(pessoa: { nome: string, apelido?: string | null }): string {
+  return pessoa.apelido?.trim() || pessoa.nome
+}
+
 export const PAPEL_ROTULO: Record<Papel, string> = {
   dono: 'Dono',
   admin: 'Admin',

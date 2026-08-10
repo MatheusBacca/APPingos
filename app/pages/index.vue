@@ -1,15 +1,27 @@
 <script setup lang="ts">
 import { ArrowRightIcon } from '@lucide/vue'
 import { MODULOS_ORDENADOS } from '~/modules'
+import { usePerfil } from '~/composables/usePerfil'
 import { useSpaceStore } from '~/stores/space'
 
 useHead({ title: 'Início · APPingos' })
 
 const store = useSpaceStore()
 const user = useSupabaseUser()
+const { data: perfil } = usePerfil()
 
+/*
+ * O apelido vai inteiro; do nome de cadastro sai só o primeiro pedaço, porque
+ * "Oi, Matheus Bacca" soa como cobrança de banco. O `user_metadata` fica de
+ * reserva para o primeiro carregamento, antes de o perfil chegar do banco.
+ */
 const primeiroNome = computed(() => {
-  const nome = (user.value?.user_metadata?.nome as string | undefined) ?? ''
+  if (perfil.value?.apelido) return perfil.value.apelido
+
+  const nome = perfil.value?.nome
+    ?? (user.value?.user_metadata?.nome as string | undefined)
+    ?? ''
+
   return nome.split(' ')[0] || null
 })
 </script>

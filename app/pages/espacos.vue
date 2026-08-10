@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { mensagemDeErro } from '@/lib/utils'
-import { CheckIcon, ChevronsUpDownIcon, CopyIcon, HeartIcon, LinkIcon, TriangleAlertIcon, UserIcon } from '@lucide/vue'
+import { CheckIcon, ChevronsUpDownIcon, CopyIcon, HeartIcon, LinkIcon, SmileIcon, TriangleAlertIcon, UserIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,9 +21,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { PAPEL_ROTULO } from '~/types/database.types'
+import { APELIDO_MAX, APELIDO_MIN, PAPEL_ROTULO } from '~/types/database.types'
 import { useCriarEspaco, useDeletarEspaco, useCriarConvite, useResgatarConvite } from '~/composables/useEspacos'
 import { useMembros, useDefinirPapel } from '~/composables/useMembros'
+import { usePerfil, useDefinirApelido } from '~/composables/usePerfil'
 import { useSpaceQuery } from '~/composables/useSpaceQuery'
 import { useSpaceStore } from '~/stores/space'
 
@@ -43,6 +44,42 @@ const definirPapel = useDefinirPapel()
 // entregava o objeto errado para a outra tela — era por isso que o nome de quem
 // avaliou aparecia como "Alguém" no card do filme.
 const membros = useMembros()
+
+// ---- Apelido ---------------------------------------------------------------
+
+const perfil = usePerfil()
+const definirApelido = useDefinirApelido()
+
+const apelido = ref('')
+
+// Só sincroniza quando o perfil chega (ou muda no servidor). Um `watch` no
+// valor cru sobrescreveria o que a pessoa está digitando a cada refetch.
+watch(() => perfil.data.value?.apelido, (valor) => {
+  apelido.value = valor ?? ''
+}, { immediate: true })
+
+const apelidoLimpo = computed(() => apelido.value.trim())
+
+const apelidoMudou = computed(() =>
+  apelidoLimpo.value !== (perfil.data.value?.apelido ?? ''),
+)
+
+// Vazio é válido: é assim que se remove o apelido e volta a valer o nome.
+const apelidoValido = computed(() =>
+  apelidoLimpo.value === '' || apelidoLimpo.value.length >= APELIDO_MIN,
+)
+
+async function onSalvarApelido() {
+  if (!apelidoMudou.value || !apelidoValido.value) return
+  const novo = apelidoLimpo.value || null
+  try {
+    await definirApelido.mutateAsync(novo)
+    toast.success(novo ? `Agora o app te chama de ${novo}.` : 'Apelido removido.')
+  }
+  catch (e) {
+    toast.error(mensagemDeErro(e, 'Não deu para salvar o apelido.'))
+  }
+}
 
 const nomeNovoEspaco = ref('')
 const codigoGerado = ref<string | null>(null)
@@ -200,9 +237,17 @@ async function onResgatar() {
               class="flex items-center gap-2 text-sm"
             >
               <span class="grid size-7 place-items-center rounded-full bg-muted text-xs font-medium">
-                {{ membro.nome.charAt(0).toUpperCase() }}
+                {{ membro.exibicao.charAt(0).toUpperCase() }}
               </span>
-              <span class="flex-1">{{ membro.nome }}</span>
+              <!--
+                O nome de cadastro aparece ao lado do apelido, e só aqui: esta é
+                a tela de quem é quem no espaço, e "Bebê" sozinho não responde
+                isso para quem acabou de entrar por convite.
+              -->
+              <span class="min-w-0 flex-1 truncate">
+                {{ membro.exibicao }}
+                <span v-if="membro.apelido" class="text-muted-foreground">· {{ membro.nome }}</span>
+              </span>
 
               <!-- O dono não muda de cargo por aqui: transferir posse é outra história. -->
               <span v-if="!souDono || membro.papel === 'dono'" class="text-xs text-muted-foreground">
@@ -215,7 +260,7 @@ async function onResgatar() {
                     type="button"
                     class="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
                     :disabled="definirPapel.isPending.value"
-                    :aria-label="`Cargo de ${membro.nome}`"
+                    :aria-label="`Cargo de ${membro.exibicao}`"
                   >
                     {{ PAPEL_ROTULO[membro.papel] }}
                     <ChevronsUpDownIcon class="size-3" />
@@ -300,6 +345,55 @@ async function onResgatar() {
             </Button>
           </div>
         </template>
+      </CardContent>
+    </Card>
+
+    <Card>
+      <CardHeader>
+        <CardTitle class="flex items-center gap-2 text-base">
+          <SmileIcon class="size-4 text-muted-foreground" />
+          Seu apelido
+        </CardTitle>
+        <CardDescription>
+          Como o app chama você. Vale em todos os seus espaços, e quem divide um espaço com
+          você vê o apelido no lugar do seu nome.
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent>
+        <form class="flex flex-col gap-3 sm:flex-row sm:items-start" @submit.prevent="onSalvarApelido">
+          <div class="flex-1 space-y-2">
+            <Label for="apelido" class="sr-only">Apelido</Label>
+            <Input
+              id="apelido"
+              v-model="apelido"
+              :maxlength="APELIDO_MAX"
+              autocomplete="nickname"
+              :placeholder="perfil.data.value?.nome ?? 'Seu apelido'"
+              :disabled="perfil.isPending.value"
+            />
+            <p class="text-xs text-muted-foreground">
+              <template v-if="apelidoLimpo && !apelidoValido">
+                Curto demais — precisa de pelo menos {{ APELIDO_MIN }} letras.
+              </template>
+              <template v-else-if="!apelidoLimpo">
+                Sem apelido, o app usa
+                <strong class="text-foreground">{{ perfil.data.value?.nome ?? 'seu nome' }}</strong>.
+              </template>
+              <template v-else>
+                Apague o campo e salve para voltar a usar seu nome.
+              </template>
+            </p>
+          </div>
+
+          <Button
+            type="submit"
+            variant="secondary"
+            :disabled="!apelidoMudou || !apelidoValido || definirApelido.isPending.value"
+          >
+            {{ definirApelido.isPending.value ? 'Salvando…' : 'Salvar' }}
+          </Button>
+        </form>
       </CardContent>
     </Card>
 

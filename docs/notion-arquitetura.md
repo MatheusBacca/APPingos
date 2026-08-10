@@ -50,7 +50,7 @@ mesmo, então essa porta fica aberta sem reescrever nada.
 ### `20260730120000_foundation.sql` — espaços
 
 ```
-profile(id → auth.users, nome, avatar_url)
+profile(id → auth.users, nome, apelido, avatar_url)
 space(id, tipo: pessoal|casal, nome)
 membership(space_id, user_id, papel: dono|membro)
 space_invite(id, space_id, codigo, expira_em, usado_em)

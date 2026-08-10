@@ -20,7 +20,7 @@ const MAX = 3
 
 const visiveis = computed(() => props.membros.slice(0, MAX))
 const excedente = computed(() => Math.max(0, props.membros.length - MAX))
-const nomes = computed(() => props.membros.map(m => m.nome).join(', '))
+const nomes = computed(() => props.membros.map(m => m.exibicao).join(', '))
 
 function inicial(nome: string): string {
   return (nome.trim()[0] ?? '?').toUpperCase()
@@ -39,7 +39,7 @@ function inicial(nome: string): string {
         :class="i > 0 ? '-ml-1.5' : ''"
         :style="{ zIndex: visiveis.length - i }"
       >
-        {{ inicial(m.nome) }}
+        {{ inicial(m.exibicao) }}
       </span>
       <span
         v-if="excedente"

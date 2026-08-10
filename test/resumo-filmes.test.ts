@@ -17,8 +17,8 @@ const EU = 'eu'
 const ELA = 'ela'
 
 const membros: Membro[] = [
-  { user_id: EU, papel: 'dono', nome: 'Matheus Bacca', avatar_url: null },
-  { user_id: ELA, papel: 'membro', nome: 'Ana Paula', avatar_url: null },
+  { user_id: EU, papel: 'dono', nome: 'Matheus Bacca', apelido: null, exibicao: 'Matheus Bacca', avatar_url: null },
+  { user_id: ELA, papel: 'membro', nome: 'Ana Paula', apelido: null, exibicao: 'Ana Paula', avatar_url: null },
 ]
 
 function item(id: string, titulo: string, datas: Array<[string, string | null]>): ItemDoEspaco {
