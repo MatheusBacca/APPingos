@@ -26,6 +26,7 @@ import {
   proximaViagem,
   roteirosNovos,
   rotuloDoDia,
+  separarPorTempo,
   trechosDoMaps,
   urlDoEmbed,
   urlDoLugar,
@@ -34,6 +35,7 @@ import {
 import type { Parada, Roteiro } from '~/types/viagem'
 
 const CHAVE = 'chave-de-teste'
+const HOJE = '2026-08-09'
 
 function parada(ordem: number, extra: Partial<Parada> = {}): Parada {
   return {
@@ -369,6 +371,56 @@ describe('roteirosNovos', () => {
     const lista = [roteiro({ id: 'segredo', visibilidade: 'segredo', liberado_em: null })]
 
     expect(roteirosNovos(lista, [])).toEqual([])
+  })
+})
+
+describe('separarPorTempo', () => {
+  it('sobe as próximas por data e desce as passadas', () => {
+    const lista = [
+      roteiro({ id: 'dezembro', data_inicio: '2026-12-20' }),
+      roteiro({ id: 'janeiro', data_inicio: '2026-01-10', data_fim: '2026-01-15' }),
+      roteiro({ id: 'setembro', data_inicio: '2026-09-05' }),
+      roteiro({ id: 'marco', data_inicio: '2026-03-02', data_fim: '2026-03-04' }),
+    ]
+
+    const { proximas, passadas } = separarPorTempo(lista, HOJE)
+
+    expect(proximas.map(r => r.id)).toEqual(['setembro', 'dezembro'])
+    expect(passadas.map(r => r.id)).toEqual(['marco', 'janeiro'])
+  })
+
+  /*
+   * Um roteiro sem data é um plano esperando um quando. Mandá-lo para "passadas"
+   * enterraria justamente as ideias que ainda vão virar viagem.
+   */
+  it('mantém o roteiro sem data nas próximas, depois das que têm data', () => {
+    const lista = [
+      roteiro({ id: 'sem-data', data_inicio: null }),
+      roteiro({ id: 'com-data', data_inicio: '2026-09-05' }),
+    ]
+
+    const { proximas, passadas } = separarPorTempo(lista, HOJE)
+
+    expect(proximas.map(r => r.id)).toEqual(['com-data', 'sem-data'])
+    expect(passadas).toEqual([])
+  })
+
+  it('não arquiva a viagem em curso — começou ontem, termina domingo', () => {
+    const lista = [roteiro({ id: 'em-curso', data_inicio: '2026-08-08', data_fim: '2026-08-16' })]
+
+    expect(separarPorTempo(lista, HOJE).proximas.map(r => r.id)).toEqual(['em-curso'])
+  })
+
+  it('arquiva a viagem de um dia só que foi ontem', () => {
+    const lista = [roteiro({ id: 'ontem', data_inicio: '2026-08-08' })]
+
+    expect(separarPorTempo(lista, HOJE).passadas.map(r => r.id)).toEqual(['ontem'])
+  })
+
+  it('mantém hoje nas próximas', () => {
+    const lista = [roteiro({ id: 'hoje', data_inicio: HOJE })]
+
+    expect(separarPorTempo(lista, HOJE).proximas.map(r => r.id)).toEqual(['hoje'])
   })
 })
 

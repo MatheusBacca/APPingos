@@ -104,3 +104,20 @@ export const MODULOS: AppModule[] = [
 export const MODULOS_ATIVOS = MODULOS.filter(m => m.ativo)
 
 export const MODULOS_COM_RESUMO = MODULOS.filter(m => m.resumo)
+
+/**
+ * A ordem em que os módulos aparecem para quem usa: os prontos primeiro.
+ *
+ * O array acima é o registro, e a ordem dele é a de quem construiu — filmes
+ * antes de músicas porque foi assim que nasceram. Quem abre o app não tem nada
+ * a ver com isso: rolar por três "em breve" para chegar em Viagens é atrito por
+ * história do projeto.
+ *
+ * É ordenação derivada, e não o array reordenado à mão, porque assim ativar um
+ * módulo já o coloca no lugar certo — não há um segundo passo para alguém
+ * esquecer. `sort` do JS é estável, então dentro de cada grupo a ordem de
+ * registro se mantém.
+ */
+export const MODULOS_ORDENADOS = [...MODULOS].sort(
+  (a, b) => Number(b.ativo) - Number(a.ativo),
+)

@@ -364,6 +364,50 @@ export function roteirosNovos(roteiros: Roteiro[], vistos: string[]): string[] {
 }
 
 /**
+ * O roteiro já aconteceu?
+ *
+ * Olha `data_fim` quando ela existe: uma viagem que começou ontem e termina
+ * domingo ainda não passou. Roteiro sem data nenhuma nunca é passado — ele é um
+ * plano que ainda não tem quando, e mandá-lo para o arquivo seria enterrar
+ * justamente as ideias que esperam uma data.
+ */
+export function jaPassou(
+  roteiro: { data_inicio: string | null, data_fim: string | null },
+  hoje: string,
+): boolean {
+  if (!roteiro.data_inicio) return false
+
+  return (roteiro.data_fim ?? roteiro.data_inicio) < hoje
+}
+
+/**
+ * A lista partida em duas: o que ainda vem e o que já foi.
+ *
+ * As próximas sobem por data — a mais perto primeiro, que é a que interessa —,
+ * e as sem data vão para o fim delas, porque não há por onde ordená-las e um
+ * plano sem data não disputa atenção com a viagem de sábado. As passadas descem
+ * pela data: a última viagem é a que se quer reler.
+ */
+export function separarPorTempo<T extends { data_inicio: string | null, data_fim: string | null }>(
+  roteiros: T[],
+  hoje: string,
+): { proximas: T[], passadas: T[] } {
+  const proximas = roteiros
+    .filter(r => !jaPassou(r, hoje))
+    .sort((a, b) => {
+      if (!a.data_inicio) return b.data_inicio ? 1 : 0
+      if (!b.data_inicio) return -1
+      return a.data_inicio.localeCompare(b.data_inicio)
+    })
+
+  const passadas = roteiros
+    .filter(r => jaPassou(r, hoje))
+    .sort((a, b) => (b.data_fim ?? b.data_inicio!).localeCompare(a.data_fim ?? a.data_inicio!))
+
+  return { proximas, passadas }
+}
+
+/**
  * A viagem mais próxima que ainda não passou.
  *
  * "Não passou" olha `data_fim` quando ela existe: uma viagem que começou ontem e

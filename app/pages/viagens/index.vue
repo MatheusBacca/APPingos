@@ -5,7 +5,8 @@ import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { RoteiroParaSalvar } from '~/composables/useRoteiros'
-import { roteirosNovos } from '~/types/viagem'
+import { hojeIso } from '@/lib/datas'
+import { roteirosNovos, separarPorTempo } from '~/types/viagem'
 import { useRoteiros, useRoteirosVistos, useCriarRoteiro, useSegredosDoEspaco } from '~/composables/useRoteiros'
 import { useMembros } from '~/composables/useMembros'
 
@@ -27,6 +28,26 @@ function primeiroNome(userId: string): string | null {
 
 /** A grade tem conteúdo se há roteiro OU se há segredo alheio a anunciar. */
 const temAlgo = computed(() => !!roteiros.value?.length || !!segredos.value?.length)
+
+/*
+ * O mês é fixado na montagem em vez de recalculado a cada leitura: a tela pode
+ * ficar aberta por horas num app instalado, mas a virada do dia com ela na
+ * frente é rara o bastante para não valer um timer. Mesmo critério do painel
+ * de resumos.
+ */
+const hoje = hojeIso()
+
+const separadas = computed(() => separarPorTempo(roteiros.value ?? [], hoje))
+const proximas = computed(() => separadas.value.proximas)
+const passadas = computed(() => separadas.value.passadas)
+
+/*
+ * Os títulos só aparecem quando há de fato as duas metades. Com nada arquivado
+ * ainda — que é o estado do módulo recém-nascido —, um "Próximas viagens"
+ * sozinho em cima de tudo seria rótulo sem contraste, nomeando a única coisa
+ * que existe na tela.
+ */
+const separar = computed(() => passadas.value.length > 0)
 
 const novos = computed(() =>
   new Set(roteirosNovos(roteiros.value ?? [], vistos.value ?? [])),
@@ -70,25 +91,53 @@ async function onCriar(campos: RoteiroParaSalvar) {
       {{ mensagemDeErro(error, 'Não deu para carregar os roteiros.') }}
     </p>
 
-    <div v-else-if="temAlgo" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      <RoteiroCard
-        v-for="roteiro in roteiros"
-        :key="roteiro.id"
-        :roteiro="roteiro"
-        :novo="novos.has(roteiro.id)"
-      />
+    <template v-else-if="temAlgo">
+      <section class="space-y-3">
+        <h2 v-if="separar" class="text-sm font-medium">Próximas viagens</h2>
 
-      <!--
-        Os segredos alheios vêm por último: eles não são conteúdo, são aviso.
-        Ficam depois do que a pessoa de fato pode abrir.
-      -->
-      <RoteiroSecretoCard
-        v-for="segredo in segredos"
-        :key="segredo.id"
-        :quem="primeiroNome(segredo.criado_por)"
-        :desde="segredo.created_at"
-      />
-    </div>
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <RoteiroCard
+            v-for="roteiro in proximas"
+            :key="roteiro.id"
+            :roteiro="roteiro"
+            :novo="novos.has(roteiro.id)"
+          />
+
+          <!--
+            O segredo alheio é do que ainda vem, por definição: ninguém guarda
+            surpresa de viagem que já aconteceu. Vem depois dos roteiros de
+            verdade porque é aviso, não conteúdo.
+          -->
+          <RoteiroSecretoCard
+            v-for="segredo in segredos"
+            :key="segredo.id"
+            :quem="primeiroNome(segredo.criado_por)"
+            :desde="segredo.created_at"
+          />
+        </div>
+
+        <p v-if="!proximas.length && !segredos?.length" class="text-sm text-muted-foreground">
+          Nada marcado para frente. Que tal um roteiro novo?
+        </p>
+      </section>
+
+      <section v-if="separar" class="space-y-3">
+        <h2 class="text-sm font-medium">Viagens passadas</h2>
+
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <!--
+            Sem o selo "Novo" aqui: um roteiro liberado depois da viagem não é
+            novidade que espera resposta, e o destaque só chamaria atenção para
+            o que já passou.
+          -->
+          <RoteiroCard
+            v-for="roteiro in passadas"
+            :key="roteiro.id"
+            :roteiro="roteiro"
+          />
+        </div>
+      </section>
+    </template>
 
     <div v-else class="rounded-xl border border-dashed px-6 py-16 text-center">
       <p class="font-medium">Nenhum roteiro ainda.</p>

@@ -9,7 +9,7 @@ import {
 } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { MODULOS, MODULOS_COM_RESUMO } from '~/modules'
+import { MODULOS_ORDENADOS, MODULOS_COM_RESUMO } from '~/modules'
 import { useAuth } from '~/composables/useAuth'
 import { useSidebar } from '~/composables/useSidebar'
 
@@ -67,7 +67,7 @@ const classeLink = computed(() => aberta.value ? 'px-3' : 'justify-center px-0')
       </NuxtLink>
 
       <NuxtLink
-        v-for="modulo in MODULOS"
+        v-for="modulo in MODULOS_ORDENADOS"
         :key="modulo.slug"
         :to="modulo.rota"
         class="flex items-center gap-3 rounded-lg py-2 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"

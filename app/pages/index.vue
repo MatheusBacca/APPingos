@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ArrowRightIcon } from '@lucide/vue'
-import { MODULOS } from '~/modules'
+import { MODULOS_ORDENADOS } from '~/modules'
 import { useSpaceStore } from '~/stores/space'
 
 useHead({ title: 'Início · APPingos' })
@@ -29,7 +29,7 @@ const primeiroNome = computed(() => {
       <h2 class="sr-only">Módulos</h2>
       <div class="grid gap-3 sm:grid-cols-2">
         <NuxtLink
-          v-for="modulo in MODULOS"
+          v-for="modulo in MODULOS_ORDENADOS"
           :key="modulo.slug"
           :to="modulo.rota"
           class="group flex items-start gap-3 rounded-xl border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-accent/40"
