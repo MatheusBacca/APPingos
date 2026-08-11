@@ -32,7 +32,7 @@ alguém lança um gasto
           └─ trigger de e-mail
               ├─ linha em `notificacao_email_fila`   (só se a pessoa optou pelo e-mail)
               └─ pg_net acorda a Edge Function
-                  └─ `enviar-emails` drena a fila e chama o Resend
+                  └─ `enviar-emails` drena a fila e envia pelo SMTP do Gmail
 ```
 
 Três propriedades do desenho valem mais que os detalhes:
@@ -40,8 +40,8 @@ Três propriedades do desenho valem mais que os detalhes:
 1. **Uma linha por destinatário.** A notificação nasce recortada por pessoa, então o
    roteiro-surpresa simplesmente não gera linha para quem não pode saber dele. Não existe
    "filtrar na leitura" — que é justamente o que a migration do alerta de spoiler recusou.
-2. **A fila desacopla o envio da transação.** Quem lançou o gasto não espera o Resend, e não vê
-   erro se o Resend estiver fora do ar. O que falhou fica visível em `notificacao_email_fila`,
+2. **A fila desacopla o envio da transação.** Quem lançou o gasto não espera o servidor de
+   e-mail, e não vê erro se ele estiver fora do ar. O que falhou fica visível em `notificacao_email_fila`,
    com o erro e o número de tentativas.
 3. **Só INSERT vira e-mail.** A notificação agrupada é um UPDATE ("2 alterações" vira "3").
    Três correções no mesmo gasto rendem um e-mail, não três.

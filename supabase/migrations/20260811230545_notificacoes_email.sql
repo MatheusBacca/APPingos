@@ -14,7 +14,7 @@
 --   notificar()  ->  linha em `notificacao`
 --        trigger ->  linha em `notificacao_email_fila`  (se a pessoa optou)
 --        trigger ->  net.http_post acorda a Edge Function  (uma vez por statement)
---   Edge Function -> drena a fila, chama o Resend, marca enviado/erro
+--   Edge Function -> drena a fila, entrega o e-mail, marca enviado/erro
 --
 -- A FILA É O PONTO. Sem ela, o envio seria uma chamada HTTP presa à transação
 -- de quem lançou o gasto: a menor instabilidade do provedor viraria erro na cara
@@ -44,7 +44,7 @@ create extension if not exists pg_net;
   deve redirecionar o que já estava na fila para o endereço novo.
 
   `estado = 'erro'` não é o fim: o cron reprocessa enquanto `tentativas < 5`. O
-  teto existe para um endereço inválido não ficar batendo no Resend para sempre.
+  teto existe para um endereço inválido não ficar batendo no provedor para sempre.
 */
 create table public.notificacao_email_fila (
   id              uuid primary key default gen_random_uuid(),

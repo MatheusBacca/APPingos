@@ -2,7 +2,7 @@
  * APPingos — o carteiro das notificações.
  *
  * Drena `notificacao_email_fila`, renderiza cada linha com o MESMO módulo que a
- * tela usa (`../_shared/notificacoes.ts`) e entrega pelo Resend.
+ * tela usa (`../_shared/notificacoes.ts`) e entrega pelo SMTP do Gmail.
  *
  * A função é acordada por `net.http_post` a partir de um gatilho no banco, e
  * também a cada 5 minutos pelo pg_cron. As duas chamadas fazem exatamente a
@@ -11,20 +11,31 @@
  * risco de e-mail duplicado, e o que faz a fila voltar a andar sozinha depois de
  * qualquer queda.
  *
+ * POR QUE GMAIL, E NÃO UM PROVEDOR DE ENVIO. A primeira versão usava Resend, e
+ * ele é melhor — mas o plano gratuito só entrega para terceiros com um domínio
+ * verificado, e sem domínio o e-mail chega só na caixa de quem é dono da conta.
+ * Num app de casal isso é a metade que importa ficando de fora. O Gmail com
+ * senha de app custa zero, não precisa de domínio, e quem entrega é um servidor
+ * do próprio Google — então a mensagem cai na caixa de entrada, não no spam.
+ * O limite (~500/dia) é ordens de grandeza acima do que dois usuários geram.
+ *
+ * A troca é barata nos dois sentidos, e de propósito: o provedor está confinado
+ * a este arquivo. O motor, a fila, as preferências e a caixa in-app não sabem
+ * quem entrega. Voltar para um provedor com domínio é mexer só aqui.
+ *
  * Segredos (Project Settings > Edge Functions > Secrets):
- *   RESEND_API_KEY     chave da API do Resend
- *   EMAIL_REMETENTE    'APPingos <avisos@seu-dominio.com>'
- *   APP_URL            'https://appingos.vercel.app' — a raiz dos links
+ *   GMAIL_USUARIO       a conta que envia, ex. `appingos.avisos@gmail.com`
+ *   GMAIL_SENHA_DE_APP  senha de app de 16 letras (NÃO a senha da conta)
+ *   APP_URL             'https://appingos.vercel.app' — a raiz dos links
+ *   NOME_REMETENTE      opcional; o nome exibido, padrão "APPingos"
  * `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` são injetados pela plataforma.
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0'
+import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts'
 import { emailDaNotificacao, type Notificacao } from '../_shared/notificacoes.ts'
 
 /** Teto por acordada. O cron a cada 5 min drena o resto se a fila estourar. */
 const LOTE = 20
-
-/** O plano grátis do Resend aceita 2 req/s. Uma pausa curta cabe folgada nisso. */
-const PAUSA_MS = 600
 
 const MAX_TENTATIVAS = 5
 
@@ -36,8 +47,6 @@ interface LinhaDaFila {
   tentativas: number
   notificacao: Notificacao | null
 }
-
-const espere = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 Deno.serve(async (req) => {
   const url = Deno.env.get('SUPABASE_URL')!
@@ -56,18 +65,27 @@ Deno.serve(async (req) => {
     })
   }
 
-  const resendKey = Deno.env.get('RESEND_API_KEY')
-  const remetente = Deno.env.get('EMAIL_REMETENTE')
+  const usuario = Deno.env.get('GMAIL_USUARIO')
+  const senha = Deno.env.get('GMAIL_SENHA_DE_APP')
   const appUrl = Deno.env.get('APP_URL')
 
-  if (!resendKey || !remetente || !appUrl) {
+  if (!usuario || !senha || !appUrl) {
     // Erro de configuração, não de dado: a fila fica intacta e volta a andar
     // quando os segredos existirem. Não incrementa tentativa de ninguém.
     return new Response(
-      JSON.stringify({ erro: 'faltam RESEND_API_KEY, EMAIL_REMETENTE ou APP_URL' }),
+      JSON.stringify({ erro: 'faltam GMAIL_USUARIO, GMAIL_SENHA_DE_APP ou APP_URL' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } },
     )
   }
+
+  /*
+    O remetente é sempre a conta autenticada, e não um endereço configurável: o
+    Gmail reescreve o `From` para a conta que fez login (ou recusa, se for um
+    alias não cadastrado). Deixar isso como segredo livre criaria a pegadinha de
+    configurar um endereço e receber outro, sem erro nenhum. Só o nome exibido
+    é escolha.
+  */
+  const remetente = `${Deno.env.get('NOME_REMETENTE') ?? 'APPingos'} <${usuario}>`
 
   const supabase = createClient(url, serviceKey, { auth: { persistSession: false } })
 
@@ -104,74 +122,106 @@ Deno.serve(async (req) => {
 
   const tokenPorUsuario = new Map((assinaturas ?? []).map(a => [a.user_id, a.token]))
 
+  /*
+    Uma conexão para o lote inteiro. Além de mais rápido, é o que o Gmail
+    prefere: abrir e fechar sessão SMTP a cada mensagem é justamente o padrão que
+    ele trata como suspeito. Porta 465 com TLS desde o primeiro byte (implícito),
+    e não 587 com STARTTLS — menos ida e volta, e nada trafega em claro.
+  */
+  const cliente = new SMTPClient({
+    connection: {
+      hostname: 'smtp.gmail.com',
+      port: 465,
+      tls: true,
+      auth: { username: usuario, password: senha },
+    },
+  })
+
   let enviados = 0
   let falhas = 0
+  let problemaDeConexao: string | null = null
 
-  for (const [indice, linha] of fila.entries()) {
-    if (indice > 0) await espere(PAUSA_MS)
+  try {
+    for (const linha of fila) {
+      try {
+        if (!linha.notificacao) {
+          // A notificação sumiu entre o enfileiramento e agora (faxina, espaço
+          // excluído). Não há o que mandar, e insistir só empataria a fila.
+          throw new Error('notificação não encontrada')
+        }
 
-    try {
-      if (!linha.notificacao) {
-        // A notificação sumiu entre o enfileiramento e agora (faxina, espaço
-        // excluído). Não há o que mandar, e insistir só empataria a fila.
-        throw new Error('notificação não encontrada')
-      }
+        const token = tokenPorUsuario.get(linha.user_id)
+        const urlDescadastro = `${appUrl.replace(/\/$/, '')}/descadastrar?token=${token ?? ''}`
+        const { assunto, html, texto } = emailDaNotificacao(linha.notificacao, {
+          appUrl,
+          urlDescadastro,
+        })
 
-      const token = tokenPorUsuario.get(linha.user_id)
-      const urlDescadastro = `${appUrl.replace(/\/$/, '')}/descadastrar?token=${token ?? ''}`
-      const { assunto, html, texto } = emailDaNotificacao(linha.notificacao, {
-        appUrl,
-        urlDescadastro,
-      })
-
-      const resposta = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${resendKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+        await cliente.send({
           from: remetente,
-          to: [linha.destinatario],
+          to: linha.destinatario,
           subject: assunto,
+          content: texto,
           html,
-          text: texto,
           /*
             O cabeçalho que põe "Cancelar inscrição" ao lado do remetente no
             Gmail. Ele vale deliverability: é o caminho de saída que o cliente de
             e-mail oferece ANTES do botão de spam.
           */
           headers: { 'List-Unsubscribe': `<${urlDescadastro}>` },
-        }),
-      })
+        })
 
-      if (!resposta.ok) {
-        throw new Error(`Resend ${resposta.status}: ${(await resposta.text()).slice(0, 300)}`)
+        await supabase
+          .from('notificacao_email_fila')
+          .update({
+            estado: 'enviado',
+            enviado_em: new Date().toISOString(),
+            tentativas: linha.tentativas + 1,
+            erro: null,
+          })
+          .eq('id', linha.id)
+
+        enviados++
       }
+      catch (e) {
+        const motivo = String(e instanceof Error ? e.message : e)
 
-      await supabase
-        .from('notificacao_email_fila')
-        .update({
-          estado: 'enviado',
-          enviado_em: new Date().toISOString(),
-          tentativas: linha.tentativas + 1,
-          erro: null,
-        })
-        .eq('id', linha.id)
+        /*
+          Senha de app errada, 2FA desligado, Gmail inacessível: isso não é
+          problema DESTA mensagem, é da configuração. Marcar como erro aqui
+          queimaria as cinco tentativas da fila inteira num defeito que trocar um
+          segredo resolve — e os avisos ficariam parados para sempre depois de
+          arrumado, porque `tentativas < 5` já não os alcançaria. Então aborta o
+          lote e não encosta na fila: ela sai inteira no próximo ciclo do cron.
+        */
+        if (/535|5\.7\.8|invalid login|username and password|connection|timed out|refused|handshake/i.test(motivo)) {
+          problemaDeConexao = motivo
+          break
+        }
 
-      enviados++
+        falhas++
+        await supabase
+          .from('notificacao_email_fila')
+          .update({
+            estado: 'erro',
+            tentativas: linha.tentativas + 1,
+            erro: motivo.slice(0, 500),
+          })
+          .eq('id', linha.id)
+      }
     }
-    catch (e) {
-      falhas++
-      await supabase
-        .from('notificacao_email_fila')
-        .update({
-          estado: 'erro',
-          tentativas: linha.tentativas + 1,
-          erro: String(e instanceof Error ? e.message : e).slice(0, 500),
-        })
-        .eq('id', linha.id)
-    }
+  }
+  finally {
+    // Sem isto a conexão fica pendurada até o Gmail derrubá-la por tempo, e o
+    // isolate da função não encerra.
+    await cliente.close().catch(() => {})
+  }
+
+  if (problemaDeConexao) {
+    return new Response(
+      JSON.stringify({ enviados, falhas, erro: `SMTP: ${problemaDeConexao}` }),
+      { status: 502, headers: { 'Content-Type': 'application/json' } },
+    )
   }
 
   return new Response(JSON.stringify({ enviados, falhas }), {

@@ -140,7 +140,7 @@ No [console do Google Cloud](https://console.cloud.google.com/):
 do navegador. Sem isso o mapa dá 403 em produção e só em produção — `localhost` continua
 funcionando, então o erro não aparece em nenhum teste local.
 
-### 6. Notificações por e-mail (Resend + Edge Function)
+### 6. Notificações por e-mail (Gmail + Edge Function)
 
 O app avisa em dois canais: a caixa dentro do app (sempre) e o e-mail (opt-in por pessoa, em
 Notificações › Preferências). O e-mail é o canal que funciona igual no Android e no iPhone
@@ -148,12 +148,31 @@ Notificações › Preferências). O e-mail é o canal que funciona igual no And
 antes do push.
 
 O caminho é: gatilho no Postgres → `notificacao` → fila → `pg_net` acorda a Edge Function
-`enviar-emails` → Resend. **Sem os passos abaixo o app funciona normalmente e nada é perdido:**
-a fila enche, e o `pg_cron` manda tudo assim que a configuração existir.
+`enviar-emails` → SMTP do Gmail. **Sem os passos abaixo o app funciona normalmente e nada é
+perdido:** a fila enche, e o `pg_cron` manda tudo assim que a configuração existir.
 
-1. Crie a conta em [resend.com](https://resend.com) (3.000 e-mails/mês no gratuito). Para
-   testar já dá para usar `onboarding@resend.dev` como remetente; para valer, verifique um
-   domínio (sem isso o Gmail joga em spam com frequência).
+**Por que Gmail e não um provedor de envio.** A primeira versão usava Resend, que é melhor —
+mas o plano gratuito só entrega para terceiros com um domínio verificado, e sem domínio o
+e-mail chega só na caixa de quem é dono da conta. Num app de casal, isso é a metade que
+importa ficando de fora. O Gmail com senha de app custa zero, dispensa domínio, e quem
+entrega é o próprio Google — então a mensagem cai na caixa de entrada. O limite (~500/dia)
+é ordens de grandeza acima do que duas pessoas geram. Se um dia houver domínio, trocar de
+volta é mexer só em `supabase/functions/enviar-emails/index.ts` e em dois segredos: o
+provedor está confinado ali, e nem o motor nem as telas sabem quem entrega.
+
+1. **Senha de app do Gmail.** Vale usar uma conta só para isso (ex.
+   `appingos.avisos@gmail.com`) — assim a credencial não é a da sua conta pessoal e dá para
+   revogá-la sem afetar mais nada.
+
+   Em [myaccount.google.com/security](https://myaccount.google.com/security), ligue a
+   **verificação em duas etapas** (sem ela o item abaixo nem aparece). Depois, em
+   [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords), crie uma
+   senha de app com o nome que quiser. O Google mostra **16 letras em 4 blocos**, uma única
+   vez — copie na hora. Ela é digitada sem os espaços.
+
+   Essa senha dá acesso de envio à conta: ela vive só nos Secrets do Supabase, nunca no
+   `.env` do app e nunca num commit.
+
 2. Publique a função:
 
    ```bash
@@ -164,13 +183,19 @@ a fila enche, e o `pg_cron` manda tudo assim que a configuração existir.
 
    | Segredo | Exemplo |
    | --- | --- |
-   | `RESEND_API_KEY` | `re_...` |
-   | `EMAIL_REMETENTE` | `APPingos <avisos@seu-dominio.com>` |
+   | `GMAIL_USUARIO` | `appingos.avisos@gmail.com` — a conta que envia |
+   | `GMAIL_SENHA_DE_APP` | as 16 letras, sem espaços |
    | `APP_URL` | `https://appingos.vercel.app` — a raiz dos links do e-mail |
+   | `NOME_REMETENTE` | opcional; o nome exibido, padrão `APPingos` |
+
+   Não há segredo para o endereço do remetente: o Gmail reescreve o `From` para a conta
+   autenticada de qualquer jeito, e um campo configurável só criaria a pegadinha de definir
+   um endereço e receber outro.
 
 4. No **SQL Editor**, guarde no Vault o endereço da função e a chave que o banco usa para
-   chamá-la (as duas estão em Project Settings → API). Isto roda **uma vez**, e fica fora das
-   migrations de propósito: migration é texto versionado no git.
+   chamá-la (as duas estão em Project Settings → API — use a `service_role` legada, a que
+   começa com `eyJ`). Isto roda **uma vez**, e fica fora das migrations de propósito:
+   migration é texto versionado no git.
 
    ```sql
    select vault.create_secret(
@@ -187,6 +212,12 @@ a fila enche, e o `pg_cron` manda tudo assim que a configuração existir.
    select estado, tentativas, erro, destinatario
    from notificacao_email_fila order by criado_em desc limit 10;
    ```
+
+   `pendente` parado por mais de 5 minutos = o banco não conseguiu acordar a função, então o
+   problema está nos dois segredos do Vault. `erro` com "535" ou "Username and Password not
+   accepted" = senha de app errada ou copiada com os espaços — e note que, nesse caso, a fila
+   NÃO gasta as tentativas: a função aborta o lote inteiro e tenta tudo de novo no próximo
+   ciclo, para um segredo errado não condenar avisos que ainda vão sair.
 
 ### 7. Rodar
 
@@ -259,7 +290,7 @@ server/
 supabase/
   migrations/         # schema versionado — fonte da verdade do banco
   functions/
-    enviar-emails/    # Edge Function que drena a fila e chama o Resend
+    enviar-emails/    # Edge Function que drena a fila e envia pelo SMTP do Gmail
     _shared/          # código lido pelo Deno E pelo app (o texto das notificações)
 ```
 

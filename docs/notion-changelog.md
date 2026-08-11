@@ -597,3 +597,44 @@ segredos do Resend, que são passo manual (README, seção 6).
 **Contratempo:** a `main` local estava 3 commits atrás e o banco tinha uma migration aplicada
 por outro ambiente. Alinhado antes de fechar: `git pull` e, no fim, 18 migrations locais contra
 as mesmas 18 versões no histórico do remoto.
+
+---
+
+## 2026-08-11 (continuação) — O carteiro passa a ser o Gmail
+
+**Contexto:** o Resend é gratuito, mas só entrega para terceiros com um domínio verificado —
+sem domínio, `onboarding@resend.dev` só alcança a caixa de quem é dono da conta. Num app de
+casal isso deixa de fora exatamente a metade que motivou a feature. Como o pedido era
+notificar fora do app **de graça**, o provedor mudou.
+
+**Feito:** `enviar-emails` reescrita para SMTP do Gmail com senha de app (denomailer, porta 465
+com TLS implícito). Segredos: `RESEND_API_KEY`/`EMAIL_REMETENTE` saíram, entraram
+`GMAIL_USUARIO`, `GMAIL_SENHA_DE_APP` e o opcional `NOME_REMETENTE`.
+
+**O que NÃO mudou, e é o ponto:** nenhuma migration, nenhuma tela, nenhum teste. O motor, a
+fila, as preferências, o descadastro e a caixa in-app não sabem quem entrega — o provedor
+estava confinado a um arquivo, e foi por isso que a troca custou uma tarde e não uma refatoração.
+
+**Decisão: não existe segredo para o endereço do remetente.** O Gmail reescreve o `From` para a
+conta autenticada de qualquer jeito. Um campo configurável criaria a pegadinha de definir um
+endereço e receber outro, sem erro nenhum — então o remetente é derivado de `GMAIL_USUARIO`, e
+só o nome exibido é escolha.
+
+**Decisão: falha de conexão não queima tentativa.** Senha de app errada faria as cinco
+tentativas de toda a fila irem embora num defeito que trocar um segredo resolve — e aí os
+avisos ficariam parados para sempre depois de arrumado, porque `tentativas < 5` já não os
+alcançaria. A função reconhece erro de autenticação/conexão (535, "Username and Password not
+accepted", timeout), aborta o lote sem tocar na fila e devolve 502. Erro daquela mensagem
+específica continua marcando `erro` e contando tentativa.
+
+**Uma conexão SMTP por lote, não uma por mensagem** — abrir e fechar sessão a cada e-mail é
+justamente o padrão que o Gmail trata como suspeito.
+
+**Verificado:** `npm run verificar` limpo (132 testes). Função publicada (versão 3) e testada
+pelo `net.http_post` com a anon key: responde 401 do nosso código, o que prova que ela sobe e
+que o `denomailer` e o módulo compartilhado resolvem. Falta o envio real, que depende da senha
+de app.
+
+**Se um dia houver domínio,** voltar para um provedor de envio é mexer em
+`supabase/functions/enviar-emails/index.ts` e em dois segredos. Vale a pena: entrega melhor,
+relatório de bounce, e o remetente deixa de ser uma conta pessoal do Gmail.
