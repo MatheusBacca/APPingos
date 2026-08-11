@@ -399,6 +399,7 @@ export type Database = {
           anotacao: string | null
           atualizado_em: string
           created_at: string
+          desativada: boolean
           dia: number | null
           endereco: string | null
           google_place_id: string | null
@@ -411,6 +412,7 @@ export type Database = {
           anotacao?: string | null
           atualizado_em?: string
           created_at?: string
+          desativada?: boolean
           dia?: number | null
           endereco?: string | null
           google_place_id?: string | null
@@ -423,6 +425,7 @@ export type Database = {
           anotacao?: string | null
           atualizado_em?: string
           created_at?: string
+          desativada?: boolean
           dia?: number | null
           endereco?: string | null
           google_place_id?: string | null

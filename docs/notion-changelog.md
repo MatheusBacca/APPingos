@@ -496,3 +496,29 @@ mesmo mapa). O recorte volta para "Completo" sozinho quando o dia escolhido deix
 **A caixa vazia do mapa passou a ter quatro frases.** Antes eram duas (falta chave / sem
 parada); agora filtrar um dia sem lugares do Maps e desativar a última parada ativa também
 produzem um mapa vazio — e sem a frase certa desativar uma parada parece o mapa ter quebrado.
+
+**Contratempo: o histórico de migrations estava desencontrado em dois pontos.** O `db push`
+recusou com "Remote migration versions not found in local migrations directory": o remoto tinha
+`20260810020154` (sem arquivo em repo nenhum — varri todos os commits de todas as branches) e
+NÃO tinha `20260809230000`, o apelido. Só que o apelido está no banco: o `db:types` gerou um
+arquivo idêntico ao commitado, apelido incluído. Ou seja, o DDL foi aplicado com outro número —
+cara de arquivo criado por `supabase migration new` e renomeado antes do commit, três horas
+depois.
+
+A dica que a própria CLI dá resolve metade e quebra a outra: revertendo só o `20260810020154`,
+o push seguinte tentaria aplicar o apelido de novo e morreria em `column "apelido" already
+exists`. Faltava `migration repair --status applied 20260809230000` primeiro. E o `db pull` que
+ela sugere reescreveria os arquivos locais, que estão certos.
+
+**Lição:** o gerador de tipos serve de sonda de schema. "O remoto tem esta coluna?" é uma
+pergunta que `npm run db:types` + `git diff` responde sem Docker, sem SQL Editor e sem chute — e
+foi o que permitiu marcar o apelido como aplicado com segurança, em vez de reaplicá-lo às cegas.
+
+**Verificado no navegador, contra o banco real:** desativar "Joinville" no roteiro de 6 paradas
+renumerou a lista (Pomerode virou 2), tirou a parada dos TRÊS consumidores de uma vez — a rota
+completa passou de dois trechos para um link só, e o atalho do Dia 1 pulou direto para Pomerode
+—, mostrou "1 desativada" em separado do "fora da rota" e sobreviveu ao reload. O diálogo de
+correção mostra o endereço atual, foca a busca e troca só o lugar: uma parada de teste com dia 2
+e anotação manteve as duas depois da correção. Os botões de dia marcam certo e trazem a data no
+`title`. O mapa em si não pôde ser visto — falta `NUXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY` no `.env`
+local, e sem `NUXT_GOOGLE_PLACES_API_KEY` a busca responde 503 (com a mensagem certa).
