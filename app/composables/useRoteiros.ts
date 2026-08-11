@@ -10,7 +10,7 @@ const CAMPOS = `
   criado_por, created_at, updated_at
 `
 
-const CAMPOS_PARADA = 'id, ordem, google_place_id, nome, endereco, dia, anotacao'
+const CAMPOS_PARADA = 'id, ordem, google_place_id, nome, endereco, dia, anotacao, desativada'
 
 /** Roteiro da grade: sem as paradas inteiras, só quantas são. */
 export interface RoteiroNaLista extends Roteiro {
@@ -249,5 +249,6 @@ export function paraSalvar(paradas: Parada[]): ParadaParaSalvar[] {
     endereco: p.endereco,
     dia: p.dia,
     anotacao: p.anotacao,
+    desativada: p.desativada,
   }))
 }

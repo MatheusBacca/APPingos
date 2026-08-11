@@ -14,12 +14,40 @@ import { MAX_PONTOS_EMBED, embedTruncado, urlDoEmbed } from '~/types/viagem'
 const props = defineProps<{
   paradas: PontoDoRoteiro[]
   modo: ModoTransporte
+  /** O mapa está mostrando um dia só? Muda o que a caixa vazia diz. */
+  filtrado?: boolean
 }>()
 
 const chave = useRuntimeConfig().public.googleMapsEmbedKey
 
 const src = computed(() => urlDoEmbed(props.paradas, props.modo, chave))
 const truncado = computed(() => embedTruncado(props.paradas))
+
+/**
+ * Por que não há mapa — e são quatro motivos diferentes com a mesma cara de
+ * caixa vazia.
+ *
+ * Confundi-los custa tempo real: "falta a chave no .env" já fez perder meia hora
+ * procurando bug de rota, e agora há dois motivos novos, os dois criados pela
+ * própria pessoa segundos antes (filtrou um dia sem lugares do Maps, ou desligou
+ * as paradas que sobraram). Sem esta frase, desativar a última parada ativa do
+ * dia parece o mapa ter quebrado.
+ */
+const mensagemVazia = computed(() => {
+  if (!chave) return 'Mapa indisponível — falta NUXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY no ambiente.'
+
+  if (!props.paradas.length) {
+    return props.filtrado
+      ? 'Nenhuma parada neste dia.'
+      : 'Adicione uma parada do Google Maps para ver a rota.'
+  }
+
+  // Há paradas aqui, e nenhuma entra na rota: escritas à mão, desligadas, ou as
+  // duas coisas. Em todos os casos o que falta é um lugar que o Google conheça.
+  return props.filtrado
+    ? 'Nenhuma parada ativa do Google Maps neste dia.'
+    : 'Nenhuma parada ativa do Google Maps — o mapa não tem o que desenhar.'
+})
 </script>
 
 <template>
@@ -36,19 +64,11 @@ const truncado = computed(() => embedTruncado(props.paradas))
         allowfullscreen
       />
 
-      <!--
-        Sem chave e sem parada são estados diferentes com a mesma aparência de
-        "caixa vazia", e confundi-los faz perder meia hora procurando bug de
-        rota quando o que falta é a variável no .env.
-      -->
+      <!-- Os motivos de não haver mapa são vários — ver `mensagemVazia`. -->
       <div v-else class="grid aspect-video place-items-center px-6 text-center">
         <div>
           <MapIcon class="mx-auto size-8 text-muted-foreground" />
-          <p class="mt-2 text-sm text-muted-foreground">
-            {{ chave
-              ? 'Adicione uma parada do Google Maps para ver a rota.'
-              : 'Mapa indisponível — falta NUXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY no ambiente.' }}
-          </p>
+          <p class="mt-2 text-sm text-muted-foreground">{{ mensagemVazia }}</p>
         </div>
       </div>
     </div>

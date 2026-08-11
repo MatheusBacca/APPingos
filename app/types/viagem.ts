@@ -42,15 +42,35 @@ export interface PontoDoRoteiro {
   /** Nulo = parada escrita à mão, que o Google não conhece. */
   google_place_id: string | null
   nome: string
+  /**
+   * Parada desligada: continua no roteiro e na lista, mas fora da rota.
+   *
+   * Opcional de propósito: o mapa e os links também recebem pontos que nunca
+   * foram paradas de banco, e obrigá-los a declarar "não estou desativado" só
+   * criaria `false` espalhado. Ausente é ativa.
+   */
+  desativada?: boolean
 }
 
-export interface Parada extends PontoDoRoteiro {
+/**
+ * O que uma busca no Maps (ou um texto livre) sabe sobre um lugar.
+ *
+ * É o recorte que a busca produz e o que a correção de endereço substitui —
+ * sem `dia`, sem `anotacao`, sem `desativada`. Ter o tipo separado é o que
+ * garante que corrigir o endereço de uma parada não apague o resto dela: quem
+ * escolhe um lugar novo não tem como mandar um dia junto.
+ */
+export interface LugarDaParada extends PontoDoRoteiro {
+  endereco: string | null
+}
+
+export interface Parada extends LugarDaParada {
   id: string
   ordem: number
-  endereco: string | null
   /** Dia 1, Dia 2… Nulo = parada sem dia definido. */
   dia: number | null
   anotacao: string | null
+  desativada: boolean
 }
 
 export interface Roteiro {
@@ -75,10 +95,10 @@ export interface RoteiroComParadas extends Roteiro {
 }
 
 /** O que a tela manda para a RPC `salvar_paradas` — sem `id` nem `ordem`. */
-export interface ParadaParaSalvar extends PontoDoRoteiro {
-  endereco: string | null
+export interface ParadaParaSalvar extends LugarDaParada {
   dia: number | null
   anotacao: string | null
+  desativada: boolean
 }
 
 /**
@@ -111,14 +131,40 @@ export function paradasOrdenadas(paradas: Parada[]): Parada[] {
 }
 
 /**
- * As paradas que o Google consegue rotear.
+ * As paradas que o Google consegue rotear E que estão ligadas.
  *
  * Filtrar aqui, e não dentro de cada função de URL, é de propósito: "o que entra
  * na rota" é uma decisão de produto (uma parada escrita à mão conta na lista mas
  * não no mapa), e ela fica visível num lugar em que dá para ler o porquê.
+ *
+ * Os dois motivos de ficar fora são diferentes e vivem na mesma linha: um é
+ * impossibilidade (o Maps não conhece o lugar), o outro é escolha (a pessoa
+ * desligou a parada porque desistiu daquele museu, sem querer perder o registro
+ * de que ele foi considerado). Como o efeito é o mesmo — não entra em rota
+ * nenhuma —, um filtro só é o que garante que mapa, links e atalhos do dia
+ * concordem. Quem conta os dois separadamente é `aberturaNoMaps`, para a tela
+ * poder explicar cada caso com a frase certa.
  */
 export function paradasNaRota<T extends PontoDoRoteiro>(paradas: T[]): T[] {
-  return paradas.filter(p => !!p.google_place_id)
+  return paradas.filter(p => !!p.google_place_id && !p.desativada)
+}
+
+/**
+ * A numeração que a lista mostra: 1, 2, 3… contando só as paradas ligadas.
+ *
+ * Uma parada desativada perde o número em vez de conservá-lo, e é o ponto todo
+ * do recurso: o número é a resposta a "qual é a terceira coisa que a gente
+ * faz". Se a parada desligada guardasse o 3, o roteiro passaria a ter duas
+ * terceiras paradas — e a pessoa que desligou uma parada justamente para ver o
+ * roteiro sem ela continuaria lendo a numeração antiga.
+ *
+ * Parada escrita à mão continua numerada: ela fica fora do mapa, mas é uma
+ * coisa que se vai fazer na viagem, e a lista é o roteiro — não a rota.
+ */
+export function numeracaoDoRoteiro(paradas: { desativada?: boolean }[]): (number | null)[] {
+  let n = 0
+
+  return paradas.map(p => (p.desativada ? null : ++n))
 }
 
 /**
@@ -175,6 +221,46 @@ export function rotuloDoDia(dia: number | null, dataInicio: string | null): stri
 
   const data = dataDoDia(dia, dataInicio)
   return data ? `Dia ${dia} · ${formatarDiaCurto(data)}` : `Dia ${dia}`
+}
+
+/** "Dia 2" — o rótulo que cabe num botão, com a data no `title`. */
+export function rotuloCurtoDoDia(dia: number | null): string {
+  return dia === null ? 'Sem dia' : `Dia ${dia}`
+}
+
+/**
+ * Que recorte do roteiro o mapa está mostrando.
+ *
+ * `'tudo'` é um valor e não `undefined` porque "o roteiro inteiro" é uma escolha
+ * como as outras — é o botão "Completo", que precisa poder aparecer marcado.
+ */
+export type RecorteDeDia = number | null | 'tudo'
+
+/**
+ * Os dias que o roteiro de fato tem, na ordem em que a lista os mostra.
+ *
+ * Sai de `agruparPorDia` para que o filtro do mapa e os cabeçalhos da lista
+ * nunca discordem sobre quais dias existem — inclusive na posição do "Sem dia",
+ * que vai por último nos dois. Dia sem parada nenhuma não existe: o roteiro não
+ * declara sua duração em lugar nenhum, um dia É o conjunto das paradas marcadas
+ * com ele.
+ */
+export function diasDoRoteiro(paradas: { dia: number | null }[]): (number | null)[] {
+  return agruparPorDia(paradas).map(g => g.dia)
+}
+
+/**
+ * O recorte aplicado — o roteiro inteiro, ou só as paradas de um dia.
+ *
+ * Um dia junta TODAS as paradas marcadas com ele, encostadas ou não, exatamente
+ * como `agruparPorDia`: o filtro do mapa responde "como é o sábado", e não "o
+ * que está entre a parada 3 e a 7".
+ */
+export function paradasDoRecorte<T extends { dia: number | null }>(
+  paradas: T[],
+  recorte: RecorteDeDia,
+): T[] {
+  return recorte === 'tudo' ? paradas : paradas.filter(p => p.dia === recorte)
 }
 
 /**
@@ -276,20 +362,28 @@ export interface AberturaNoMaps<T> {
   trechos: T[][]
   /** Preenchido só quando há exatamente um ponto: dá para abrir o lugar. */
   lugarUnico: T | null
-  /** Quantas paradas do recorte o Google não sabe rotear. */
+  /** Quantas paradas ATIVAS do recorte o Google não sabe rotear. */
   foraDaRota: number
+  /** Quantas paradas do recorte estão desligadas. */
+  desativadas: number
 }
 
 export function aberturaNoMaps<T extends PontoDoRoteiro>(
   paradas: T[],
   maxPontos: number,
 ): AberturaNoMaps<T> {
-  const pontos = paradasNaRota(paradas)
+  // As duas contagens não se sobrepõem: uma parada desligada é contada como
+  // desligada, e não também como "fora da rota". Somadas elas explicariam duas
+  // vezes a mesma parada, e a tela diria "1 parada fora da rota, 1 desativada"
+  // sobre uma parada só.
+  const ativas = paradas.filter(p => !p.desativada)
+  const pontos = paradasNaRota(ativas)
 
   return {
     trechos: trechosDoMaps(pontos, maxPontos),
     lugarUnico: pontos.length === 1 ? pontos[0]! : null,
-    foraDaRota: paradas.length - pontos.length,
+    foraDaRota: ativas.length - pontos.length,
+    desativadas: paradas.length - ativas.length,
   }
 }
 

@@ -3,45 +3,50 @@ import { mensagemDeErro } from '@/lib/utils'
 import { MapPinIcon, PenLineIcon, SearchIcon } from '@lucide/vue'
 import { Input } from '@/components/ui/input'
 import type { LugarSugerido } from '~~/server/utils/places'
-import type { ParadaParaSalvar } from '~/types/viagem'
+import type { LugarDaParada } from '~/types/viagem'
 import { useBuscaDeLugares } from '~/composables/useBuscaDeLugares'
 
 /**
- * A barra que transforma o que se digita numa parada.
+ * A barra que transforma o que se digita num lugar.
  *
  * Duas saídas, e a segunda não é consolo: o Google não conhece "casa da vó" nem
  * "aquele mirante", e um roteiro de casal tem desses. Escrever à mão gera uma
  * parada de texto livre — ela conta na lista e no dia, mas não entra na rota,
  * porque não há como pedir direções até um lugar que o Maps não indexa. A tela
  * diz isso na hora de adicionar, e não depois, quando o mapa "esqueceu" a parada.
+ *
+ * Emite só o LUGAR, e não uma parada pronta, porque a mesma busca serve a dois
+ * pedidos: adicionar uma parada nova e CORRIGIR o endereço de uma que já existe.
+ * Se daqui saísse uma `ParadaParaSalvar` completa, a correção viria com `dia` e
+ * `anotacao` nulos, e corrigir o endereço apagaria em silêncio o resto da parada.
  */
-const emit = defineEmits<{ adicionar: [ParadaParaSalvar] }>()
+const props = defineProps<{
+  /** A busca é a única coisa na tela quando ela abre num diálogo. */
+  autofocus?: boolean
+  placeholder?: string
+  /** O que o botão de texto livre promete fazer. */
+  rotuloTexto?: string
+}>()
+
+const emit = defineEmits<{ escolher: [LugarDaParada] }>()
 
 const termo = ref('')
 const { busca, alvo, ativa } = useBuscaDeLugares(termo)
 
-function adicionarLugar(lugar: LugarSugerido) {
-  emit('adicionar', {
+function escolherLugar(lugar: LugarSugerido) {
+  emit('escolher', {
     google_place_id: lugar.placeId,
     nome: lugar.nome,
     endereco: lugar.endereco,
-    dia: null,
-    anotacao: null,
   })
   termo.value = ''
 }
 
-function adicionarTexto() {
+function escolherTexto() {
   const nome = termo.value.trim()
   if (!nome) return
 
-  emit('adicionar', {
-    google_place_id: null,
-    nome,
-    endereco: null,
-    dia: null,
-    anotacao: null,
-  })
+  emit('escolher', { google_place_id: null, nome, endereco: null })
   termo.value = ''
 }
 
@@ -55,8 +60,8 @@ function adicionarTexto() {
  */
 function aoApertarEnter() {
   const primeira = busca.data.value?.[0]
-  if (ativa.value && primeira) adicionarLugar(primeira)
-  else adicionarTexto()
+  if (ativa.value && primeira) escolherLugar(primeira)
+  else escolherTexto()
 }
 </script>
 
@@ -66,7 +71,8 @@ function aoApertarEnter() {
       <SearchIcon class="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         v-model="termo"
-        placeholder="Buscar um lugar no Google Maps…"
+        :placeholder="placeholder ?? 'Buscar um lugar no Google Maps…'"
+        :autofocus="props.autofocus"
         class="pl-9"
         autocomplete="off"
         @keydown.enter.prevent="aoApertarEnter"
@@ -88,7 +94,7 @@ function aoApertarEnter() {
           :key="lugar.placeId"
           type="button"
           class="flex w-full items-start gap-2 border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-muted/60"
-          @click="adicionarLugar(lugar)"
+          @click="escolherLugar(lugar)"
         >
           <MapPinIcon class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
           <span class="min-w-0">
@@ -115,11 +121,11 @@ function aoApertarEnter() {
       <button
         type="button"
         class="flex w-full items-center gap-2 border-t bg-muted/30 px-3 py-2 text-left text-sm hover:bg-muted/60"
-        @click="adicionarTexto"
+        @click="escolherTexto"
       >
         <PenLineIcon class="size-4 shrink-0 text-muted-foreground" />
         <span class="min-w-0">
-          <span class="block truncate">Adicionar "{{ alvo }}" como texto</span>
+          <span class="block truncate">{{ rotuloTexto ?? 'Adicionar' }} "{{ alvo }}" como texto</span>
           <span class="block text-xs text-muted-foreground">Fica na lista, mas fora da rota</span>
         </span>
       </button>

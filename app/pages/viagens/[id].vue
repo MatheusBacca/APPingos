@@ -6,9 +6,9 @@ import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatarDiaCurto } from '@/lib/datas'
-import type { ParadaParaSalvar } from '~/types/viagem'
+import type { LugarDaParada, ParadaParaSalvar, RecorteDeDia } from '~/types/viagem'
 import type { RoteiroParaSalvar } from '~/composables/useRoteiros'
-import { MODOS_TRANSPORTE, paradasOrdenadas } from '~/types/viagem'
+import { MODOS_TRANSPORTE, paradasDoRecorte, paradasOrdenadas } from '~/types/viagem'
 import {
   paraSalvar,
   useApagarRoteiro,
@@ -91,6 +91,45 @@ function atualizarParadas(lista: ParadaParaSalvar[]) {
   rascunho.value = lista
 }
 
+/** Um lugar escolhido na busca vira parada no fim da lista, ligada e sem dia. */
+function adicionarParada(lugar: LugarDaParada) {
+  atualizarParadas([...rascunho.value, { ...lugar, dia: null, anotacao: null, desativada: false }])
+}
+
+// ---- Corrigir o endereço de uma parada -------------------------------------
+
+/*
+ * Trocar o lugar de uma parada sem tocar no resto dela.
+ *
+ * A busca do Google acerta o nome e erra a cidade com frequência ("Café
+ * Central" existe em toda cidade), e o lugar às vezes muda de endereço entre o
+ * planejamento e a viagem. Antes disto, corrigir era remover e adicionar de
+ * novo — e ia embora o dia, a anotação e a posição na sequência, que é o
+ * trabalho que já estava feito.
+ *
+ * O índice é guardado, e não a parada: o diálogo mexe numa lista que a pessoa
+ * pode continuar editando atrás dele. Guardar o objeto faria a correção voltar
+ * para uma parada que já não é aquela.
+ */
+const paradaEmCorrecao = ref<number | null>(null)
+
+const dialogoDeParada = computed({
+  get: () => paradaEmCorrecao.value !== null,
+  set: (aberto: boolean) => {
+    if (!aberto) paradaEmCorrecao.value = null
+  },
+})
+
+function corrigirLugar(lugar: LugarDaParada) {
+  const alvo = paradaEmCorrecao.value
+  if (alvo === null) return
+
+  // Só os três campos do lugar. `dia`, `anotacao` e `desativada` são desta
+  // parada, não do resultado da busca — e o tipo do evento garante isso.
+  atualizarParadas(rascunho.value.map((p, i) => (i === alvo ? { ...p, ...lugar } : p)))
+  paradaEmCorrecao.value = null
+}
+
 watchDebounced(rascunho, async () => {
   if (!sujo.value) return
 
@@ -106,6 +145,24 @@ watchDebounced(rascunho, async () => {
     toast.error(mensagemDeErro(e, 'Não deu para salvar as paradas.'))
   }
 }, { debounce: 700, deep: true })
+
+// ---- O recorte do mapa -----------------------------------------------------
+
+/*
+ * Qual pedaço do roteiro o mapa desenha.
+ *
+ * Um roteiro de quatro dias desenhado inteiro é uma teia: o traço do sábado
+ * cruza o do domingo e o mapa deixa de responder à única pergunta que se faz
+ * olhando para ele — "esse dia dá pé?". O recorte por dia devolve a escala.
+ *
+ * Vive aqui, e não dentro do mapa, porque quem filtra é a página: o mapa recebe
+ * uma lista de paradas e não sabe se ela é o roteiro inteiro. E mexe SÓ no mapa —
+ * a lista continua inteira, senão a numeração e o "Salvando…" passariam a falar
+ * de um roteiro que não está na tela.
+ */
+const recorteDoMapa = ref<RecorteDeDia>('tudo')
+
+const paradasNoMapa = computed(() => paradasDoRecorte(rascunho.value, recorteDoMapa.value))
 
 // ---- Abertura no Google Maps -----------------------------------------------
 
@@ -278,7 +335,20 @@ async function onApagar() {
         </Button>
       </section>
 
-      <MapaDoRoteiro :paradas="rascunho" :modo="roteiro.modo_transporte" />
+      <div class="space-y-2">
+        <MapaDoRoteiro
+          :paradas="paradasNoMapa"
+          :modo="roteiro.modo_transporte"
+          :filtrado="recorteDoMapa !== 'tudo'"
+        />
+
+        <!-- Encostado no que ele muda: os botões filtram o mapa acima, e só ele. -->
+        <SeletorDeDia
+          v-model="recorteDoMapa"
+          :paradas="rascunho"
+          :data-inicio="roteiro.data_inicio"
+        />
+      </div>
 
       <LinksDoMaps
         v-model:abertura-em="aberturaEm"
@@ -296,7 +366,7 @@ async function onApagar() {
           </span>
         </div>
 
-        <BuscaDeLugar v-if="!selecionando" @adicionar="atualizarParadas([...rascunho, $event])" />
+        <BuscaDeLugar v-if="!selecionando" @escolher="adicionarParada" />
 
         <ListaDeParadas
           :paradas="rascunho"
@@ -308,8 +378,15 @@ async function onApagar() {
           @atualizar="atualizarParadas"
           @alternar="alternarSelecao"
           @entrar-na-selecao="entrarNaSelecao"
+          @corrigir-lugar="paradaEmCorrecao = $event"
         />
       </section>
+
+      <ParadaDialogo
+        v-model:open="dialogoDeParada"
+        :parada="paradaEmCorrecao === null ? null : rascunho[paradaEmCorrecao]"
+        @escolher="corrigirLugar"
+      />
 
       <RoteiroDialogo
         v-model:open="dialogoAberto"

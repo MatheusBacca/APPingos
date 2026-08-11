@@ -1,9 +1,35 @@
 <script setup lang="ts">
 import { onLongPress } from '@vueuse/core'
-import { ArrowDownIcon, ArrowUpIcon, ExternalLinkIcon, MapIcon, MapPinIcon, PenLineIcon, XIcon } from '@lucide/vue'
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  ExternalLinkIcon,
+  EyeIcon,
+  EyeOffIcon,
+  MapIcon,
+  MapPinIcon,
+  MoreVerticalIcon,
+  PenLineIcon,
+  SearchIcon,
+  Trash2Icon,
+} from '@lucide/vue'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import type { AberturaNoMaps, ModoTransporte, ParadaParaSalvar } from '~/types/viagem'
-import { aberturaNoMaps, agruparPorDia, rotuloDoDia, urlDoLugar, urlDoTrecho } from '~/types/viagem'
+import {
+  aberturaNoMaps,
+  agruparPorDia,
+  numeracaoDoRoteiro,
+  rotuloDoDia,
+  urlDoLugar,
+  urlDoTrecho,
+} from '~/types/viagem'
 import { usePontosPorLink } from '~/composables/usePontosPorLink'
 
 /**
@@ -46,6 +72,8 @@ const emit = defineEmits<{
   atualizar: [ParadaParaSalvar[]]
   alternar: [number]
   entrarNaSelecao: [number]
+  /** Abrir a busca do Maps para corrigir o lugar desta parada — quem abre é o pai. */
+  corrigirLugar: [number]
 }>()
 
 const marcadas = computed(() => new Set(props.selecionadas ?? []))
@@ -81,6 +109,12 @@ onLongPress(
     const i = Number(linha?.dataset.indice)
     if (!Number.isInteger(i)) return
 
+    // Mesma regra da caixa de marcar: só entra na seleção o que pode virar link.
+    // Segurar uma parada escrita à mão (ou desligada) abriria o modo com ela
+    // marcada e nenhum botão para mostrar — parece que a seleção quebrou.
+    const parada = props.paradas[i]
+    if (!parada?.google_place_id || parada.desativada) return
+
     acabouDeSegurar = true
     emit('entrarNaSelecao', i)
   },
@@ -112,6 +146,9 @@ const alvo = ref<number | null>(null)
 const inicioDeDia = computed(() =>
   props.paradas.map((p, i) => p.dia !== null && p.dia !== props.paradas[i - 1]?.dia),
 )
+
+/** 1, 2, 3… pulando as desligadas — a regra mora em `numeracaoDoRoteiro`. */
+const numeros = computed(() => numeracaoDoRoteiro(props.paradas))
 
 /*
  * O atalho do dia mora no cabeçalho dele, e não numa barra separada.
@@ -148,6 +185,18 @@ function remover(indice: number) {
 
 function editar(indice: number, campos: Partial<ParadaParaSalvar>) {
   emit('atualizar', props.paradas.map((p, i) => (i === indice ? { ...p, ...campos } : p)))
+}
+
+/**
+ * Desligar e religar a parada — o meio-termo entre manter e apagar.
+ *
+ * A parada fica onde está, com dia, anotação e endereço intactos; o que ela
+ * perde é o lugar na rota e o número. É o que torna a decisão reversível: quem
+ * desistiu do museu no sábado e mudou de ideia na quinta não pesquisa o endereço
+ * de novo.
+ */
+function alternarDesativada(indice: number) {
+  editar(indice, { desativada: !props.paradas[indice]?.desativada })
 }
 
 /** `<input type="number">` devolve string vazia quando limpo — vira `null`. */
@@ -214,8 +263,9 @@ function soltar(indice: number) {
 
       <li
         :data-indice="i"
-        class="group rounded-lg border bg-card p-3 transition-colors"
+        class="group rounded-lg border p-3 transition-colors"
         :class="[
+          parada.desativada ? 'border-dashed bg-muted/30' : 'bg-card',
           alvo === i ? 'border-primary bg-primary/5' : '',
           marcadas.has(i) ? 'border-primary bg-primary/5' : '',
         ]"
@@ -238,7 +288,7 @@ function soltar(indice: number) {
             está no mouse.
           -->
           <input
-            v-if="parada.google_place_id"
+            v-if="parada.google_place_id && !parada.desativada"
             :checked="marcadas.has(i)"
             type="checkbox"
             class="mt-1 size-4 shrink-0 accent-primary transition-opacity focus-visible:opacity-100"
@@ -248,20 +298,29 @@ function soltar(indice: number) {
           >
           <span v-else class="mt-1 size-4 shrink-0" aria-hidden="true" />
 
+          <!--
+            A parada desligada perde o número em vez de guardá-lo: ele responde
+            "qual é a terceira coisa que a gente faz", e duas terceiras paradas
+            não é resposta. No lugar dele, o ícone que diz o que aconteceu.
+          -->
           <span
-            class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-medium"
+            class="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-xs font-medium"
+            :class="parada.desativada ? 'text-muted-foreground' : 'bg-muted'"
             aria-hidden="true"
           >
-            {{ i + 1 }}
+            <EyeOffIcon v-if="parada.desativada" class="size-3.5" />
+            <template v-else>{{ numeros[i] }}</template>
           </span>
 
-          <div class="min-w-0 flex-1">
+          <div class="min-w-0 flex-1" :class="parada.desativada ? 'opacity-60' : ''">
             <p class="flex items-center gap-1.5 font-medium">
               <component
                 :is="parada.google_place_id ? MapPinIcon : PenLineIcon"
                 class="size-3.5 shrink-0 text-muted-foreground"
               />
-              <span class="truncate">{{ parada.nome }}</span>
+              <span class="truncate" :class="parada.desativada ? 'line-through' : ''">
+                {{ parada.nome }}
+              </span>
             </p>
 
             <p v-if="parada.endereco" class="truncate text-xs text-muted-foreground">
@@ -269,10 +328,14 @@ function soltar(indice: number) {
             </p>
 
             <!--
-              A parada escrita à mão precisa dizer por que o mapa a ignora. Sem
-              esta linha, "sumiu da rota" vira bug reportado.
+              Por que o mapa ignora esta parada — e agora são dois motivos. Sem a
+              frase, "sumiu da rota" vira bug reportado; com ela, desligar uma
+              parada é uma escolha visível, e não um roteiro que encolheu sozinho.
             -->
-            <p v-if="!parada.google_place_id" class="text-xs text-muted-foreground">
+            <p v-if="parada.desativada" class="text-xs text-muted-foreground">
+              Desativada — fora da rota, mas guardada
+            </p>
+            <p v-else-if="!parada.google_place_id" class="text-xs text-muted-foreground">
               Escrita à mão — não entra na rota
             </p>
 
@@ -339,15 +402,49 @@ function soltar(indice: number) {
             >
               <ArrowDownIcon class="size-4" />
             </button>
-            <button
-              v-if="editavel"
-              type="button"
-              class="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-              :aria-label="`Remover ${parada.nome}`"
-              @click="remover(i)"
-            >
-              <XIcon class="size-4" />
-            </button>
+
+            <!--
+              Corrigir, desativar e remover num menu, e não em três botões: a
+              coluna já tem quatro alvos, e sete numa linha de 3 mm de sobra no
+              celular é onde se erra o toque. Aqui também some o risco que o "X"
+              solto criava — remover, que é a única ação irreversível, deixa de
+              ser vizinha das setas que a pessoa aperta em sequência.
+            -->
+            <DropdownMenu v-if="editavel">
+              <DropdownMenuTrigger as-child>
+                <button
+                  type="button"
+                  class="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-muted"
+                  :aria-label="`Mais opções de ${parada.nome}`"
+                >
+                  <MoreVerticalIcon class="size-4" />
+                </button>
+              </DropdownMenuTrigger>
+
+              <DropdownMenuContent align="end" class="w-52">
+                <!--
+                  Vale também para a parada escrita à mão, e é metade da graça:
+                  "casa da vó" que só depois se descobriu estar no Maps deixa de
+                  ser um caso de apagar e refazer.
+                -->
+                <DropdownMenuItem class="gap-2" @select="emit('corrigirLugar', i)">
+                  <SearchIcon class="size-4" />
+                  {{ parada.google_place_id ? 'Corrigir endereço' : 'Buscar no Maps' }}
+                </DropdownMenuItem>
+
+                <DropdownMenuItem class="gap-2" @select="alternarDesativada(i)">
+                  <component :is="parada.desativada ? EyeIcon : EyeOffIcon" class="size-4" />
+                  {{ parada.desativada ? 'Reativar parada' : 'Desativar parada' }}
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator />
+
+                <DropdownMenuItem class="gap-2 text-destructive" @select="remover(i)">
+                  <Trash2Icon class="size-4" />
+                  Remover parada
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </li>

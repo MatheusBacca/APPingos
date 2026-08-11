@@ -20,11 +20,15 @@ import {
   aberturasPorDia,
   agruparPorDia,
   dataDoDia,
+  diasDoRoteiro,
   embedTruncado,
+  numeracaoDoRoteiro,
+  paradasDoRecorte,
   paradasNaRota,
   paradasOrdenadas,
   proximaViagem,
   roteirosNovos,
+  rotuloCurtoDoDia,
   rotuloDoDia,
   separarPorTempo,
   trechosDoMaps,
@@ -46,6 +50,7 @@ function parada(ordem: number, extra: Partial<Parada> = {}): Parada {
     endereco: null,
     dia: null,
     anotacao: null,
+    desativada: false,
     ...extra,
   }
 }
@@ -101,6 +106,46 @@ describe('paradasNaRota', () => {
 
   it('devolve vazio quando nenhuma parada é do Maps', () => {
     expect(paradasNaRota([parada(0, { google_place_id: null })])).toEqual([])
+  })
+
+  /*
+   * Desativar tem que valer para os três consumidores ao mesmo tempo — mapa,
+   * links e atalhos do dia. É por isso que o filtro é um só: uma parada que
+   * saiu do mapa mas continuasse no link do dia seria o pior dos dois mundos,
+   * e ninguém descobriria antes de abrir o Maps no meio da viagem.
+   */
+  it('deixa de fora a parada desativada, mesmo sendo do Maps', () => {
+    const lista = [parada(0), parada(1, { desativada: true }), parada(2)]
+
+    expect(paradasNaRota(lista).map(p => p.ordem)).toEqual([0, 2])
+  })
+
+  it('trata ponto sem `desativada` como ativo', () => {
+    expect(paradasNaRota([{ google_place_id: 'p', nome: 'Avulso' }])).toHaveLength(1)
+  })
+})
+
+describe('numeracaoDoRoteiro', () => {
+  it('numera de 1 em diante, pulando as desativadas', () => {
+    const lista = [
+      parada(0),
+      parada(1, { desativada: true }),
+      parada(2),
+      parada(3, { desativada: true }),
+      parada(4),
+    ]
+
+    expect(numeracaoDoRoteiro(lista)).toEqual([1, null, 2, null, 3])
+  })
+
+  /*
+   * A parada escrita à mão fica fora do mapa e DENTRO da numeração: ela é uma
+   * coisa que se vai fazer na viagem, e a lista é o roteiro — não a rota.
+   */
+  it('numera a parada escrita à mão como qualquer outra', () => {
+    const lista = [parada(0, { google_place_id: null }), parada(1)]
+
+    expect(numeracaoDoRoteiro(lista)).toEqual([1, 2])
   })
 })
 
@@ -218,6 +263,29 @@ describe('urlDoEmbed', () => {
     expect(embedTruncado(muitas)).toBe(true)
     expect(embedTruncado(paradas(MAX_PONTOS_EMBED))).toBe(false)
   })
+
+  /*
+   * O mapa é onde desativar tem que aparecer primeiro: é olhando o traço que a
+   * pessoa decide se o dia dá pé. Uma parada desligada que continuasse no desenho
+   * tornaria o recurso invisível justamente onde ele serve.
+   */
+  it('ignora a parada desativada ao desenhar a rota', () => {
+    const lista = [parada(0), parada(1, { desativada: true }), parada(2)]
+    const params = new URL(urlDoEmbed(lista, 'driving', CHAVE)!).searchParams
+
+    expect(params.get('origin')).toBe('place_id:place-0')
+    expect(params.get('destination')).toBe('place_id:place-2')
+    expect(params.get('waypoints')).toBeNull()
+  })
+
+  it('não conta as desativadas no limite do Embed', () => {
+    const lista = [
+      ...paradas(MAX_PONTOS_EMBED),
+      parada(MAX_PONTOS_EMBED, { desativada: true }),
+    ]
+
+    expect(embedTruncado(lista)).toBe(false)
+  })
 })
 
 describe('agruparPorDia', () => {
@@ -298,6 +366,97 @@ describe('aberturaNoMaps', () => {
     expect(abertura.trechos).toEqual([])
     expect(abertura.lugarUnico).toBeNull()
     expect(abertura.foraDaRota).toBe(1)
+  })
+
+  /*
+   * As duas contagens não podem se sobrepor: somadas, a tela diria "1 parada
+   * fora da rota, 1 desativada" sobre uma parada só. São frases diferentes
+   * porque os casos são diferentes — um é o Maps não conhecer o lugar (não há o
+   * que fazer), o outro é escolha de quem montou (e é reversível).
+   */
+  it('conta desativada e fora-da-rota em separado, sem contar a mesma duas vezes', () => {
+    const lista = [
+      parada(0),
+      parada(1, { google_place_id: null }),
+      parada(2, { desativada: true }),
+      parada(3),
+    ]
+
+    const abertura = aberturaNoMaps(lista, MAX_PONTOS_LINK_MOBILE)
+
+    expect(abertura.foraDaRota).toBe(1)
+    expect(abertura.desativadas).toBe(1)
+    expect(abertura.trechos[0]!.map(p => p.ordem)).toEqual([0, 3])
+  })
+
+  it('cai para o lugar único quando desativar deixa só uma parada na rota', () => {
+    const lista = [parada(0), parada(1, { desativada: true })]
+    const abertura = aberturaNoMaps(lista, MAX_PONTOS_LINK_MOBILE)
+
+    expect(abertura.trechos).toEqual([])
+    expect(abertura.lugarUnico?.ordem).toBe(0)
+    expect(abertura.desativadas).toBe(1)
+  })
+})
+
+describe('diasDoRoteiro', () => {
+  it('lista os dias na ordem, com o "sem dia" por último', () => {
+    const lista = [
+      parada(0, { dia: 2 }),
+      parada(1, { dia: null }),
+      parada(2, { dia: 1 }),
+      parada(3, { dia: 2 }),
+    ]
+
+    expect(diasDoRoteiro(lista)).toEqual([1, 2, null])
+  })
+
+  /*
+   * Um dia É o conjunto das paradas marcadas com ele — o roteiro não declara sua
+   * duração em lugar nenhum. Por isso não existe "Dia 2" vazio entre 1 e 3.
+   */
+  it('não inventa dia sem parada nenhuma', () => {
+    expect(diasDoRoteiro([parada(0, { dia: 1 }), parada(1, { dia: 3 })])).toEqual([1, 3])
+  })
+
+  it('devolve vazio sem paradas', () => {
+    expect(diasDoRoteiro([])).toEqual([])
+  })
+})
+
+describe('paradasDoRecorte', () => {
+  const lista = [
+    parada(0, { dia: 1 }),
+    parada(1, { dia: 2 }),
+    parada(2, { dia: 1 }),
+    parada(3, { dia: null }),
+  ]
+
+  it('devolve tudo no recorte completo', () => {
+    expect(paradasDoRecorte(lista, 'tudo')).toHaveLength(4)
+  })
+
+  /*
+   * O dia junta as paradas separadas na lista também: a pergunta do filtro é
+   * "como é o sábado", não "o que está entre a parada 1 e a 2".
+   */
+  it('junta as paradas do dia mesmo separadas na lista', () => {
+    expect(paradasDoRecorte(lista, 1).map(p => p.ordem)).toEqual([0, 2])
+  })
+
+  it('recorta o "sem dia" como um recorte de verdade', () => {
+    expect(paradasDoRecorte(lista, null).map(p => p.ordem)).toEqual([3])
+  })
+
+  it('devolve vazio para um dia que não existe', () => {
+    expect(paradasDoRecorte(lista, 9)).toEqual([])
+  })
+})
+
+describe('rotuloCurtoDoDia', () => {
+  it('cabe num botão — sem a data, que vai no title', () => {
+    expect(rotuloCurtoDoDia(2)).toBe('Dia 2')
+    expect(rotuloCurtoDoDia(null)).toBe('Sem dia')
   })
 })
 

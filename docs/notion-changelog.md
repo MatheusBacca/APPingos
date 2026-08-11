@@ -456,3 +456,43 @@ passa a ter uma representação só.
 **Sem unicidade, de propósito.** Apelido não é @handle. Dois "Bebê" no mesmo espaço é escolha
 do casal, não erro de integridade — e um índice único aqui só produziria um erro
 incompreensível na hora de salvar.
+
+## 2026-08-11 — Viagens: parada desativável, endereço corrigível, mapa por dia
+
+**Feito:**
+- Migration `20260811120000_viagens_parada_desativada.sql`: coluna `desativada` em `parada`
+  (`not null default false`) e `salvar_paradas` reescrita para carregar o bit novo
+- `paradasNaRota` passou a filtrar os dois motivos de ficar fora da rota — o Maps não conhecer o
+  lugar e a parada estar desligada; mapa, links e atalhos do dia herdaram a regra de graça
+- `numeracaoDoRoteiro`: a lista numera só as paradas ligadas; a desativada troca o número por um
+  ícone de olho cortado
+- Menu de ações por parada (`⋮`) com "Corrigir endereço", "Desativar/Reativar" e "Remover"
+- `ParadaDialogo` — a busca do Maps aplicada a uma parada que já existe, devolvendo só o lugar
+- `SeletorDeDia` abaixo do mapa: "Completo · Dia 1 · Dia 2 · … · Sem dia", filtrando o mapa
+
+**Decisão: um bit na `parada`, não uma tabela de descartadas.** A parada não sai do roteiro, sai
+da ROTA — continua na lista, no dia, com anotação e endereço. Mover a linha para outro lugar
+faria reativar ser uma reinserção, com id e ordem novos, e o roteiro perderia a posição em que
+aquela parada estava sendo considerada.
+
+**Decisão: `BuscaDeLugar` emite um `LugarDaParada`, não uma `ParadaParaSalvar`.** A mesma busca
+serve a dois pedidos — adicionar parada e corrigir o endereço de uma que já existe. Se dela
+saísse uma parada completa, a correção chegaria com `dia` e `anotacao` nulos e apagaria em
+silêncio o trabalho já feito. O tipo é que garante isso, não o cuidado de quem escreve o merge.
+
+**Decisão: a desativada perde o número.** Guardar o 3 numa parada desligada daria ao roteiro
+duas terceiras paradas, e quem desligou uma parada justamente para ler o roteiro sem ela
+continuaria vendo a numeração antiga.
+
+**Decisão: `aberturaNoMaps` conta desativada e fora-da-rota em separado.** Somadas, a tela diria
+"1 parada fora da rota, 1 desativada" sobre a mesma parada. As frases são diferentes porque os
+casos são: um é impossibilidade do Google, o outro é escolha reversível de quem montou.
+
+**Decisão: o filtro por dia mexe no mapa, não na lista.** A lista é o roteiro — esconder metade
+dela faria a numeração e o "Salvando…" falarem de algo que não está na tela. A barra fica
+encostada embaixo do mapa, e some quando há um dia só (aí "Completo" e "Dia 1" desenhariam o
+mesmo mapa). O recorte volta para "Completo" sozinho quando o dia escolhido deixa de existir.
+
+**A caixa vazia do mapa passou a ter quatro frases.** Antes eram duas (falta chave / sem
+parada); agora filtrar um dia sem lugares do Maps e desativar a última parada ativa também
+produzem um mapa vazio — e sem a frase certa desativar uma parada parece o mapa ter quebrado.

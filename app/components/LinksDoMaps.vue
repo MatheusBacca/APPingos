@@ -2,7 +2,7 @@
 import { ExternalLinkIcon, MapPinIcon, XIcon } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import type { ModoTransporte, ParadaParaSalvar } from '~/types/viagem'
-import { aberturaNoMaps, urlDoLugar, urlDoTrecho } from '~/types/viagem'
+import { aberturaNoMaps, paradasNaRota, urlDoLugar, urlDoTrecho } from '~/types/viagem'
 import { usePontosPorLink } from '~/composables/usePontosPorLink'
 
 /**
@@ -35,7 +35,7 @@ const selecionando = computed(() => modoDeAbertura.value === 'selecao')
  */
 const MINIMO_PARA_DICA = 3
 const mostrarDica = computed(() =>
-  !selecionando.value && props.paradas.filter(p => p.google_place_id).length >= MINIMO_PARA_DICA,
+  !selecionando.value && paradasNaRota(props.paradas).length >= MINIMO_PARA_DICA,
 )
 
 const selecionadasNaOrdem = computed(() =>
@@ -122,6 +122,16 @@ const nenhumLink = computed(() => !abertura.value.trechos.length && !abertura.va
       <span v-if="abertura.foraDaRota" class="text-xs text-muted-foreground">
         {{ abertura.foraDaRota }}
         {{ abertura.foraDaRota === 1 ? 'parada fora' : 'paradas fora' }} da rota
+      </span>
+
+      <!--
+        Contada em separado de propósito: "fora da rota" é o Maps não conhecer o
+        lugar, e não há o que fazer; desativada foi escolha de quem montou, e é
+        reversível. Somar as duas faria a mesma parada ser explicada duas vezes.
+      -->
+      <span v-if="abertura.desativadas" class="text-xs text-muted-foreground">
+        {{ abertura.desativadas }}
+        {{ abertura.desativadas === 1 ? 'desativada' : 'desativadas' }}
       </span>
     </div>
 
