@@ -8,6 +8,29 @@ export default defineNuxtConfig({
   // SPA + PWA. Reversível: ligar SSR depois se quisermos link com preview.
   ssr: false,
 
+  /*
+   * Deploy novo com o app aberto não pode mais virar tela de 500.
+   *
+   * Num SPA a aba carrega o app uma vez e vai pedindo os pedaços conforme
+   * navega. Quando um deploy troca o build, os arquivos que aquela aba ainda ia
+   * pedir deixam de existir com aquele nome, e o pedido seguinte falha em
+   * "Failed to fetch dynamically imported module" — 500 na cara de quem estava
+   * usando. Aqui isso é o caso NORMAL, não a borda: o app é PWA, fica instalado
+   * no celular dos dois e a aba sobrevive dias.
+   *
+   * O padrão do Nuxt (`automatic`) só recupera quando o erro acontece ao
+   * NAVEGAR. `automatic-immediate` recupera também na rota em que a pessoa já
+   * está, que é onde este erro apareceu de verdade. E acrescenta o gatilho que
+   * de fato resolve: recarregar quando o manifesto de build muda, ou seja, no
+   * instante em que a aba descobre que existe um deploy novo.
+   *
+   * Não é laço de recarga: `reloadNuxtApp` grava um carimbo em `sessionStorage`
+   * e recusa recarregar o mesmo caminho duas vezes em 10 segundos.
+   */
+  experimental: {
+    emitRouteChunkError: 'automatic-immediate',
+  },
+
   modules: [
     '@nuxtjs/supabase',
     '@pinia/nuxt',
