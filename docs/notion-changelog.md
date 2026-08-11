@@ -522,3 +522,78 @@ correção mostra o endereço atual, foca a busca e troca só o lugar: uma parad
 e anotação manteve as duas depois da correção. Os botões de dia marcam certo e trazem a data no
 `title`. O mapa em si não pôde ser visto — falta `NUXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY` no `.env`
 local, e sem `NUXT_GOOGLE_PLACES_API_KEY` a busca responde 503 (com a mensagem certa).
+
+---
+
+## 2026-08-11 — Notificações: um canal só, e ele chega por e-mail
+
+**Contexto:** o app não tinha canal de aviso nenhum, e cada módulo tinha inventado o seu
+remendo — `space_deletion_notice`, `convite_filme`, `roteiro_visto`, `segredos_do_espaco()`.
+Quatro mecanismos para a mesma pergunta: *o que aconteceu desde a última vez que eu olhei?*
+O cabeçalho de `test/resumo-viagens.test.ts` já dizia isso com todas as letras — "o aviso que
+substitui a notificação que não existe".
+
+**Feito:**
+- Motor no Postgres: `notificacao` (uma linha por destinatário), `notificacao_preferencia`
+  (por tipo, dois canais) e `notificacao_email` (o consentimento e o token de descadastro),
+  com RLS e as funções `notificar()` / `notificar_pessoa()`
+- Gatilhos: `compra` (novo, editado, removido), `acerto_mes` (com o total do mês somado da
+  view `parcela_mensal`), `roteiro` (novo, liberado, editado), `entry` e `rating`
+- Canal de e-mail: fila `notificacao_email_fila`, disparo por `pg_net` e a Edge Function
+  `enviar-emails` chamando o Resend, com link de descadastro sem login em `/descadastrar`
+- `pg_cron`: domingo de filmes (22h UTC = 19h BRT), viagem a 7 e a 1 dia, dreno da fila a
+  cada 5 min e faxina mensal das lidas com mais de 90 dias
+- App: `notificacoes.ts` (texto, agrupamento por dia, badge, categorias), `useNotificacoes`,
+  o sino na sidebar e no header mobile, `/notificacoes` e `/notificacoes/preferencias`
+- "Nova versão do APPingos disponível!" — `registerType: 'prompt'` + toast persistente
+
+**Decisão: e-mail antes de push.** O push web é bom no Android e capenga no iOS (só com o app
+instalado na tela de início, e ainda assim com mais restrições). Construir push primeiro seria
+fazer a feature nascer boa para metade do casal. O e-mail chega igual nos dois celulares, no
+navegador e no desktop. O push continua no plano e entra em cima deste mesmo motor.
+
+**Decisão: a caixa nasce ligada, o e-mail nasce desligado.** Assimetria deliberada. Uma linha
+na caixa do próprio app é coisa de quem já entrou; mandar e-mail é sair do app e chegar na
+caixa de entrada de alguém — isso se faz com consentimento explícito, não com default herdado.
+
+**Decisão: uma fila entre a notificação e o envio.** Sem ela, o envio seria uma chamada HTTP
+presa à transação de quem lançou o gasto: a menor instabilidade do Resend viraria erro na cara
+de quem só estava salvando uma compra. Com ela, gravar é local e barato, o envio é retentável,
+e o que falhou fica numa tabela em vez de num log que ninguém lê.
+
+**Decisão: só INSERT enfileira e-mail.** A notificação agrupada é um UPDATE ("2 alterações"
+vira "3"). Mandar um e-mail por incremento desfaria exatamente o que o agrupamento existe para
+evitar — três correções no mesmo gasto rendem um e-mail, e quem abrir o app vê o texto já
+atualizado.
+
+**Decisão: o texto mora em `supabase/functions/_shared/`, fora de `app/`.** É a única coisa do
+repo lida por dois runtimes: o Vite (via `app/lib/notificacoes.ts`, que só reexporta) e o Deno
+da Edge Function, cujo bundler só enxerga o que está dentro de `supabase/functions/`. Duas
+cópias seria o desenho óbvio e errado — a frase do e-mail e a do sino divergiriam no primeiro
+ajuste. O arquivo não tem import nenhum, e é isso que o mantém legível pelos dois.
+
+**Decisão: nenhum gatilho em `parada`.** `salvar_paradas` reescreve a lista inteira (delete +
+insert), o que renderia uma dúzia de disparos por salvada — "12 alterações em Litoral" para
+quem só arrastou uma parada. A RPC termina com `update roteiro set updated_at = now()`, e é
+esse toque que vira o aviso: uma salvada, uma notificação.
+
+**O segredo continua segredo.** Roteiro secreto não gera linha nenhuma — nem sem nome, nem
+"há novidade em Viagens" —, e o cron de viagens próximas filtra por `visibilidade =
+'compartilhado'`. Um e-mail com o nome do roteiro no assunto seria o jeito mais bobo de
+estragar a surpresa.
+
+**Sobre ator nulo, que é o modo de errar silencioso da feature:** `auth.uid()` é nulo fora do
+PostgREST, e com ator nulo "todos menos o ator" vira "todos" — a pessoa recebe aviso da própria
+ação. `notificar()` estoura em vez de aceitar, e cada gatilho é obrigado a dizer de quem foi a
+ação (`coalesce(auth.uid(), new.registrado_por)`). Ninguém abre chamado por "recebi um aviso a
+mais"; só sente que o app é barulhento.
+
+**Verificado:** `npm run verificar` limpo (imports, typecheck, 132 testes — 23 novos). No banco
+real, numa transação desfeita no fim: o fanout entregou ao outro membro e não a quem agiu, duas
+chamadas dentro da janela viraram UMA linha com `vezes = 2`, e ator nulo foi recusado com
+exceção. Falta o teste com duas contas reais e a caixa de entrada de verdade — depende dos
+segredos do Resend, que são passo manual (README, seção 6).
+
+**Contratempo:** a `main` local estava 3 commits atrás e o banco tinha uma migration aplicada
+por outro ambiente. Alinhado antes de fechar: `git pull` e, no fim, 18 migrations locais contra
+as mesmas 18 versões no histórico do remoto.

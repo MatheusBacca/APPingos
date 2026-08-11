@@ -394,6 +394,148 @@ export type Database = {
           },
         ]
       }
+      notificacao: {
+        Row: {
+          ator_id: string | null
+          created_at: string
+          dados: Json
+          entidade: string | null
+          entidade_id: string | null
+          id: string
+          lida_em: string | null
+          rota: string | null
+          space_id: string | null
+          tipo: string
+          user_id: string
+        }
+        Insert: {
+          ator_id?: string | null
+          created_at?: string
+          dados?: Json
+          entidade?: string | null
+          entidade_id?: string | null
+          id?: string
+          lida_em?: string | null
+          rota?: string | null
+          space_id?: string | null
+          tipo: string
+          user_id: string
+        }
+        Update: {
+          ator_id?: string | null
+          created_at?: string
+          dados?: Json
+          entidade?: string | null
+          entidade_id?: string | null
+          id?: string
+          lida_em?: string | null
+          rota?: string | null
+          space_id?: string | null
+          tipo?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notificacao_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notificacao_email: {
+        Row: {
+          ativo: boolean
+          atualizado_em: string
+          criado_em: string
+          endereco: string | null
+          token: string
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          atualizado_em?: string
+          criado_em?: string
+          endereco?: string | null
+          token?: string
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean
+          atualizado_em?: string
+          criado_em?: string
+          endereco?: string | null
+          token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notificacao_email_fila: {
+        Row: {
+          criado_em: string
+          destinatario: string
+          enviado_em: string | null
+          erro: string | null
+          estado: string
+          id: string
+          notificacao_id: string
+          tentativas: number
+          user_id: string
+        }
+        Insert: {
+          criado_em?: string
+          destinatario: string
+          enviado_em?: string | null
+          erro?: string | null
+          estado?: string
+          id?: string
+          notificacao_id: string
+          tentativas?: number
+          user_id: string
+        }
+        Update: {
+          criado_em?: string
+          destinatario?: string
+          enviado_em?: string | null
+          erro?: string | null
+          estado?: string
+          id?: string
+          notificacao_id?: string
+          tentativas?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notificacao_email_fila_notificacao_id_fkey"
+            columns: ["notificacao_id"]
+            isOneToOne: true
+            referencedRelation: "notificacao"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notificacao_preferencia: {
+        Row: {
+          ativo: boolean
+          email: boolean
+          tipo: string
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          email?: boolean
+          tipo: string
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean
+          email?: boolean
+          tipo?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       parada: {
         Row: {
           anotacao: string | null
@@ -713,6 +855,7 @@ export type Database = {
       }
     }
     Functions: {
+      acordar_envio_de_email: { Args: never; Returns: undefined }
       adicionar_item: {
         Args: { p_item: Json; p_space: string }
         Returns: string
@@ -732,27 +875,63 @@ export type Database = {
         }
         Returns: undefined
       }
+      avisar_viagens_proximas: { Args: never; Returns: number }
       can_access_entry: { Args: { p_entry: string }; Returns: boolean }
       create_space: {
         Args: { p_nome: string; p_tipo?: string }
         Returns: string
       }
       criar_convite: { Args: { p_space: string }; Returns: string }
+      definir_email_notificacoes: {
+        Args: { p_ativo: boolean; p_endereco?: string }
+        Returns: undefined
+      }
       definir_papel: {
         Args: { p_papel: string; p_space: string; p_user: string }
         Returns: undefined
       }
       deletar_espaco: { Args: { p_space: string }; Returns: undefined }
+      descadastrar_email: { Args: { p_token: string }; Returns: undefined }
+      faxina_notificacoes: { Args: never; Returns: number }
       gerar_codigo_convite: { Args: never; Returns: string }
       is_space_admin: { Args: { p_space: string }; Returns: boolean }
       is_space_member: { Args: { p_space: string }; Returns: boolean }
       is_space_owner: { Args: { p_space: string }; Returns: boolean }
+      lembrete_semanal_filmes: { Args: never; Returns: number }
       liberar_roteiro: { Args: { p_roteiro: string }; Returns: undefined }
       marcar_assistiram_comigo: {
         Args: { p_entry: string; p_usuarios: string[] }
         Returns: number
       }
+      marcar_notificacoes_lidas: { Args: { p_ids?: string[] }; Returns: number }
       marcar_roteiro_visto: { Args: { p_roteiro: string }; Returns: undefined }
+      nome_para_notificacao: { Args: { p_user: string }; Returns: string }
+      notificar: {
+        Args: {
+          p_ator: string
+          p_dados?: Json
+          p_entidade?: string
+          p_entidade_id?: string
+          p_janela?: string
+          p_rota?: string
+          p_space: string
+          p_tipo: string
+        }
+        Returns: number
+      }
+      notificar_pessoa: {
+        Args: {
+          p_ator: string
+          p_dados?: Json
+          p_entidade?: string
+          p_entidade_id?: string
+          p_rota?: string
+          p_space: string
+          p_tipo: string
+          p_user: string
+        }
+        Returns: number
+      }
       obter_ou_criar_categoria: {
         Args: { p_cor?: string; p_nome: string; p_space: string }
         Returns: string

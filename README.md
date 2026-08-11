@@ -140,7 +140,55 @@ No [console do Google Cloud](https://console.cloud.google.com/):
 do navegador. Sem isso o mapa dá 403 em produção e só em produção — `localhost` continua
 funcionando, então o erro não aparece em nenhum teste local.
 
-### 6. Rodar
+### 6. Notificações por e-mail (Resend + Edge Function)
+
+O app avisa em dois canais: a caixa dentro do app (sempre) e o e-mail (opt-in por pessoa, em
+Notificações › Preferências). O e-mail é o canal que funciona igual no Android e no iPhone
+— sem service worker, sem permissão do sistema, sem app instalado — e é por isso que ele veio
+antes do push.
+
+O caminho é: gatilho no Postgres → `notificacao` → fila → `pg_net` acorda a Edge Function
+`enviar-emails` → Resend. **Sem os passos abaixo o app funciona normalmente e nada é perdido:**
+a fila enche, e o `pg_cron` manda tudo assim que a configuração existir.
+
+1. Crie a conta em [resend.com](https://resend.com) (3.000 e-mails/mês no gratuito). Para
+   testar já dá para usar `onboarding@resend.dev` como remetente; para valer, verifique um
+   domínio (sem isso o Gmail joga em spam com frequência).
+2. Publique a função:
+
+   ```bash
+   npx supabase functions deploy enviar-emails
+   ```
+
+3. Em **Project Settings → Edge Functions → Secrets**, defina:
+
+   | Segredo | Exemplo |
+   | --- | --- |
+   | `RESEND_API_KEY` | `re_...` |
+   | `EMAIL_REMETENTE` | `APPingos <avisos@seu-dominio.com>` |
+   | `APP_URL` | `https://appingos.vercel.app` — a raiz dos links do e-mail |
+
+4. No **SQL Editor**, guarde no Vault o endereço da função e a chave que o banco usa para
+   chamá-la (as duas estão em Project Settings → API). Isto roda **uma vez**, e fica fora das
+   migrations de propósito: migration é texto versionado no git.
+
+   ```sql
+   select vault.create_secret(
+     'https://SEU-PROJETO.supabase.co/functions/v1/enviar-emails',
+     'notificacao_email_url'
+   );
+   select vault.create_secret('SUA-SERVICE-ROLE-KEY', 'notificacao_email_token');
+   ```
+
+5. Teste ponta a ponta: ligue o e-mail em `/notificacoes/preferencias`, lance um gasto pela
+   OUTRA conta e confira a caixa de entrada. Se não chegar, a resposta está numa consulta:
+
+   ```sql
+   select estado, tentativas, erro, destinatario
+   from notificacao_email_fila order by criado_em desc limit 10;
+   ```
+
+### 7. Rodar
 
 ```bash
 npm run dev
@@ -210,6 +258,9 @@ server/
   api/tmdb/           # proxy do TMDB — a chave nunca vai ao client
 supabase/
   migrations/         # schema versionado — fonte da verdade do banco
+  functions/
+    enviar-emails/    # Edge Function que drena a fila e chama o Resend
+    _shared/          # código lido pelo Deno E pelo app (o texto das notificações)
 ```
 
 ## Arquitetura de dados

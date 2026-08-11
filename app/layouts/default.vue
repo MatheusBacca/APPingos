@@ -56,7 +56,10 @@ const { aberta } = useSidebar()
           <SpaceSwitcher />
         </div>
       </div>
-      <ThemeToggle />
+      <div class="flex items-center">
+        <SinoDeNotificacoes />
+        <ThemeToggle />
+      </div>
     </header>
 
     <main class="transition-[padding] duration-200" :class="aberta ? 'md:pl-64' : 'md:pl-16'">

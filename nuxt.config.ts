@@ -73,7 +73,10 @@ export default defineNuxtConfig({
     redirectOptions: {
       login: '/login',
       callback: '/confirmar',
-      exclude: ['/cadastro', '/convite/**'],
+      // `/descadastrar` fora do login pelo mesmo motivo de `/convite`: o link
+      // vem de fora do app (aqui, do rodapé de um e-mail) e precisa funcionar
+      // para quem abriu no celular sem sessão. Ver app/pages/descadastrar.vue.
+      exclude: ['/cadastro', '/convite/**', '/descadastrar'],
     },
   },
 
@@ -99,7 +102,18 @@ export default defineNuxtConfig({
   },
 
   pwa: {
-    registerType: 'autoUpdate',
+    /*
+     * 'prompt', e não 'autoUpdate', por causa do "Nova versão do APPingos
+     * disponível!" — o único aviso do pedido que NÃO vira linha no banco.
+     *
+     * A informação nasce no navegador de cada pessoa (qual service worker ela já
+     * baixou?), não no servidor: gravar isso em `notificacao` avisaria também
+     * quem já está na versão nova, e não haveria como marcar lida por deploy.
+     * Só que `autoUpdate` atualiza sozinho e por isso NUNCA expõe `needRefresh`
+     * — sem trocar para 'prompt' não há o que anunciar. O custo é real e é uma
+     * troca consciente: quem ignorar o toast fica na versão velha até recarregar.
+     */
+    registerType: 'prompt',
     manifest: {
       name: 'APPingos',
       short_name: 'APPingos',
@@ -121,6 +135,9 @@ export default defineNuxtConfig({
     },
     client: {
       installPrompt: true,
+      // Sem isto, uma versão nova só é notada num recarregamento — e um PWA
+      // instalado passa dias sem recarregar. De hora em hora o SW confere.
+      periodicSyncForUpdates: 3600,
     },
     devOptions: {
       enabled: false,

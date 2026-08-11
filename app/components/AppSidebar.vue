@@ -124,6 +124,8 @@ const classeLink = computed(() => aberta.value ? 'px-3' : 'justify-center px-0')
         </NuxtLink>
       </Button>
 
+      <SinoDeNotificacoes />
+
       <ThemeToggle />
 
       <Button variant="ghost" size="icon" aria-label="Sair" title="Sair" @click="sair">
