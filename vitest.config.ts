@@ -27,9 +27,27 @@ export default defineConfig({
     }),
   ],
 
-  // Os mesmos apelidos do Nuxt, para os testes importarem como o app importa.
   resolve: {
-    alias: { '~': app, '@': app },
+    alias: [
+      // Os mesmos apelidos do Nuxt, para os testes importarem como o app importa.
+      { find: '~', replacement: app },
+      { find: '@', replacement: app },
+
+      /*
+       * A extensão do Chrome lê a URL e a anon key de `lib/config.gerado.js`, que
+       * `scripts/empacotar-extensao.mjs` escreve a partir do `.env` e o git ignora
+       * (ver .gitignore). Sem este mapeamento, `test/extensao-api.test.ts` só
+       * rodaria em quem já tivesse rodado `npm run extensao` — e quebraria no CI e
+       * em todo clone novo.
+       *
+       * A regex é ancorada no especificador exato que `extensao/lib/api.js` usa,
+       * para não capturar mais nada por acidente.
+       */
+      {
+        find: /^\.\/config\.gerado\.js$/,
+        replacement: fileURLToPath(new URL('./test/fixtures/config-extensao.js', import.meta.url)),
+      },
+    ],
   },
 
   test: {

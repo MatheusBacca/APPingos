@@ -225,7 +225,33 @@ provedor está confinado ali, e nem o motor nem as telas sabem quem entrega.
    NÃO gasta as tentativas: a função aborta o lote inteiro e tenta tudo de novo no próximo
    ciclo, para um segredo errado não condenar avisos que ainda vão sair.
 
-### 7. Rodar
+### 7. Extensão do Chrome (módulo Interesses)
+
+Captura o produto da página aberta — nome, preço, preço no Pix, parcelamento, imagem, link — e
+registra como interesse em Objetivos › Interesses. **Sem os passos abaixo o app funciona
+normalmente**; a extensão é um atalho para o que a tela já faz à mão.
+
+Não é um executável: extensão do Chrome é uma pasta com `manifest.json` + HTML/JS. O mesmo
+pacote roda igual no Windows, Mac, Linux e ChromeOS, e só em desktop (o Chrome no Android não
+tem extensões).
+
+```bash
+npm run extensao
+```
+
+Gera `extensao/lib/config.gerado.js` a partir do `.env` (as mesmas `SUPABASE_URL`/`SUPABASE_KEY`
+do app) e o `.zip` em `extensao/dist/`. Depois, no Chrome: `chrome://extensions` → **Modo do
+desenvolvedor** → **Carregar sem compactação** → apontar para a pasta **`extensao/`**.
+
+O login é com o mesmo e-mail e senha do app — a extensão não reaproveita a sessão do navegador
+(ela vive em cookies do domínio do Vercel), então ela faz o próprio, contra o mesmo projeto. A
+anon key vai dentro do pacote, como já vai no bundle do app: o que autoriza é o JWT de quem
+entrou, e o que protege os dados é a RLS.
+
+Detalhes de uso, das quatro fontes que a raspagem tenta e de como publicar na Web Store:
+[`extensao/README.md`](./extensao/README.md).
+
+### 8. Rodar
 
 ```bash
 npm run dev
@@ -298,6 +324,9 @@ supabase/
   functions/
     enviar-emails/    # Edge Function que drena a fila e envia pelo SMTP do Gmail
     _shared/          # código lido pelo Deno E pelo app (o texto das notificações)
+extensao/             # extensão do Chrome — JS puro, sem build (ver seção 7)
+  lib/raspagem.js     # raspar(): uma função autocontida, injetada na aba ativa
+  lib/api.js          # Auth + PostgREST sobre fetch, com renovação de token
 ```
 
 ## Arquitetura de dados

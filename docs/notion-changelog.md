@@ -678,3 +678,81 @@ sairia mesmo —, e religar é um clique quando o canal subir.
 `request.jwt.claims` simulando uma sessão: `status_do_email()` devolve indisponível com o
 motivo certo, ligar é recusado com exceção, e desligar passa. Edge Function na versão 4,
 gravando a saúde.
+
+---
+
+## 2026-08-12 — Interesses (em Objetivos) + extensão do Chrome
+
+**Contexto:** produto visto na internet some — fica numa aba que vai ser fechada, num print que
+ninguém acha. Quando chega a hora de decidir, não se lembra se o sofá era R$ 2.399 ou R$ 2.899,
+nem em qual das três lojas era mais barato. E o caminho manual (abrir o app, criar, copiar nome,
+copiar link, digitar três preços) tem passos demais para o impulso de dez segundos que é "achei
+um". Se registrar custa mais que fechar a aba, a aba ganha.
+
+**Feito:**
+- Schema `interesse` + `interesse_produto` com RLS, três RPCs (`registrar_interesse`,
+  `adicionar_produto`, `escolher_produto`) e as colunas de conversão já criadas sem uso
+- Módulo Objetivos saiu de stub para `ativo: true`, com a aba Interesses e "Metas" visível e
+  desabilitada ao lado; `/objetivos` redireciona para `/objetivos/interesses`
+- Lista agrupada por destino, detalhe com os candidatos comparados, diálogos de criar/editar e de
+  adicionar produto à mão, e duas linhas no painel de resumos
+- Extensão do Chrome (MV3, `extensao/`): login com o mesmo e-mail e senha do app, seletor de
+  espaço, raspagem da página e envio — JS puro, sem bundler e sem dependência
+- `npm run extensao` gera o config do `.env` e o `.zip`; `npm run icones` passou a emitir também
+  os quatro tamanhos de ícone da extensão
+
+**Decisão: submódulo de Objetivos, não módulo próprio.** Um interesse é um pré-objetivo — quando
+amadurece vira meta com prazo, e o produto escolhido carrega o valor que essa meta precisa. A
+hierarquia diz isso; como módulo separado a relação seria só uma coluna. O custo é que Objetivos
+ficou ativo antes de ter Metas, resolvido mostrando a segunda aba desabilitada em vez de omiti-la
+(dizer "Interesses primeiro, metas depois" é mais honesto que esconder) e com um redirect na raiz,
+para clicar em Objetivos não cair em tela vazia.
+
+**Decisão: N produtos por interesse.** "Trocar o sofá" com três sofás de três lojas é o caso
+normal, não a borda — é comparar preço dentro da mesma vontade. Um produto por interesse
+obrigaria a criar três interesses para a mesma coisa, e aí nenhum dos três seria "a vontade". Um
+deles é o `escolhido` (índice único parcial), e é dele que sai o valor do interesse; o resumo
+conta um produto por interesse, porque somar os três candidatos diria que queremos três sofás.
+
+**Decisão: preços nullable.** A raspagem acerta o nome quase sempre e o preço menos. `not null`
+transformaria "não achei o preço" em "não dá para salvar", e o link com o nome já vale sozinho.
+
+**Decisão: `observacao text` em vez do `nota_id` que o plano original previa.** O plano de
+Interesses estava bloqueado esperando o módulo de Notas, e a extensão não precisava dele. Quando
+Notas existir, é uma coluna de texto curta a migrar.
+
+**Decisão: REST cru na extensão, sem supabase-js.** Assim a pasta É o pacote: sem bundler, sem
+`package.json` aninhado, sem build antes de "Carregar sem compactação". O custo são ~40 linhas de
+renovação de token à mão — e é por serem à mão que elas ganharam teste com `fetch` dublado.
+
+**Decisão: `activeTab` + `scripting`, nunca `content_scripts`.** Nada roda em página nenhuma
+antes do clique no ícone, e a instalação não pede "ler e alterar seus dados em todos os sites".
+Isso é o que força `raspar()` a ser uma função autocontida (`executeScript({ func })` serializa e
+injeta o texto), e o efeito colateral é ótimo: a mesma função roda no Vitest contra o happy-dom,
+sem mock do Chrome. O preço é `dinheiroBr` duplicada em dois arquivos, com os testes apontando
+para os mesmos casos.
+
+**Decisão: a raspagem é rascunho, não verdade.** Cascata de quatro níveis (JSON-LD → Open Graph →
+microdata → heurística de texto, que é o único lugar onde existem preço Pix e parcelamento), e o
+popup mostra tudo editável antes de gravar. Quando a heurística errar, o custo é corrigir um
+campo, não um registro torto que alguém descobre semanas depois. Sem adaptadores por loja: seletor
+CSS por hostname quebra a cada redesign.
+
+**Bug que o teste pegou:** a detecção de "à vista" usava `\b`, que em JavaScript é ASCII — `à`
+conta como caractere não-de-palavra, então `\bà` nunca casa. Toda loja que escreve "à vista" em
+vez de "Pix" passava batida, em silêncio, com o campo só ficando vazio. Estava nas duas cópias da
+função. Corrigido com lookaround `\p{L}` e a flag `u`.
+
+**Verificado:** `npm run verificar` limpo (237 testes, 92 novos) e `nuxt build` passando. A
+migration foi aplicada num Postgres 16 descartável junto com as outras 20 e exercitada com dois
+usuários: isolamento entre espaços, recusa de insert em nome de outra pessoa, o índice único
+barrando dois escolhidos, os casts tolerando campo vazio, e cascade nos produtos. O empacotador
+foi testado nos três caminhos (sem `.env`, com URL fora do padrão, e válido) e nas duas
+implementações de zip, com o conteúdo extraído conferido contra a origem.
+
+**Pendências:** conversão de interesse em objetivo (depende de Metas) e em compra (precisa de um
+diálogo para rateio e competência); notificar o par de um interesse novo; publicar na Web Store
+quando cansar do modo desenvolvedor. **E o que ainda não foi feito neste repositório:**
+`supabase db push` na nuvem e `npm run db:types` — `app/types/database.generated.ts` foi editado à
+mão nesta sessão (o gerador do Supabase exige Docker, indisponível no ambiente), então regenerar
+depois do push é obrigatório para conferir.

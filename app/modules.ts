@@ -81,14 +81,19 @@ export const MODULOS: AppModule[] = [
   {
     slug: 'objetivos',
     rotulo: 'Objetivos',
-    descricao: 'Metas com prazo e progresso visível',
+    // A descrição fala de Interesses porque é a única aba que existe hoje.
+    // Prometer "metas com prazo" na sidebar, como antes, mandaria a pessoa para
+    // uma tela que não entrega isso. Volta a mencionar metas quando elas nascerem.
+    descricao: 'Interesses de hoje — e metas com prazo em breve',
     icone: 'TargetIcon',
     rota: '/objetivos',
-    ativo: false,
-    // Saiu da barra quando Viagens entrou: a grade tem 5 células (Início + três
-    // módulos + Mais), e um módulo que ainda é "em breve" não vale um slot que
-    // um módulo pronto quer. Volta para cá quando existir.
+    ativo: true,
+    // Fora da barra mesmo estando ativo: a grade tem 5 células (Início + três
+    // módulos + Mais), e os três slots são de Orçamentos, Filmes e Viagens.
+    // Objetivos entrou por uma aba, não pelo que dá nome a ele — tomar o lugar
+    // de um módulo inteiro seria desproporcional. Vive no "Mais".
     naBarra: false,
+    resumo: useResumoInteresses,
   },
   {
     slug: 'treinos',

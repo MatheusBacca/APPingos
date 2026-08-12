@@ -21,6 +21,10 @@ logs
 # Vercel
 .vercel
 
+# Extensão do Chrome: as credenciais são geradas do .env pelo npm run extensao.
+# (extensao/dist/ já é pego pela regra `dist` acima.)
+extensao/lib/config.gerado.js
+
 # Local env files — a exceção do .env.example precisa vir por último,
 # senão um `.env*` posterior volta a ignorá-lo.
 .env

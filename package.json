@@ -9,6 +9,7 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "icones": "node scripts/gerar-icones.mjs",
+    "extensao": "node scripts/empacotar-extensao.mjs",
     "db:types": "npx supabase gen types typescript --linked --schema public > app/types/database.generated.ts",
     "typecheck": "nuxt typecheck",
     "test": "vitest run",

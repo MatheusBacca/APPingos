@@ -316,6 +316,121 @@ export type Database = {
           },
         ]
       }
+      interesse: {
+        Row: {
+          convertido_em: string | null
+          convertido_ref_id: string | null
+          convertido_tipo: string | null
+          created_at: string
+          criado_por: string
+          destino: string
+          estado: string
+          id: string
+          observacao: string | null
+          para_quem: string | null
+          space_id: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          convertido_em?: string | null
+          convertido_ref_id?: string | null
+          convertido_tipo?: string | null
+          created_at?: string
+          criado_por: string
+          destino?: string
+          estado?: string
+          id?: string
+          observacao?: string | null
+          para_quem?: string | null
+          space_id: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          convertido_em?: string | null
+          convertido_ref_id?: string | null
+          convertido_tipo?: string | null
+          created_at?: string
+          criado_por?: string
+          destino?: string
+          estado?: string
+          id?: string
+          observacao?: string | null
+          para_quem?: string | null
+          space_id?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interesse_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interesse_produto: {
+        Row: {
+          capturado_em: string
+          created_at: string
+          escolhido: boolean
+          id: string
+          imagem_url: string | null
+          interesse_id: string
+          loja: string | null
+          nome: string
+          origem: string
+          parcelas: number | null
+          preco: number | null
+          preco_pix: number | null
+          url: string
+          valor_parcela: number | null
+        }
+        Insert: {
+          capturado_em?: string
+          created_at?: string
+          escolhido?: boolean
+          id?: string
+          imagem_url?: string | null
+          interesse_id: string
+          loja?: string | null
+          nome: string
+          origem?: string
+          parcelas?: number | null
+          preco?: number | null
+          preco_pix?: number | null
+          url: string
+          valor_parcela?: number | null
+        }
+        Update: {
+          capturado_em?: string
+          created_at?: string
+          escolhido?: boolean
+          id?: string
+          imagem_url?: string | null
+          interesse_id?: string
+          loja?: string | null
+          nome?: string
+          origem?: string
+          parcelas?: number | null
+          preco?: number | null
+          preco_pix?: number | null
+          url?: string
+          valor_parcela?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interesse_produto_interesse_id_fkey"
+            columns: ["interesse_id"]
+            isOneToOne: false
+            referencedRelation: "interesse"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       media_item: {
         Row: {
           ano: number | null
@@ -881,6 +996,10 @@ export type Database = {
         Args: { p_item: Json; p_space: string }
         Returns: string
       }
+      adicionar_produto: {
+        Args: { p_interesse: string; p_produto: Json }
+        Returns: string
+      }
       atualizar_compra: {
         Args: {
           p_categoria_cor?: string
@@ -913,6 +1032,7 @@ export type Database = {
       }
       deletar_espaco: { Args: { p_space: string }; Returns: undefined }
       descadastrar_email: { Args: { p_token: string }; Returns: undefined }
+      escolher_produto: { Args: { p_produto: string }; Returns: undefined }
       faxina_notificacoes: { Args: never; Returns: number }
       gerar_codigo_convite: { Args: never; Returns: string }
       is_space_admin: { Args: { p_space: string }; Returns: boolean }
@@ -974,6 +1094,17 @@ export type Database = {
           p_participantes: Json
           p_space: string
           p_valor_total: number
+        }
+        Returns: string
+      }
+      registrar_interesse: {
+        Args: {
+          p_destino?: string
+          p_observacao?: string
+          p_para_quem?: string
+          p_produto?: Json
+          p_space: string
+          p_titulo: string
         }
         Returns: string
       }

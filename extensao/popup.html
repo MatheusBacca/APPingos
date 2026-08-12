@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>APPingos</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!--
+    Três telas exclusivas num só documento, alternadas por `hidden`. Um popup de
+    extensão é descartado a cada fechamento, então navegar entre páginas custaria
+    um recarregamento inteiro a cada passo — e o estado (o que foi raspado) se
+    perderia no caminho.
+  -->
+
+  <!-- ---- Carregando --------------------------------------------------- -->
+  <section id="tela-carregando" class="tela">
+    <p class="dica">Carregando…</p>
+  </section>
+
+  <!-- ---- Login -------------------------------------------------------- -->
+  <section id="tela-login" class="tela" hidden>
+    <header class="cabecalho">
+      <h1>APPingos</h1>
+      <p class="dica">Entre com o e-mail e a senha do app.</p>
+    </header>
+
+    <form id="form-login" class="pilha">
+      <label class="campo">
+        <span>E-mail</span>
+        <input id="login-email" type="email" autocomplete="username" required>
+      </label>
+
+      <label class="campo">
+        <span>Senha</span>
+        <input id="login-senha" type="password" autocomplete="current-password" required>
+      </label>
+
+      <p id="erro-login" class="erro" hidden></p>
+
+      <button id="botao-entrar" type="submit" class="botao primario">Entrar</button>
+    </form>
+  </section>
+
+  <!-- ---- Captura ------------------------------------------------------ -->
+  <section id="tela-captura" class="tela" hidden>
+    <header class="cabecalho linha">
+      <div>
+        <h1>Novo interesse</h1>
+        <p id="rotulo-fonte" class="dica"></p>
+      </div>
+      <button id="botao-sair" type="button" class="botao discreto" title="Sair da conta">Sair</button>
+    </header>
+
+    <form id="form-captura" class="pilha">
+      <label class="campo">
+        <span>Espaço</span>
+        <select id="campo-espaco"></select>
+      </label>
+
+      <label class="campo">
+        <span>Onde registrar</span>
+        <select id="campo-alvo">
+          <option value="novo">Criar um interesse novo</option>
+        </select>
+      </label>
+
+      <!-- Só aparece quando o alvo é "novo": um produto pendurado num interesse
+           existente não tem título nem destino próprios. -->
+      <div id="grupo-novo" class="pilha">
+        <label class="campo">
+          <span>Título do interesse</span>
+          <input id="campo-titulo" type="text" autocomplete="off" required>
+        </label>
+
+        <div class="dupla">
+          <label class="campo">
+            <span>Aponta para</span>
+            <select id="campo-destino"></select>
+          </label>
+
+          <label class="campo">
+            <span>Para quem</span>
+            <input id="campo-para-quem" type="text" autocomplete="off" placeholder="opcional">
+          </label>
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="produto">
+        <img id="previa-imagem" alt="" hidden>
+
+        <label class="campo cresce">
+          <span>Produto</span>
+          <input id="campo-nome" type="text" autocomplete="off" required>
+        </label>
+      </div>
+
+      <div class="dupla">
+        <label class="campo">
+          <span>Preço</span>
+          <input id="campo-preco" type="number" step="0.01" min="0" inputmode="decimal">
+        </label>
+
+        <label class="campo">
+          <span>Preço no Pix</span>
+          <input id="campo-pix" type="number" step="0.01" min="0" inputmode="decimal">
+        </label>
+
+        <label class="campo">
+          <span>Parcelas</span>
+          <input id="campo-parcelas" type="number" step="1" min="1" max="120" inputmode="numeric">
+        </label>
+
+        <label class="campo">
+          <span>Valor da parcela</span>
+          <input id="campo-valor-parcela" type="number" step="0.01" min="0" inputmode="decimal">
+        </label>
+      </div>
+
+      <p id="rotulo-loja" class="dica"></p>
+
+      <p id="erro-captura" class="erro" hidden></p>
+
+      <button id="botao-salvar" type="submit" class="botao primario">Salvar interesse</button>
+    </form>
+  </section>
+
+  <!-- ---- Pronto ------------------------------------------------------- -->
+  <section id="tela-pronto" class="tela" hidden>
+    <p class="sucesso" id="texto-pronto">Interesse registrado.</p>
+    <a id="link-app" class="botao primario" target="_blank" rel="noopener noreferrer">Abrir no APPingos</a>
+    <button id="botao-outro" type="button" class="botao discreto">Capturar outro</button>
+  </section>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

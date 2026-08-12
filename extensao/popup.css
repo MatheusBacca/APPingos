@@ -1,0 +1,198 @@
+/*
+ * Estilo do popup — CSS à mão, sem Tailwind.
+ *
+ * O app usa Tailwind v4 e shadcn-vue, e nada disso vem para cá: trazer o pipeline
+ * de CSS significaria trazer um build, que é justamente o que esta extensão não
+ * tem. São ~150 linhas contra um bundler; o troco é bom.
+ *
+ * As cores acompanham o tema do sistema, como o app faz. Um popup branco fixo
+ * dentro de um Chrome no escuro é um flash na cara de quem clicou.
+ */
+
+:root {
+  --fundo: #ffffff;
+  --texto: #0f172a;
+  --suave: #64748b;
+  --borda: #e2e8f0;
+  --campo: #ffffff;
+  --primario: #0f172a;
+  --primario-texto: #ffffff;
+  --erro: #dc2626;
+  --sucesso: #059669;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundo: #0f172a;
+    --texto: #f1f5f9;
+    --suave: #94a3b8;
+    --borda: #1e293b;
+    --campo: #1e293b;
+    --primario: #f1f5f9;
+    --primario-texto: #0f172a;
+    --erro: #f87171;
+    --sucesso: #34d399;
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  /* 380px é o limite prático do popup do Chrome antes de ele virar uma janela
+     estranhamente larga sobre a página. */
+  width: 380px;
+  margin: 0;
+  padding: 14px;
+  background: var(--fundo);
+  color: var(--texto);
+  font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+hr {
+  height: 1px;
+  margin: 2px 0;
+  border: 0;
+  background: var(--borda);
+}
+
+.tela[hidden] {
+  display: none;
+}
+
+.cabecalho {
+  margin-bottom: 12px;
+}
+
+.linha {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pilha {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dupla {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.campo > span {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--suave);
+}
+
+.cresce {
+  flex: 1;
+}
+
+input,
+select {
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  background: var(--campo);
+  color: var(--texto);
+  font: inherit;
+}
+
+input:focus,
+select:focus {
+  outline: 2px solid var(--suave);
+  outline-offset: -1px;
+}
+
+.produto {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+#previa-imagem {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--campo);
+}
+
+.botao {
+  display: inline-block;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font: inherit;
+  font-weight: 500;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.botao.primario {
+  background: var(--primario);
+  color: var(--primario-texto);
+}
+
+.botao.primario:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.botao.discreto {
+  background: none;
+  border-color: var(--borda);
+  color: var(--suave);
+}
+
+.dica {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--suave);
+}
+
+.erro {
+  margin: 0;
+  font-size: 12px;
+  color: var(--erro);
+}
+
+.erro[hidden] {
+  display: none;
+}
+
+.sucesso {
+  margin: 0 0 12px;
+  font-weight: 500;
+  color: var(--sucesso);
+}
+
+#tela-pronto {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
