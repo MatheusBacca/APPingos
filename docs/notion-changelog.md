@@ -826,3 +826,56 @@ as duas. A lógica de pular versão já publicada foi exercitada nos dois ramos 
 
 **Pendência que depende de você:** cadastrar `SUPABASE_URL` e `SUPABASE_KEY` em Settings → Secrets
 and variables → Actions. E o workflow só passa a existir quando esta branch chegar à `main`.
+
+---
+
+## 2026-08-12 — Três bugs da extensão 0.1.0, e a Release vira ScrAPPingos
+
+**Contexto:** a 0.1.0 foi instalada e usada, e dois bugs apareceram na cara de quem usou. O
+terceiro caiu junto porque tinha a mesma causa.
+
+**Bug 1 e 3 — `hidden` que não escondia.** A tela de "Interesse registrado" ficava desenhada por
+cima da de login, permanentemente. Era cascata, em duas variantes:
+
+- `#tela-pronto { display: flex }` é seletor de ID (1,0,0) e vencia o `.tela[hidden]
+  { display: none }` (0,2,0) por **especificidade**.
+- `#grupo-novo` usa `.pilha { display: flex }`, e o `[hidden]` que valia para ele vinha da folha
+  do **navegador**. Declaração de autor vence a do agente de usuário independente de
+  especificidade — então os campos de título e destino não sumiam ao escolher "adicionar a um
+  interesse existente". Este ninguém tinha reportado; apareceu investigando o primeiro.
+
+A correção é uma regra só: `[hidden] { display: none !important }`, global. `!important` aqui não é
+atalho para não pensar na cascata — é o que devolve ao atributo o poder que ele deveria ter, e o que
+impede o próximo `display` numa classe de layout de reabrir o mesmo bug em silêncio.
+
+**Bug 2 — o espaço do casal listado duas vezes** no seletor. A policy `membership_select` usa
+`is_space_member(space_id)`, e não `user_id = auth.uid()`, de propósito: é o que faz cada um
+enxergar a linha do par na tela de Espaços. Consequência: um espaço de casal volta uma vez por
+membro, e a extensão não filtrava.
+
+O agravante é que **o app já resolvia isso, e com um comentário explicando** — veja
+`app/composables/useEspacos.ts:25`. Foi código novo escrito ao lado da resposta sem reusá-la.
+Corrigido com `user_id=eq.<id>`, que resolve por construção e não por remendo: a chave primária de
+`membership` é `(space_id, user_id)`, então com o usuário fixado cada espaço só pode aparecer uma
+vez. Um `dedupe` esconderia o motivo. A ordenação também passou a ser a mesma do app (pessoal
+primeiro, casal por nome), para quem usa os dois não reaprender onde as coisas estão.
+
+**Decisão: o teste do `hidden` verifica comportamento, não texto de CSS.** A primeira versão
+afirmava que a regra existia no arquivo — e uma regra pode estar escrita e ainda perder para outra,
+que é exatamente o bug. Agora o popup é montado no DOM do happy-dom com o CSS embutido, e o teste
+lê `getComputedStyle`. Inclui um caso que **reconstrói a folha com o bug** e exige que a suíte
+falhe do jeito que o usuário viu (`['login', 'pronto']` visíveis juntas) — sem isso não haveria
+como saber se os outros passam por mérito ou por acaso.
+
+**Tropeço no caminho:** a primeira versão do teste de CSS casou o `[hidden]` que está **dentro do
+comentário** que explica o bug. Mesma armadilha que o teste do `service_role` já tinha resolvido
+com `semComentarios()`; passou a usar o mesmo helper.
+
+**Nome:** a Release passou a se chamar **ScrAPPingos** (era "Extensão do Chrome"). A tag continua
+`extensao-v*` e o `name` do manifest continua "APPingos" — o que o Chrome mostra na barra não
+mudou.
+
+**Verificado:** `npm run verificar` limpo (248 testes, 11 novos). O comportamento das telas foi
+conferido num DOM de verdade, antes e depois, reproduzindo o sintoma da tela do usuário. A causa do
+bug 2 foi confirmada por consulta ao banco real: seis pessoas com mais linhas de membership do que
+espaços, "Matheus Bacca" entre elas com 3 linhas para 2 espaços.

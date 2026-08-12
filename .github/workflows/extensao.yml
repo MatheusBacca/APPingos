@@ -196,7 +196,7 @@ jobs:
           gh release create "$TAG" "$ZIP" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Extensão do Chrome $VERSAO" \
+            --title "ScrAPPingos $VERSAO" \
             --notes-file "$RUNNER_TEMP/notas.md"
 
           {

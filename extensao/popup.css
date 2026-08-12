@@ -65,8 +65,25 @@ hr {
   background: var(--borda);
 }
 
-.tela[hidden] {
-  display: none;
+/*
+ * `hidden` tem de ganhar de tudo, e por isso leva `!important`.
+ *
+ * Isto começou como `.tela[hidden] { display: none }` e escondia mal duas vezes:
+ *
+ * 1. `#tela-pronto { display: flex }` é seletor de ID (1,0,0) e vencia o
+ *    `.tela[hidden]` (0,2,0) por especificidade — a tela de "Interesse
+ *    registrado" ficava visível POR CIMA da de login, para sempre.
+ * 2. `#grupo-novo` usa a classe `.pilha { display: flex }`, e o `[hidden]` que
+ *    valia para ele vinha da folha do NAVEGADOR. Qualquer declaração de autor com
+ *    `display` vence a do agente de usuário, independente de especificidade — os
+ *    campos de título e destino não sumiam ao escolher um interesse existente.
+ *
+ * `!important` aqui não é atalho para não pensar na cascata: é o que devolve ao
+ * atributo o poder que ele deveria ter, e o que faz o próximo `display` numa
+ * classe de layout não reabrir o mesmo bug em silêncio.
+ */
+[hidden] {
+  display: none !important;
 }
 
 .cabecalho {
@@ -181,9 +198,6 @@ select:focus {
   color: var(--erro);
 }
 
-.erro[hidden] {
-  display: none;
-}
 
 .sucesso {
   margin: 0 0 12px;
@@ -191,6 +205,7 @@ select:focus {
   color: var(--sucesso);
 }
 
+/* Só vale quando a tela está visível — quem esconde é o `[hidden]` lá em cima. */
 #tela-pronto {
   display: flex;
   flex-direction: column;

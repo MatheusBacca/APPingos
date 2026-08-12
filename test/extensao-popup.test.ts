@@ -30,6 +30,7 @@ const semComentarios = (fonte: string) =>
 
 const html = ler('extensao/popup.html')
 const js = ler('extensao/popup.js')
+const css = ler('extensao/popup.css')
 const manifest = JSON.parse(ler('extensao/manifest.json'))
 
 /** Todo `id="..."` presente no HTML. */
@@ -78,6 +79,100 @@ describe('popup.js contra popup.html', () => {
    */
   it('o config gerado está no .gitignore', () => {
     expect(ler('.gitignore')).toContain('extensao/lib/config.gerado.js')
+  })
+})
+
+describe('popup.css — o atributo hidden precisa ganhar', () => {
+  /*
+   * Esta suíte existe por causa de dois bugs reais que chegaram ao usuário na
+   * 0.1.0, ambos "escondi e não escondeu":
+   *
+   * 1. `#tela-pronto { display: flex }` é seletor de ID (1,0,0) e vencia o
+   *    `.tela[hidden] { display: none }` (0,2,0) por ESPECIFICIDADE — a tela de
+   *    "Interesse registrado" ficava por cima da de login, para sempre.
+   * 2. `#grupo-novo` usa `.pilha { display: flex }`, e o `[hidden]` dele vinha da
+   *    folha do NAVEGADOR. Declaração de autor vence a do agente de usuário
+   *    independente de especificidade — os campos de título e destino não sumiam.
+   *
+   * O que ambos têm em comum é uma regra de layout com `display` num elemento que
+   * o JS esconde por `hidden`. A defesa é uma só: `[hidden]` global com
+   * `!important`. Os testes abaixo protegem essa regra, porque o sintoma é visual
+   * e nenhuma outra verificação do projeto o alcança.
+   */
+  const TELAS = ['carregando', 'login', 'captura', 'pronto']
+
+  /**
+   * Monta o popup no DOM do happy-dom, com o CSS embutido para a cascata valer.
+   *
+   * Testar o COMPORTAMENTO, e não o texto do CSS, é o que importa aqui: os dois
+   * bugs eram de cascata, e uma regra pode estar escrita e ainda perder para outra.
+   * O `<script type=module>` sai porque ele precisaria das APIs do `chrome`.
+   */
+  function montarPopup(folha = css) {
+    document.head.innerHTML = `<style>${folha}</style>`
+    document.body.innerHTML = html
+      .match(/<body>([\s\S]*)<\/body>/)![1]!
+      .replace(/<script[\s\S]*?<\/script>/g, '')
+  }
+
+  /** Faz o que `mostrar()` faz e devolve quais telas o navegador desenharia. */
+  function telasVisiveis(ativa: string): string[] {
+    for (const nome of TELAS) {
+      (document.getElementById(`tela-${nome}`) as HTMLElement).hidden = nome !== ativa
+    }
+    return TELAS.filter(nome =>
+      getComputedStyle(document.getElementById(`tela-${nome}`)!).display !== 'none',
+    )
+  }
+
+  function somiuAoOcultar(id: string): boolean {
+    const alvo = document.getElementById(id) as HTMLElement
+    alvo.hidden = true
+    return getComputedStyle(alvo).display === 'none'
+  }
+
+  it.each(TELAS)('com "%s" ativa, só ela aparece', (ativa) => {
+    montarPopup()
+    expect(telasVisiveis(ativa)).toEqual([ativa])
+  })
+
+  it('grupo-novo some quando o alvo é um interesse existente', () => {
+    montarPopup()
+    expect(somiuAoOcultar('grupo-novo')).toBe(true)
+  })
+
+  it('as mensagens de erro somem quando vazias', () => {
+    montarPopup()
+    expect(somiuAoOcultar('erro-login')).toBe(true)
+    expect(somiuAoOcultar('erro-captura')).toBe(true)
+  })
+
+  /*
+   * Prova que os testes acima de fato pegam a regressão, em vez de passarem por
+   * acaso: com a regra antiga (`.tela[hidden]`, sem !important) eles falham do jeito
+   * exato que o usuário viu — a tela de "pronto" por cima da de login.
+   */
+  it('detecta a regra antiga, que era o bug da 0.1.0', () => {
+    const folhaComBug = semComentarios(css).replace(
+      /\[hidden\]\s*\{\s*display:\s*none\s*!important;?\s*\}/,
+      '.tela[hidden] { display: none; }',
+    )
+    // Garante que a substituição pegou; senão o teste não provaria nada.
+    expect(folhaComBug).not.toMatch(/!important/)
+
+    montarPopup(folhaComBug)
+    expect(telasVisiveis('login')).toEqual(['login', 'pronto'])
+    expect(somiuAoOcultar('grupo-novo')).toBe(false)
+  })
+
+  it('todo elemento que o JS esconde existe no HTML', () => {
+    const alternados = new Set<string>([
+      ...[...js.matchAll(/el\(\s*'([^']+)'\s*\)\.hidden\s*=/g)].map(m => m[1]!),
+      ...TELAS.map(n => `tela-${n}`),
+    ])
+
+    expect(alternados.size).toBeGreaterThan(3)
+    for (const id of alternados) expect(idsNoHtml.has(id)).toBe(true)
   })
 })
 

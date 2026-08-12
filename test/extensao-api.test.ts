@@ -132,6 +132,7 @@ describe('renovação de token', () => {
       access_token: 'velho',
       refresh_token: 'refresh-velho',
       expira_em: Date.now() + 30_000,
+      user_id: 'user-1',
     }
 
     dublarFetch([
@@ -154,6 +155,7 @@ describe('renovação de token', () => {
       access_token: 'bom',
       refresh_token: 'r',
       expira_em: Date.now() + 3_600_000,
+      user_id: 'user-1',
     }
 
     dublarFetch([resposta([])])
@@ -174,6 +176,7 @@ describe('renovação de token', () => {
       access_token: 'parece-bom',
       refresh_token: 'r',
       expira_em: Date.now() + 3_600_000,
+      user_id: 'user-1',
     }
 
     dublarFetch([
@@ -184,10 +187,11 @@ describe('renovação de token', () => {
 
     const espacos = await listarEspacos()
 
+    const membership = `${URL_BASE}/rest/v1/membership?select=papel%2Cspace%28id%2Ctipo%2Cnome%29&user_id=eq.user-1`
     expect(chamadas.map(c => c.url)).toEqual([
-      `${URL_BASE}/rest/v1/membership?select=papel,space(id,tipo,nome)`,
+      membership,
       `${URL_BASE}/auth/v1/token?grant_type=refresh_token`,
-      `${URL_BASE}/rest/v1/membership?select=papel,space(id,tipo,nome)`,
+      membership,
     ])
     expect(espacos).toEqual([{ id: 's1', nome: 'Ana', tipo: 'pessoal', papel: 'dono' }])
   })
@@ -201,6 +205,7 @@ describe('renovação de token', () => {
       access_token: 'a',
       refresh_token: 'r',
       expira_em: Date.now() + 3_600_000,
+      user_id: 'user-1',
     }
 
     dublarFetch([
@@ -218,6 +223,7 @@ describe('renovação de token', () => {
       access_token: 'a',
       refresh_token: 'revogado',
       expira_em: Date.now() - 1000,
+      user_id: 'user-1',
     }
 
     dublarFetch([resposta({ message: 'Invalid Refresh Token' }, 400)])
@@ -239,6 +245,7 @@ describe('leituras', () => {
       access_token: 'bom',
       refresh_token: 'r',
       expira_em: Date.now() + 3_600_000,
+      user_id: 'user-1',
     }
   })
 
@@ -253,6 +260,47 @@ describe('leituras', () => {
     ])])
 
     expect((await listarEspacos()).map(e => e.id)).toEqual(['meu', 'casal'])
+  })
+
+  it('ordena os espaços de casal por nome', async () => {
+    dublarFetch([resposta([
+      { papel: 'membro', space: { id: 'z', tipo: 'casal', nome: 'Zurique' } },
+      { papel: 'membro', space: { id: 'a', tipo: 'casal', nome: 'Ártico' } },
+      { papel: 'dono', space: { id: 'meu', tipo: 'pessoal', nome: 'Ana' } },
+    ])])
+
+    expect((await listarEspacos()).map(e => e.id)).toEqual(['meu', 'a', 'z'])
+  })
+
+  /*
+   * O bug da 0.1.0: o seletor mostrava "SpacePingos (casal)" DUAS VEZES.
+   *
+   * A policy `membership_select` usa `is_space_member(space_id)`, e não
+   * `user_id = auth.uid()` — de propósito, para cada um ver a linha do par. Então
+   * um espaço de casal volta uma vez por membro. O filtro no `user_id` é o que
+   * resolve, e a chave primária `(space_id, user_id)` é o que garante que resolve.
+   */
+  it('pede só as memberships do próprio usuário', async () => {
+    dublarFetch([resposta([])])
+
+    await listarEspacos()
+
+    const url = new URL(chamadas[0]!.url)
+    expect(url.searchParams.get('user_id')).toBe('eq.user-1')
+    expect(url.searchParams.get('select')).toBe('papel,space(id,tipo,nome)')
+  })
+
+  it('sem sessão completa, recusa em vez de listar duplicado', async () => {
+    // Sessão de uma versão anterior à que passou a guardar o id do usuário.
+    guardado['appingos:sessao'] = {
+      access_token: 'sem-id',
+      refresh_token: 'r',
+      expira_em: Date.now() + 3_600_000,
+    }
+    dublarFetch([])
+
+    await expect(listarEspacos()).rejects.toThrow(/Sessão incompleta/)
+    expect(chamadas).toHaveLength(0)
   })
 
   it('descarta linha de membership sem espaço embutido', async () => {
@@ -282,6 +330,7 @@ describe('escritas', () => {
       access_token: 'bom',
       refresh_token: 'r',
       expira_em: Date.now() + 3_600_000,
+      user_id: 'user-1',
     }
   })
 

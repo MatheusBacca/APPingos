@@ -227,9 +227,47 @@ async function chamar(caminho, opcoes = {}, jaRenovou = false) {
  *
  * A escolha do espaço no app vive em `localStorage` da origem do Vercel, ilegível
  * daqui. Então a extensão pergunta, e lembra da resposta em `chrome.storage`.
+ *
+ * ## O `user_id` no filtro não é redundante
+ *
+ * A policy `membership_select` usa `is_space_member(space_id)`, e não
+ * `user_id = auth.uid()` — de propósito, para cada um enxergar a linha do par (é o
+ * que faz a tela de Espaços mostrar quem participa). Consequência: sem este filtro,
+ * um espaço de casal volta UMA VEZ POR MEMBRO, e o seletor listava "SpacePingos"
+ * duas vezes.
+ *
+ * Filtrar por `user_id` é o que o app já fazia (veja o comentário em
+ * `useEspacos.ts`), e resolve por construção em vez de por remendo: a chave
+ * primária de `membership` é `(space_id, user_id)`, então com o usuário fixado cada
+ * espaço só pode aparecer uma vez. Um `dedupe` aqui esconderia o motivo.
  */
 export async function listarEspacos() {
-  const linhas = await chamar('membership?select=papel,space(id,tipo,nome)')
+  const sessao = await lerSessao()
+
+  // Dois casos, e a diferença importa para quem lê a mensagem: não ter entrado é
+  // o estado normal de quem abriu o popup pela primeira vez, e o popup traduz
+  // este erro em "mostre a tela de login".
+  if (!sessao?.access_token) {
+    const erro = new Error('Entre para continuar.')
+    erro.status = 401
+    throw erro
+  }
+
+  // Já ter sessão mas sem o id é anomalia: sessão de uma versão anterior à que
+  // passou a guardá-lo, ou storage corrompido. Sem o id não há como filtrar, e
+  // listar duplicado é pior que pedir um login novo.
+  if (!sessao.user_id) {
+    const erro = new Error('Sessão incompleta. Saia e entre de novo.')
+    erro.status = 401
+    throw erro
+  }
+
+  const params = new URLSearchParams({
+    select: 'papel,space(id,tipo,nome)',
+    user_id: `eq.${sessao.user_id}`,
+  })
+
+  const linhas = await chamar(`membership?${params}`)
 
   return (linhas ?? [])
     .filter(linha => linha.space)
@@ -239,8 +277,12 @@ export async function listarEspacos() {
       tipo: linha.space.tipo,
       papel: linha.papel,
     }))
-    // Pessoal primeiro: é o default de quem ainda não escolheu, igual ao app.
-    .sort((a, b) => (a.tipo === 'pessoal' ? -1 : 1) - (b.tipo === 'pessoal' ? -1 : 1))
+    // Pessoal primeiro, depois casal por nome — a mesma ordem do seletor do app,
+    // para quem usa os dois não ter de reaprender onde as coisas estão.
+    .sort((a, b) => {
+      if (a.tipo !== b.tipo) return a.tipo === 'pessoal' ? -1 : 1
+      return a.nome.localeCompare(b.nome, 'pt-BR')
+    })
 }
 
 /**
