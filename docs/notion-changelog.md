@@ -750,9 +750,29 @@ barrando dois escolhidos, os casts tolerando campo vazio, e cascade nos produtos
 foi testado nos três caminhos (sem `.env`, com URL fora do padrão, e válido) e nas duas
 implementações de zip, com o conteúdo extraído conferido contra a origem.
 
+**Aplicado na nuvem, na mesma sessão.** A migration foi para o projeto de verdade
+(`bmphsxdfryinvtvttmlr`, Postgres 17) e os tipos foram conferidos contra o schema real. Três
+coisas que valem registro:
+
+- **O `database.generated.ts` editado à mão estava certo.** Regerado a partir da nuvem, saiu
+  byte a byte idêntico ao que havia sido escrito à mão — as duas tabelas e as três funções, nas
+  mesmas posições alfabéticas. O arquivo não precisou de uma linha de mudança. (O gerador do
+  Supabase CLI exige Docker, indisponível aqui; a geração saiu pelo MCP, que fala com a API da
+  plataforma.)
+- **A versão no histórico teve de ser corrigida.** Aplicar por fora do CLI registrou a migration
+  com a versão da hora da aplicação (`20260812175645`), e não com a do nome do arquivo
+  (`20260812150000`). Deixar assim faria o próximo `supabase db push` não achar o arquivo local no
+  histórico e tentar reaplicar tudo, quebrando em "relation already exists". O arquivo é a fonte
+  da verdade, então quem se ajustou foi a escrituração — um UPDATE em
+  `supabase_migrations.schema_migrations`.
+- **As RPCs foram exercitadas no PG17 de verdade**, com `request.jwt.claims` simulando uma sessão
+  e tudo dentro de um `rollback`: trim no título e na observação, primeiro produto entrando
+  escolhido, a troca de escolhido contra o índice único parcial, campo vazio virando null em vez
+  de estourar o cast, e o update passando pela policy. Zero linhas sobraram.
+- **O advisor de segurança não acusou nada novo.** Os WARN do projeto são todos anteriores (pg_net
+  no schema `public`, os helpers `SECURITY DEFINER` da fundação, proteção de senha vazada
+  desligada). As três RPCs novas são `SECURITY INVOKER`, então não entram nessa lista.
+
 **Pendências:** conversão de interesse em objetivo (depende de Metas) e em compra (precisa de um
 diálogo para rateio e competência); notificar o par de um interesse novo; publicar na Web Store
-quando cansar do modo desenvolvedor. **E o que ainda não foi feito neste repositório:**
-`supabase db push` na nuvem e `npm run db:types` — `app/types/database.generated.ts` foi editado à
-mão nesta sessão (o gerador do Supabase exige Docker, indisponível no ambiente), então regenerar
-depois do push é obrigatório para conferir.
+quando cansar do modo desenvolvedor.
