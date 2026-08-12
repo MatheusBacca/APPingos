@@ -776,3 +776,53 @@ coisas que valem registro:
 **Pendências:** conversão de interesse em objetivo (depende de Metas) e em compra (precisa de um
 diálogo para rateio e competência); notificar o par de um interesse novo; publicar na Web Store
 quando cansar do modo desenvolvedor.
+
+---
+
+## 2026-08-12 — Release automática da extensão
+
+**Contexto:** instalar a extensão pedia clonar o repositório e rodar `npm run extensao`. Razoável
+na máquina de quem desenvolve, atrito desnecessário na segunda — onde a pessoa só quer o `.zip`.
+
+**Feito:** `.github/workflows/extensao.yml`, o primeiro workflow do repositório. Push na `main` que
+toque em `extensao/` → roda os testes → empacota → confere o pacote → cria a Release
+`extensao-v<versão>` com o zip anexado.
+
+**Decisão: a `version` do manifest é o gatilho.** Publica só se ainda não houver Release para
+aquela versão. O manifest já era a fonte da verdade (a Chrome Web Store exige incrementá-la para
+aceitar um upload), então não há um segundo lugar a lembrar. Esquecer de bumpar não quebra nada: o
+job de publicar é *pulado* com aviso no resumo, em vez de criar release duplicada ou falhar em
+vermelho — CI vermelha por motivo esperado é CI que se aprende a ignorar.
+
+**Decisão: as credenciais vão embutidas no zip.** Ele funciona ao instalar, que é o motivo de a
+Release existir; um zip sem config obrigaria a clonar o repo de qualquer forma. Exposição nova é
+zero: a anon key já vai no bundle do app em produção, é pública por desenho, e o repositório é
+privado. Vêm de secrets do Actions, e faltando os secrets o empacotador falha em vez de publicar um
+pacote que não conecta.
+
+**Decisão: dois jobs, não um com `if` em cada passo.** Assim o "pulei, a versão já saiu" aparece
+como job skipped na interface, e não escondido num passo verde no meio de outros.
+
+**Conferência do pacote antes de publicar.** O empacotador pode terminar em verde com um pacote
+incompleto — um `CONTEUDO` desatualizado depois de mover um arquivo. Aí o Chrome só reclamaria na
+instalação, tarde. O workflow exige os doze arquivos por nome (`grep -qx` sobre `unzip -Z1`, casando
+linha inteira: sobre a saída de `unzip -l` daria para casar um sufixo por acidente) e confere que a
+versão dentro do zip é a da tag.
+
+**Dois consertos no empacotador, achados ao escrever isso:**
+
+- `APP_URL` usava `??`, e uma variável **não definida** no GitHub Actions chega como string vazia,
+  não como `undefined` — o `??` deixava o vazio passar e o link "Abrir no APPingos" apontaria para
+  lugar nenhum. Virou `?.trim() ||`. O mesmo valia para um `APP_URL=` solto no `.env`.
+- `createWriteStream` e `createHash` estavam importados e nunca usados.
+
+**Verificado:** o YAML foi parseado e cada `run` extraído e **executado** como o runner faria —
+leitura da versão do manifest, empacotamento só com variáveis de ambiente (sem `.env`, como no CI),
+`APP_URL` vazia caindo no padrão, secrets ausentes falhando com a mensagem certa, e o heredoc das
+notas saindo completo. As duas guardas foram testadas pelo lado negativo, que é o que importa: zip
+sem `config.gerado.js` → erro apontando o arquivo; tag divergente da versão interna → erro apontando
+as duas. A lógica de pular versão já publicada foi exercitada nos dois ramos com o `gh` dublado.
+`npm run verificar` limpo (237 testes).
+
+**Pendência que depende de você:** cadastrar `SUPABASE_URL` e `SUPABASE_KEY` em Settings → Secrets
+and variables → Actions. E o workflow só passa a existir quando esta branch chegar à `main`.

@@ -1,0 +1,206 @@
+# Publica a extensão do Chrome como Release quando a `version` do manifest muda.
+#
+# Por que existe: instalar a extensão pedia clonar o repositório e rodar
+# `npm run extensao`. Isso é razoável na máquina de quem desenvolve e é atrito
+# desnecessário na segunda máquina — onde a pessoa só quer o .zip. Aqui o pacote
+# passa a sair pronto, com URL estável, a cada versão nova.
+#
+# ## O que dispara
+#
+# Push na `main` que toque em `extensao/` ou no empacotador. E só publica se a
+# `version` do `extensao/manifest.json` ainda não tiver Release — o manifest já é
+# a fonte da verdade da versão (a Chrome Web Store também exige incrementá-la para
+# aceitar um upload novo), então não há um segundo lugar a lembrar de mexer.
+#
+# Esquecer de bumpar não quebra nada: o job de publicar é pulado com um aviso no
+# resumo da execução, em vez de criar release duplicada ou falhar em vermelho.
+#
+# ## Sobre os secrets
+#
+# `SUPABASE_URL` e `SUPABASE_KEY` precisam estar em Settings → Secrets and
+# variables → Actions. São os mesmos valores do `.env`. A anon key vai embutida no
+# .zip, e isso não expõe nada novo: ela já vai no bundle do app em produção, é
+# pública por desenho, e quem autoriza qualquer coisa é o JWT de quem entra — a RLS
+# é que protege os dados. Faltando os secrets, o empacotador falha com mensagem
+# clara em vez de publicar um zip que não funciona.
+
+name: Extensão do Chrome
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'extensao/**'
+      - 'scripts/empacotar-extensao.mjs'
+      - '.github/workflows/extensao.yml'
+  # Para republicar à mão depois de cadastrar os secrets, sem precisar de um
+  # commit vazio só para acordar o workflow.
+  workflow_dispatch:
+
+# Dois pushes seguidos na main não podem correr para criar a mesma tag.
+# `cancel-in-progress: false` porque cancelar no meio de um `gh release create`
+# deixaria a tag criada sem o zip anexado.
+concurrency:
+  group: extensao-release
+  cancel-in-progress: false
+
+jobs:
+  # Separado do publicar para o "pulei, a versão já saiu" aparecer como job
+  # skipped na interface, e não escondido num passo verde no meio de outros.
+  versao:
+    runs-on: ubuntu-latest
+    outputs:
+      versao: ${{ steps.ler.outputs.versao }}
+      tag: ${{ steps.ler.outputs.tag }}
+      publicar: ${{ steps.checar.outputs.publicar }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ler a versão do manifest
+        id: ler
+        run: |
+          versao=$(node -p "require('./extensao/manifest.json').version")
+          echo "versao=$versao" >> "$GITHUB_OUTPUT"
+          echo "tag=extensao-v$versao" >> "$GITHUB_OUTPUT"
+          echo "Versão no manifest: $versao"
+
+      - name: Esta versão já foi publicada?
+        id: checar
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.ler.outputs.tag }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "publicar=nao" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Nada a publicar"
+              echo ""
+              echo "A release \`$TAG\` já existe. Para publicar de novo, incremente"
+              echo "\`version\` em \`extensao/manifest.json\`."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "publicar=sim" >> "$GITHUB_OUTPUT"
+            echo "Vai publicar $TAG."
+          fi
+
+  publicar:
+    needs: versao
+    if: needs.versao.outputs.publicar == 'sim'
+    runs-on: ubuntu-latest
+    # O zip anexado à release é o entregável; sem isto o `gh release create` dá 403.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      # Antes de empacotar, não depois: publicar uma extensão quebrada é pior que
+      # não publicar. Cobre a raspagem, os preços, a renovação de token e o
+      # cruzamento entre os ids de popup.js e popup.html.
+      - name: Testes
+        run: npm test
+
+      - name: Empacotar
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          # Opcional: só defina se o app sair do domínio padrão do Vercel.
+          APP_URL: ${{ vars.APP_URL }}
+        run: node scripts/empacotar-extensao.mjs
+
+      # O empacotador poderia terminar em verde com um pacote incompleto — um
+      # `CONTEUDO` desatualizado depois de mover um arquivo, por exemplo. Aí o
+      # Chrome só reclamaria na instalação, o que é tarde. Esta é a rede.
+      - name: Conferir o pacote
+        env:
+          TAG: ${{ needs.versao.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          zip=$(ls extensao/dist/*.zip)
+          echo "Pacote: $zip"
+
+          # `-Z1` lista só os nomes, um por linha, o que permite casar linha
+          # inteira com `grep -qx`. Sobre a saída de `unzip -l` daria para casar
+          # um sufixo por acidente.
+          lista=$(unzip -Z1 "$zip")
+          echo "$lista"
+
+          faltou=0
+          for arquivo in \
+            manifest.json \
+            popup.html popup.css popup.js \
+            lib/api.js lib/raspagem.js lib/precos.js lib/config.gerado.js \
+            icones/16.png icones/32.png icones/48.png icones/128.png
+          do
+            if ! printf '%s\n' "$lista" | grep -qx "appingos-extensao/$arquivo"; then
+              echo "::error::faltou no pacote: $arquivo"
+              faltou=1
+            fi
+          done
+          [ "$faltou" = 0 ]
+
+          # A versão dentro do zip tem de ser a que dá nome à tag. Sem isto, um
+          # manifest alterado entre os dois jobs publicaria uma coisa sob o nome
+          # de outra — e o Chrome não avisaria, porque o pacote é válido.
+          dentro=$(unzip -p "$zip" appingos-extensao/manifest.json | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).version')
+          if [ "extensao-v$dentro" != "$TAG" ]; then
+            echo "::error::o manifest do pacote diz $dentro, mas a tag é $TAG"
+            exit 1
+          fi
+
+          echo "ZIP=$zip" >> "$GITHUB_ENV"
+
+      # As notas vão para um arquivo antes de ir para o gh, e não inline com
+      # `--notes "$(cat <<FIM ...)"`: um heredoc dentro de uma substituição de
+      # comando dentro de um bloco YAML depende de três níveis de indentação
+      # concordarem, e quando um deles escorrega o erro é uma release publicada
+      # com o corpo truncado.
+      - name: Criar a Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.versao.outputs.tag }}
+          VERSAO: ${{ needs.versao.outputs.versao }}
+        run: |
+          set -euo pipefail
+
+          cat > "$RUNNER_TEMP/notas.md" <<'FIM'
+          Captura o produto da página aberta e registra como interesse em
+          **Objetivos › Interesses**.
+
+          Roda igual no Windows, Mac, Linux e ChromeOS. Só desktop — o Chrome no
+          Android não suporta extensões.
+
+          ## Instalar
+
+          1. Baixe o `.zip` abaixo e descompacte
+          2. Abra `chrome://extensions`
+          3. Ligue **Modo do desenvolvedor** (canto superior direito)
+          4. **Carregar sem compactação** → aponte para a pasta descompactada
+
+          O login é com o mesmo e-mail e senha do app.
+
+          > Quem trabalha no repositório não precisa deste zip: carregar a pasta
+          > `extensao/` direto (depois de `npm run extensao`) faz um `git pull`
+          > atualizar a extensão sem baixar nada.
+
+          Detalhes de uso e das fontes que a raspagem tenta: `extensao/README.md`.
+          FIM
+
+          gh release create "$TAG" "$ZIP" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Extensão do Chrome $VERSAO" \
+            --notes-file "$RUNNER_TEMP/notas.md"
+
+          {
+            echo "### Publicado"
+            echo ""
+            echo "[\`$TAG\`]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$TAG)"
+          } >> "$GITHUB_STEP_SUMMARY"

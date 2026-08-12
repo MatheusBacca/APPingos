@@ -248,6 +248,12 @@ O login é com o mesmo e-mail e senha do app — a extensão não reaproveita a 
 anon key vai dentro do pacote, como já vai no bundle do app: o que autoriza é o JWT de quem
 entrou, e o que protege os dados é a RLS.
 
+**Na segunda máquina não precisa disso.** Todo push na `main` que mude `extensao/` com `version`
+nova publica o `.zip` em [Releases](https://github.com/MatheusBacca/APPingos/releases) — basta
+baixar e carregar sem compactação. Para isso, cadastre `SUPABASE_URL` e `SUPABASE_KEY` em
+**Settings → Secrets and variables → Actions** (os mesmos valores do `.env`); sem eles o workflow
+falha em vez de publicar um pacote que não conecta.
+
 Detalhes de uso, das quatro fontes que a raspagem tenta e de como publicar na Web Store:
 [`extensao/README.md`](./extensao/README.md).
 
@@ -327,6 +333,8 @@ supabase/
 extensao/             # extensão do Chrome — JS puro, sem build (ver seção 7)
   lib/raspagem.js     # raspar(): uma função autocontida, injetada na aba ativa
   lib/api.js          # Auth + PostgREST sobre fetch, com renovação de token
+.github/workflows/
+  extensao.yml        # publica o .zip da extensão em Releases quando a version muda
 ```
 
 ## Arquitetura de dados

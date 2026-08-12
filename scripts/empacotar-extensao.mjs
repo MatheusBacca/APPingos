@@ -24,9 +24,7 @@
  * sem repetir nada). O `.zip` serve para levar de uma máquina à outra e, depois,
  * para subir na Chrome Web Store — ver `extensao/README.md`.
  */
-import { createWriteStream } from 'node:fs'
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { createHash } from 'node:crypto'
 import { execFile } from 'node:child_process'
 import { resolve } from 'node:path'
 import { promisify } from 'node:util'
@@ -72,14 +70,22 @@ const env = { ...(await lerEnv()), ...process.env }
 
 const url = env.SUPABASE_URL
 const key = env.SUPABASE_KEY
-// Onde o link "Abrir no APPingos" aponta. O padrão é produção; passe APP_URL=
-// http://localhost:3000 para testar a extensão contra o dev server.
-const appUrl = env.APP_URL ?? 'https://appingos.vercel.app'
+
+/*
+ * Onde o link "Abrir no APPingos" aponta. O padrão é produção; passe
+ * APP_URL=http://localhost:3000 para testar a extensão contra o dev server.
+ *
+ * `||` e não `??`: uma variável de ambiente NÃO definida no GitHub Actions chega
+ * como string vazia, não como undefined — e `?? ` deixaria passar o vazio, gerando
+ * um link para lugar nenhum. O mesmo vale para um `APP_URL=` solto no .env.
+ */
+const appUrl = env.APP_URL?.trim() || 'https://appingos.vercel.app'
 
 if (!url || !key) {
   console.error(
     'Faltam SUPABASE_URL e/ou SUPABASE_KEY.\n'
-    + 'Preencha o .env (copie de .env.example) — são os mesmos valores que o app usa.',
+    + 'Local: preencha o .env (copie de .env.example) — são os mesmos valores do app.\n'
+    + 'No CI: cadastre os dois em Settings → Secrets and variables → Actions.',
   )
   process.exit(1)
 }

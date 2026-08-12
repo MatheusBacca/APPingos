@@ -14,6 +14,23 @@ Store.
 
 ## Instalar
 
+### Da Release (a segunda máquina)
+
+Todo push na `main` que mude esta pasta **com `version` nova** publica um `.zip` em
+[Releases](https://github.com/MatheusBacca/APPingos/releases), pelo workflow
+[`.github/workflows/extensao.yml`](../.github/workflows/extensao.yml). Baixe, descompacte, e no
+Chrome: `chrome://extensions` → **Modo do desenvolvedor** → **Carregar sem compactação** →
+aponte para a pasta descompactada.
+
+O zip já sai com as credenciais embutidas, então funciona ao instalar. Isso exige
+`SUPABASE_URL` e `SUPABASE_KEY` cadastrados em **Settings → Secrets and variables → Actions**;
+sem eles o workflow falha em vez de publicar um pacote que não conecta.
+
+### Do repositório (a máquina onde você desenvolve)
+
+Melhor caminho para quem tem o repo clonado: um `git pull` já atualiza a extensão, sem baixar zip
+nenhum.
+
 ```bash
 npm run extensao
 ```
@@ -87,7 +104,19 @@ nas duas máquinas.
 5. Enviar para revisão (costuma levar de horas a alguns dias)
 
 Cada atualização é subir um zip novo com a `version` do `manifest.json` incrementada — o Chrome
-não aceita reenviar a mesma versão.
+não aceita reenviar a mesma versão. É a mesma `version` que governa a Release automática, então há
+um lugar só a mexer para as duas coisas.
+
+## Publicar uma versão nova
+
+Incremente `version` no `manifest.json` e mande para a `main`. É só isso.
+
+O workflow roda os testes, empacota, confere que o zip tem os doze arquivos que precisa (um
+`CONTEUDO` desatualizado no empacotador passaria em verde e só quebraria na instalação — esta é a
+rede), confere que a versão dentro do pacote é a mesma da tag, e cria a Release `extensao-v<versão>`.
+
+Se você esquecer de incrementar, nada de ruim acontece: o job de publicar é **pulado** com um
+aviso no resumo da execução, em vez de criar release duplicada ou falhar em vermelho.
 
 ## Arquivos
 
