@@ -148,8 +148,14 @@ Notificações › Preferências). O e-mail é o canal que funciona igual no And
 antes do push.
 
 O caminho é: gatilho no Postgres → `notificacao` → fila → `pg_net` acorda a Edge Function
-`enviar-emails` → SMTP do Gmail. **Sem os passos abaixo o app funciona normalmente e nada é
-perdido:** a fila enche, e o `pg_cron` manda tudo assim que a configuração existir.
+`enviar-emails` → SMTP do Gmail.
+
+**Sem os passos abaixo o app funciona normalmente.** O canal se declara indisponível: a tela de
+preferências explica em vez de oferecer, e `definir_email_notificacoes` recusa ligar no
+servidor. Ninguém se inscreve, então nada é enfileirado — e no dia da configuração não há
+backlog para disparar quarenta e-mails de uma vez. Quem decide isso é `status_do_email()`, que
+exige as duas camadas de pé: os segredos do Vault (o banco alcança a função) e o registro em
+`notificacao_email_saude`, que a própria função atualiza a cada acordada.
 
 **Por que Gmail e não um provedor de envio.** A primeira versão usava Resend, que é melhor —
 mas o plano gratuito só entrega para terceiros com um domínio verificado, e sem domínio o

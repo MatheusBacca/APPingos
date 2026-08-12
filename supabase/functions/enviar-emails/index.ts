@@ -65,6 +65,20 @@ Deno.serve(async (req) => {
     })
   }
 
+  const supabase = createClient(url, serviceKey, { auth: { persistSession: false } })
+
+  /*
+    O sinal de vida do carteiro, gravado a CADA acordada — inclusive quando não
+    há nada para mandar. É o que a tela de preferências lê para decidir entre
+    oferecer o e-mail e explicar por que ainda não pode: sem isso, o app não teria
+    como distinguir "ninguém ligou o e-mail" de "o envio está quebrado".
+  */
+  const registrarSaude = (ok: boolean, motivo: string | null) =>
+    supabase
+      .from('notificacao_email_saude')
+      .update({ ok, motivo, verificado_em: new Date().toISOString() })
+      .eq('id', true)
+
   const usuario = Deno.env.get('GMAIL_USUARIO')
   const senha = Deno.env.get('GMAIL_SENHA_DE_APP')
   const appUrl = Deno.env.get('APP_URL')
@@ -72,11 +86,15 @@ Deno.serve(async (req) => {
   if (!usuario || !senha || !appUrl) {
     // Erro de configuração, não de dado: a fila fica intacta e volta a andar
     // quando os segredos existirem. Não incrementa tentativa de ninguém.
+    const motivo = 'faltam GMAIL_USUARIO, GMAIL_SENHA_DE_APP ou APP_URL'
+    await registrarSaude(false, motivo)
     return new Response(
-      JSON.stringify({ erro: 'faltam GMAIL_USUARIO, GMAIL_SENHA_DE_APP ou APP_URL' }),
+      JSON.stringify({ erro: motivo }),
       { status: 500, headers: { 'Content-Type': 'application/json' } },
     )
   }
+
+  await registrarSaude(true, null)
 
   /*
     O remetente é sempre a conta autenticada, e não um endereço configurável: o
@@ -86,8 +104,6 @@ Deno.serve(async (req) => {
     é escolha.
   */
   const remetente = `${Deno.env.get('NOME_REMETENTE') ?? 'APPingos'} <${usuario}>`
-
-  const supabase = createClient(url, serviceKey, { auth: { persistSession: false } })
 
   const { data: fila, error } = await supabase
     .from('notificacao_email_fila')
@@ -218,6 +234,11 @@ Deno.serve(async (req) => {
   }
 
   if (problemaDeConexao) {
+    // Os segredos existem, mas o Gmail recusou. Para a tela, o canal está fora
+    // do ar com um motivo — e não "disponível" só porque a configuração está no
+    // lugar. Ninguém liga o e-mail enquanto isto não voltar.
+    await registrarSaude(false, `SMTP: ${problemaDeConexao}`.slice(0, 500))
+
     return new Response(
       JSON.stringify({ enviados, falhas, erro: `SMTP: ${problemaDeConexao}` }),
       { status: 502, headers: { 'Content-Type': 'application/json' } },

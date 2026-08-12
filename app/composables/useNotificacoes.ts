@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import type { Notificacao, Preferencia, TipoNotificacao } from '~/lib/notificacoes'
+import type { Notificacao, Preferencia, StatusDoEmail, TipoNotificacao } from '~/lib/notificacoes'
 import { useUsuarioId } from '~/composables/useUsuarioId'
 
 /**
@@ -81,8 +81,8 @@ export interface EstadoDasPreferencias {
     /** Nulo = usa o e-mail da conta. */
     endereco: string | null
   }
-  /** Quantos e-mails desta pessoa falharam e não serão retentados. */
-  falhas: number
+  /** O canal está de pé? Quanto está parado? Ver `status_do_email()`. */
+  status: StatusDoEmail
 }
 
 /**
@@ -100,17 +100,15 @@ export function usePreferenciasNotificacao() {
     queryKey: ['notificacoes-preferencias', usuarioId],
     enabled: computed(() => !!usuarioId.value),
     queryFn: async (): Promise<EstadoDasPreferencias> => {
-      const [prefs, email, falhas] = await Promise.all([
+      const [prefs, email, status] = await Promise.all([
         supabase.from('notificacao_preferencia').select('tipo, ativo, email'),
         supabase.from('notificacao_email').select('ativo, endereco').maybeSingle(),
-        supabase
-          .from('notificacao_email_fila')
-          .select('id', { count: 'exact', head: true })
-          .eq('estado', 'erro'),
+        supabase.rpc('status_do_email'),
       ])
 
       if (prefs.error) throw prefs.error
       if (email.error) throw email.error
+      if (status.error) throw status.error
 
       return {
         preferencias: (prefs.data ?? []) as Preferencia[],
@@ -118,9 +116,16 @@ export function usePreferenciasNotificacao() {
           ativo: email.data?.ativo ?? false,
           endereco: email.data?.endereco ?? null,
         },
-        falhas: falhas.count ?? 0,
+        status: status.data as unknown as StatusDoEmail,
       }
     },
+
+    /*
+     * O canal pode voltar sozinho — basta alguém cadastrar os segredos, e o cron
+     * de 5 minutos atualiza a saúde. Sem isto, quem deixou a tela aberta veria
+     * "indisponível" para sempre.
+     */
+    refetchInterval: 60_000,
   })
 }
 

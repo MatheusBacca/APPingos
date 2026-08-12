@@ -60,6 +60,26 @@ A tabela do banco é por **tipo**; a tela é por **categoria**. Uma caixa com on
 caixa que ninguém configura — e o agrupamento vive em código (`_shared/notificacoes.ts`), não
 numa coluna, para poder mudar sem migration.
 
+## O canal pode não estar de pé, e o app sabe disso
+
+O envio depende de credenciais que são passo manual (senha de app do Gmail, segredos do Vault).
+A caixa in-app não depende de nada disso — então ela foi liberada antes, com o canal de e-mail
+se declarando indisponível em vez de oferecer um interruptor que não entrega.
+
+`status_do_email()` exige **duas camadas** de pé, e é fácil ficar só com a primeira:
+
+1. os segredos do Vault existem (o banco sabe chamar a função);
+2. a função tem o que precisa para entregar — ela mesma grava isso em
+   `notificacao_email_saude` a cada acordada, e o `verificado_em` vale como sinal de vida
+   porque o cron bate nela de 5 em 5 minutos.
+
+**A recusa vive no servidor, não no botão desabilitado.** Sem ela, alguém ligaria o e-mail pela
+API com o canal fora do ar e a fila acumularia semanas de avisos, que sairiam todos de uma vez
+no minuto da configuração. Quarenta e-mails às sete da manhã é pior do que não ter avisado.
+
+Desligar, ao contrário, é sempre permitido — inclusive com o canal fora do ar. Quem se inscreveu
+antes da queda precisa poder sair, e por isso o botão continua na tela para quem já está ligado.
+
 ## As duas assimetrias que importam
 
 **A caixa nasce ligada; o e-mail nasce desligado.** Ausência de linha em

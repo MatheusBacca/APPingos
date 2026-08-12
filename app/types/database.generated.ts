@@ -515,6 +515,27 @@ export type Database = {
           },
         ]
       }
+      notificacao_email_saude: {
+        Row: {
+          id: boolean
+          motivo: string | null
+          ok: boolean
+          verificado_em: string
+        }
+        Insert: {
+          id?: boolean
+          motivo?: string | null
+          ok?: boolean
+          verificado_em?: string
+        }
+        Update: {
+          id?: boolean
+          motivo?: string | null
+          ok?: boolean
+          verificado_em?: string
+        }
+        Relationships: []
+      }
       notificacao_preferencia: {
         Row: {
           ativo: boolean
@@ -974,6 +995,7 @@ export type Database = {
         }[]
       }
       shares_space_with: { Args: { p_user: string }; Returns: boolean }
+      status_do_email: { Args: never; Returns: Json }
     }
     Enums: {
       [_ in never]: never

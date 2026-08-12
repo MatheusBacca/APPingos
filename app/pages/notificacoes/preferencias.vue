@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { mensagemDeErro } from '@/lib/utils'
-import { BellIcon, CheckIcon, MailIcon, TriangleAlertIcon } from '@lucide/vue'
+import { BellIcon, CheckIcon, InfoIcon, MailIcon, TriangleAlertIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { CategoriaComEstado, EstadoDoInterruptor } from '~/lib/notificacoes'
-import { categoriasDePreferencia } from '~/lib/notificacoes'
+import { avisoDoCanalDeEmail, categoriasDePreferencia } from '~/lib/notificacoes'
 import {
   usePreferenciasNotificacao,
   useDefinirPreferencia,
@@ -24,6 +24,17 @@ const definirEmail = useDefinirEmail()
 const categorias = computed(() => categoriasDePreferencia(estado.value?.preferencias ?? []))
 
 const emailLigado = computed(() => estado.value?.email.ativo ?? false)
+
+/*
+ * O canal de e-mail pode estar de pé, fora do ar, ou de pé com a fila travada —
+ * e a tela precisa dizer qual, em vez de oferecer um interruptor que não
+ * entrega. Quem decide a frase é `avisoDoCanalDeEmail`, e o servidor recusa
+ * ligar de qualquer jeito: desabilitar o botão aqui é conveniência, não a regra.
+ */
+const aviso = computed(() => avisoDoCanalDeEmail(
+  estado.value?.status ?? { disponivel: false, motivo: null, pendentes: 0, falhas: 0 },
+  emailLigado.value,
+))
 
 // ---- Endereço ---------------------------------------------------------------
 
@@ -127,18 +138,44 @@ function classeDoBotao(situacao: EstadoDoInterruptor): string {
       <Card>
         <CardHeader>
           <CardTitle class="flex items-center gap-2 text-base">
-            <MailIcon class="size-4" />
-            Receber por e-mail
+            <component
+              :is="aviso.tom === 'aviso' ? TriangleAlertIcon : MailIcon"
+              class="size-4"
+              :class="aviso.tom === 'aviso' ? 'text-amber-600' : ''"
+            />
+            {{ aviso.titulo }}
           </CardTitle>
-          <CardDescription>
-            O caminho que funciona igual no Android e no iPhone, com o app fechado e sem
-            depender de permissão de notificação do sistema. Cada aviso vira um e-mail na
-            hora em que acontece.
-          </CardDescription>
+          <CardDescription>{{ aviso.texto }}</CardDescription>
         </CardHeader>
 
         <CardContent class="space-y-4">
+          <!--
+            Indisponível não é erro, e não deve parecer um: a caixa do app está
+            funcionando, e o que falta é uma configuração que ninguém que usa o
+            app precisa entender. Daí o tom neutro, e a frase dizendo o que
+            CONTINUA valendo antes do que falta.
+          -->
+          <p
+            v-if="!aviso.podeLigar"
+            class="flex items-start gap-2 rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground"
+          >
+            <InfoIcon class="mt-0.5 size-4 shrink-0" />
+            <span>
+              Assim que o envio for configurado, o interruptor volta — e nenhum aviso deste
+              meio-tempo vira uma enxurrada de e-mails atrasados, porque nada é enfileirado
+              enquanto você não ligar.
+            </span>
+          </p>
+
+          <!--
+            O botão some quando não dá para ligar, MAS continua para quem já está
+            ligado: quem se inscreveu antes de o canal cair precisa poder sair, e
+            um "desligar" indisponível seria prender a pessoa numa inscrição que
+            nem está entregando. O servidor segue a mesma regra — recusa ligar,
+            nunca recusa desligar.
+          -->
           <Button
+            v-if="aviso.podeLigar || emailLigado"
             :variant="emailLigado ? 'default' : 'outline'"
             class="gap-2"
             :disabled="definirEmail.isPending.value"
@@ -147,6 +184,11 @@ function classeDoBotao(situacao: EstadoDoInterruptor): string {
             <CheckIcon v-if="emailLigado" class="size-4" />
             {{ emailLigado ? 'E-mail ligado' : 'Ligar o e-mail' }}
           </Button>
+
+          <p v-if="emailLigado && !aviso.podeLigar" class="text-xs text-muted-foreground">
+            Você está inscrito, mas nada sai enquanto o envio não voltar. Toque acima para
+            cancelar a inscrição.
+          </p>
 
           <div v-if="emailLigado" class="space-y-2">
             <Label for="endereco">Endereço</Label>
@@ -176,16 +218,6 @@ function classeDoBotao(situacao: EstadoDoInterruptor): string {
             </p>
           </div>
 
-          <p
-            v-if="estado?.falhas"
-            class="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm"
-          >
-            <TriangleAlertIcon class="mt-0.5 size-4 shrink-0 text-amber-600" />
-            <span>
-              {{ estado.falhas }} e-mail(s) não saíram. Costuma ser endereço com erro de
-              digitação ou o remetente ainda sem domínio verificado.
-            </span>
-          </p>
         </CardContent>
       </Card>
 
@@ -233,7 +265,11 @@ function classeDoBotao(situacao: EstadoDoInterruptor): string {
                 :class="classeDoBotao(cat.email)"
                 :aria-pressed="cat.email === 'ligado'"
                 :disabled="!emailLigado || definirPreferencia.isPending.value"
-                :title="emailLigado ? undefined : 'Ligue o e-mail acima primeiro'"
+                :title="emailLigado
+                  ? undefined
+                  : aviso.podeLigar
+                    ? 'Ligue o e-mail acima primeiro'
+                    : 'O envio por e-mail ainda não está disponível'"
                 @click="alternar(cat, 'email')"
               >
                 <MailIcon class="size-3.5" />

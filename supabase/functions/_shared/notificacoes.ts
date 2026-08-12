@@ -430,6 +430,105 @@ export function categoriasDePreferencia(prefs: Preferencia[]): CategoriaComEstad
 }
 
 // ---------------------------------------------------------------------------
+// O estado do canal de e-mail
+// ---------------------------------------------------------------------------
+
+/** O que `status_do_email()` devolve. */
+export interface StatusDoEmail {
+  /** As duas camadas de pé: o banco alcança a função, e ela tem o que precisa. */
+  disponivel: boolean
+  /** Por que não, em uma frase — nulo quando está tudo certo. */
+  motivo: string | null
+  /** E-mails desta pessoa parados na fila há mais de 10 minutos. */
+  pendentes: number
+  /** E-mails desta pessoa que falharam e não serão retentados. */
+  falhas: number
+}
+
+export type SituacaoDoEmail =
+  | 'indisponivel'
+  | 'travado'
+  | 'com_falhas'
+  | 'ligado'
+  | 'desligado'
+
+export interface AvisoDoCanal {
+  situacao: SituacaoDoEmail
+  titulo: string
+  texto: string
+  tom: 'neutro' | 'aviso' | 'ok'
+  /** Dá para ligar o interruptor agora? */
+  podeLigar: boolean
+}
+
+/**
+ * O que a tela de preferências diz sobre o e-mail, em uma frase.
+ *
+ * Vive aqui, e não no `<template>`, por dois motivos: é a única regra de
+ * precedência entre cinco estados que se sobrepõem (quem está com a fila travada
+ * também está "ligado"), e é testável sem montar componente.
+ *
+ * A ordem é do mais grave para o menos: um canal fora do ar explica tudo o mais
+ * que estiver acontecendo, e dizer "ligado" para quem não está recebendo seria a
+ * pior das mensagens possíveis.
+ */
+export function avisoDoCanalDeEmail(status: StatusDoEmail, ativo: boolean): AvisoDoCanal {
+  if (!status.disponivel) {
+    return {
+      situacao: 'indisponivel',
+      titulo: 'Envio por e-mail ainda não disponível',
+      texto: status.motivo
+        ? `As notificações continuam chegando aqui no app. ${maiuscula(status.motivo)}.`
+        : 'As notificações continuam chegando aqui no app.',
+      tom: 'neutro',
+      podeLigar: false,
+    }
+  }
+
+  if (ativo && status.pendentes > 0) {
+    return {
+      situacao: 'travado',
+      titulo: `${status.pendentes} e-mail(s) parado(s) na fila`,
+      texto: 'Eles saem sozinhos quando o envio voltar — nada se perde no caminho.',
+      tom: 'aviso',
+      podeLigar: true,
+    }
+  }
+
+  if (ativo && status.falhas > 0) {
+    return {
+      situacao: 'com_falhas',
+      titulo: `${status.falhas} e-mail(s) não saíram`,
+      texto: 'Costuma ser endereço com erro de digitação. Os próximos continuam tentando.',
+      tom: 'aviso',
+      podeLigar: true,
+    }
+  }
+
+  if (ativo) {
+    return {
+      situacao: 'ligado',
+      titulo: 'E-mail ligado',
+      texto: 'Cada aviso chega também na sua caixa de entrada, na hora em que acontece.',
+      tom: 'ok',
+      podeLigar: true,
+    }
+  }
+
+  return {
+    situacao: 'desligado',
+    titulo: 'Receber por e-mail',
+    texto: 'O caminho que funciona igual no Android e no iPhone, com o app fechado.',
+    tom: 'neutro',
+    podeLigar: true,
+  }
+}
+
+function maiuscula(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+// ---------------------------------------------------------------------------
 // O e-mail
 // ---------------------------------------------------------------------------
 

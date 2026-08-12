@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   agruparPorDia,
+  avisoDoCanalDeEmail,
   categoriasDePreferencia,
   emailDaNotificacao,
   tempoRelativo,
@@ -225,6 +226,67 @@ describe('categoriasDePreferencia', () => {
     const edicoes = cats.find(c => c.categoria === 'edicoes')!
     expect(edicoes.app).toBe('ligado')
     expect(edicoes.email).toBe('desligado')
+  })
+})
+
+describe('avisoDoCanalDeEmail', () => {
+  const DE_PE = { disponivel: true, motivo: null, pendentes: 0, falhas: 0 }
+
+  /*
+    O estado que motivou a função: a caixa in-app foi liberada antes de existir
+    senha de app do Gmail. A tela precisa dizer isso em vez de oferecer um
+    interruptor que não entrega.
+  */
+  it('barra o interruptor e explica quando o canal está fora do ar', () => {
+    const a = avisoDoCanalDeEmail(
+      { disponivel: false, motivo: 'o banco ainda não sabe chamar o serviço de envio', pendentes: 0, falhas: 0 },
+      false,
+    )
+
+    expect(a.situacao).toBe('indisponivel')
+    expect(a.podeLigar).toBe(false)
+    expect(a.texto).toContain('continuam chegando aqui no app')
+    expect(a.texto).toContain('O banco ainda não sabe')
+  })
+
+  it('não promete e-mail nem para quem já tinha ligado', () => {
+    const a = avisoDoCanalDeEmail({ disponivel: false, motivo: null, pendentes: 3, falhas: 0 }, true)
+
+    expect(a.situacao).toBe('indisponivel')
+    expect(a.podeLigar).toBe(false)
+  })
+
+  it('fila travada vence "ligado" — dizer que está tudo bem seria a pior mensagem', () => {
+    const a = avisoDoCanalDeEmail({ ...DE_PE, pendentes: 2 }, true)
+
+    expect(a.situacao).toBe('travado')
+    expect(a.titulo).toContain('2')
+    expect(a.tom).toBe('aviso')
+  })
+
+  it('avisa das falhas quando não há nada travado', () => {
+    const a = avisoDoCanalDeEmail({ ...DE_PE, falhas: 1 }, true)
+
+    expect(a.situacao).toBe('com_falhas')
+    expect(a.tom).toBe('aviso')
+  })
+
+  it('canal de pé e desligado é convite, não alerta', () => {
+    const a = avisoDoCanalDeEmail(DE_PE, false)
+
+    expect(a.situacao).toBe('desligado')
+    expect(a.tom).toBe('neutro')
+    expect(a.podeLigar).toBe(true)
+  })
+
+  it('canal de pé e ligado, sem pendência, é confirmação', () => {
+    expect(avisoDoCanalDeEmail(DE_PE, true).situacao).toBe('ligado')
+  })
+
+  // Fila só conta como travada com quem ligou o e-mail: sem opt-in não há linha
+  // nenhuma na fila, e um número ali seria de outra pessoa.
+  it('ignora pendências de quem está com o e-mail desligado', () => {
+    expect(avisoDoCanalDeEmail({ ...DE_PE, pendentes: 5 }, false).situacao).toBe('desligado')
   })
 })
 

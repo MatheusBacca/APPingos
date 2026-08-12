@@ -638,3 +638,43 @@ de app.
 **Se um dia houver domínio,** voltar para um provedor de envio é mexer em
 `supabase/functions/enviar-emails/index.ts` e em dois segredos. Vale a pena: entrega melhor,
 relatório de bounce, e o remetente deixa de ser uma conta pessoal do Gmail.
+
+---
+
+## 2026-08-11 (continuação) — A feature sai sem esperar as chaves do e-mail
+
+**Contexto:** a senha de app do Gmail não pôde ser criada agora (a conta do trabalho tem o
+recurso bloqueado por política, e a conta nova ainda estava assentando). A caixa in-app não
+depende disso e já está pronta. Entre segurar valor pronto e mostrar um interruptor que não
+entrega, nenhuma das duas serve — então o canal passou a saber dizer que está fora do ar.
+
+**Feito:** tabela `notificacao_email_saude` (uma linha, mantida pela própria Edge Function a
+cada acordada), função `status_do_email()`, guarda no `definir_email_notificacoes`, e a tela de
+preferências explicando em vez de oferecer. `avisoDoCanalDeEmail` em `_shared/notificacoes.ts`
+decide a frase, com 7 testes.
+
+**Decisão: disponível exige DUAS camadas.** Os segredos do Vault (o banco alcança a função) e o
+registro de saúde (a função tem o que precisa). Olhar só o Vault seria fácil e errado: dá para
+cadastrar URL e token hoje e a senha do Gmail semana que vem, e nesse intervalo a tela estaria
+oferecendo um canal morto. A janela de 20 minutos para o `verificado_em` é quatro vezes o
+intervalo do cron — tolera uma execução perdida sem declarar o canal morto por um soluço.
+
+**Decisão: a recusa vive no servidor.** Botão desabilitado não é regra — a RPC é pública para
+quem está logado. Sem a recusa, ligar o e-mail com o canal fora do ar encheria a fila de avisos
+que sairiam TODOS de uma vez no minuto da configuração. Quarenta e-mails às sete da manhã é
+pior do que não ter avisado.
+
+**Decisão: desligar é sempre permitido**, inclusive com o canal fora do ar — e o botão continua
+na tela para quem já está ligado. A primeira versão escondia o botão inteiro quando
+indisponível, o que prendia numa inscrição que nem estava entregando quem tivesse se inscrito
+antes. Foi pego testando contra o banco real, não em teste de unidade: existia uma linha ativa
+de verdade, criada na tela antes de a guarda existir.
+
+**Correção pontual no banco:** essa única inscrição ativa foi desligada. Ela foi feita quando a
+tela ainda prometia entrega, e deixá-la ligada só acumularia fila. Perda zero — nenhum e-mail
+sairia mesmo —, e religar é um clique quando o canal subir.
+
+**Verificado:** `npm run verificar` limpo (139 testes, 7 novos). No banco real, com
+`request.jwt.claims` simulando uma sessão: `status_do_email()` devolve indisponível com o
+motivo certo, ligar é recusado com exceção, e desligar passa. Edge Function na versão 4,
+gravando a saúde.
