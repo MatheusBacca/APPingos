@@ -75,6 +75,9 @@ export function parteDe(participantes: Participante[], userId: string, valor: nu
   return valor * fracaoDe(participantes, userId)
 }
 
+/** Arredonda para centavo. Só na borda — nunca no meio de uma soma. */
+const centavos = (v: number) => Math.round(v * 100) / 100
+
 export interface SaldoMembro {
   user_id: string
   /** Quanto essa pessoa desembolsou no mês. */
@@ -104,8 +107,6 @@ export function saldoDoMes(compras: CompraDoMes[], membrosIds: string[]): SaldoM
       devido.set(participante.user_id, (devido.get(participante.user_id) ?? 0) + parte)
     }
   }
-
-  const centavos = (v: number) => Math.round(v * 100) / 100
 
   /*
    * A parte de cada um pode cair em meio centavo — 1/3 de R$ 1.500 arredonda
@@ -165,6 +166,83 @@ export function meuBolso(
   return Math.round((minhaParte + pessoais.reduce((t, c) => t + c.valor, 0)) * 100) / 100
 }
 
+// ---- Gasto por categoria ----------------------------------------------------
+
+/** Chave da fatia que junta tudo o que ninguém categorizou. */
+export const SEM_CATEGORIA = 'sem-categoria'
+
+/** Uma categoria vista de dentro de um mês: o que ela pesou e do que é feita. */
+export interface FatiaCategoria {
+  /** Nome normalizado, ou `SEM_CATEGORIA` no fallback. */
+  chave: string
+  nome: string
+  /** `null` no fallback — "Não categorizado" não é uma linha da tabela. */
+  cor: CorCategoria | null
+  total: number
+  /** As compras da fatia, da maior para a menor. */
+  compras: CompraDoMes[]
+  /** Fatia do total do período, de 0 a 1. */
+  fracao: number
+}
+
+/**
+ * O gasto do período repartido por categoria — a leitura que o gráfico mostra.
+ *
+ * Agrupa pelo nome normalizado, e não pelo id: cada espaço tem a sua tabela de
+ * categorias, então "Mercado" do casal e "Mercado" do pessoal são duas linhas
+ * com ids diferentes. Pelo id, a tela mostraria duas barras "Mercado" — o que
+ * seria fiel ao banco e mentiroso para quem lê. É a mesma normalização que a
+ * coluna gerada `nome_norm` usa para unificar "Mercado" e "mercado".
+ *
+ * Ordena pelo peso, com "Não categorizado" sempre por último: ele não compete
+ * com as categorias de verdade, é o resto que sobrou de fora delas.
+ */
+export function gastoPorCategoria(compras: CompraDoMes[]): FatiaCategoria[] {
+  const fatias = new Map<string, FatiaCategoria>()
+
+  for (const compra of compras) {
+    const chave = compra.categoria ? normalizarCategoria(compra.categoria.nome) : SEM_CATEGORIA
+
+    let fatia = fatias.get(chave)
+    if (!fatia) {
+      fatia = {
+        chave,
+        nome: compra.categoria?.nome ?? 'Não categorizado',
+        cor: compra.categoria?.cor ?? null,
+        total: 0,
+        compras: [],
+        fracao: 0,
+      }
+      fatias.set(chave, fatia)
+    }
+
+    fatia.total += compra.valor
+    fatia.compras.push(compra)
+  }
+
+  const total = compras.reduce((t, c) => t + c.valor, 0)
+
+  return [...fatias.values()]
+    .map(fatia => ({
+      ...fatia,
+      total: centavos(fatia.total),
+      // Da fração crua, não do total já arredondado: as frações precisam fechar em 1.
+      fracao: total > 0 ? fatia.total / total : 0,
+      compras: [...fatia.compras].sort((a, b) => b.valor - a.valor),
+    }))
+    .sort((a, b) => {
+      if (a.chave === SEM_CATEGORIA) return 1
+      if (b.chave === SEM_CATEGORIA) return -1
+      return b.total - a.total
+    })
+}
+
+/** Quanto uma compra pesa dentro da própria categoria, de 0 a 1. */
+export function fracaoNaFatia(fatia: FatiaCategoria, compra: CompraDoMes): number {
+  if (fatia.total <= 0) return 0
+  return compra.valor / fatia.total
+}
+
 // ---- Cores das categorias --------------------------------------------------
 
 /**
@@ -183,6 +261,29 @@ export const CLASSE_COR: Record<CorCategoria, string> = {
   rosa: 'bg-pink-200 text-pink-900 dark:bg-pink-900 dark:text-pink-100',
   vermelho: 'bg-red-200 text-red-900 dark:bg-red-900 dark:text-red-100',
 }
+
+/**
+ * A mesma paleta, em preenchimento sólido, para a barra do gráfico.
+ *
+ * O par de `CLASSE_COR` não serve aqui: ele é feito para um selo com texto por
+ * cima, e num tom claro o suficiente para isso a barra some contra o cartão. A
+ * barra não tem texto dentro, então pode ser o tom cheio — e continua trazendo
+ * o par claro/escuro, pela mesma razão de sempre.
+ */
+export const CLASSE_BARRA: Record<CorCategoria, string> = {
+  cinza: 'bg-slate-400 dark:bg-slate-500',
+  marrom: 'bg-amber-600 dark:bg-amber-700',
+  laranja: 'bg-orange-400 dark:bg-orange-500',
+  amarelo: 'bg-yellow-400 dark:bg-yellow-500',
+  verde: 'bg-emerald-400 dark:bg-emerald-500',
+  azul: 'bg-sky-400 dark:bg-sky-500',
+  roxo: 'bg-violet-400 dark:bg-violet-500',
+  rosa: 'bg-pink-400 dark:bg-pink-500',
+  vermelho: 'bg-red-400 dark:bg-red-500',
+}
+
+/** O fallback não é uma cor da paleta — é a ausência de uma escolha. */
+export const CLASSE_BARRA_SEM_CATEGORIA = 'bg-muted-foreground/40'
 
 export const ROTULO_COR: Record<CorCategoria, string> = {
   cinza: 'Cinza',

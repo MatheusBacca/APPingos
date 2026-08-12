@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { toast } from 'vue-sonner'
-import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, Trash2Icon, UserIcon } from '@lucide/vue'
+import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, UserIcon } from '@lucide/vue'
 import { mensagemDeErro } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatarDia, formatarMes, hojeIso, mesAbreviado, partesDaData, primeiroDoMes, somarMeses } from '@/lib/datas'
 import { formatarDinheiro, formatarPercentual } from '@/lib/dinheiro'
 import { ehAdmin } from '~/types/database.types'
-import { CLASSE_COR, fracaoDe, meuBolso, totalDoMes } from '~/types/orcamento'
+import { fracaoDe, gastoPorCategoria, meuBolso, totalDoMes } from '~/types/orcamento'
 import type { CompraDoMes } from '~/types/orcamento'
 import type { Barra } from '~/components/GraficoBarras.vue'
 import { useGastosPessoais } from '~/composables/useGastosPessoais'
@@ -93,10 +93,12 @@ const bolso = computed(() =>
   meuBolso(compras.value ?? [], comprasPessoais.value, usuarioId.value),
 )
 
-/** A lista é uma só, em ordem de data — dois blocos obrigariam a juntar de cabeça. */
+/**
+ * As duas gavetas viram um conjunto só antes de qualquer leitura — dois blocos
+ * obrigariam a juntar de cabeça o que "Mercado" custou no mês.
+ */
 const comprasVisiveis = computed(() =>
-  [...(compras.value ?? []), ...comprasPessoais.value]
-    .sort((a, b) => b.data_compra.localeCompare(a.data_compra)),
+  [...(compras.value ?? []), ...comprasPessoais.value],
 )
 
 function nomeDoMembro(id: string): string {
@@ -217,6 +219,51 @@ function podeEditar(compra: CompraDoMes): boolean {
   if (ehPessoal(compra)) return true
   return souAdmin.value || compra.registrado_por === usuarioId.value
 }
+
+// ---- Onde o mês foi parar ----------------------------------------------------
+
+const fatias = computed(() => gastoPorCategoria(comprasVisiveis.value))
+
+/** Só a chave: a fatia em si é derivada, para acompanhar edições e remoções. */
+const categoriaAberta = ref<string | null>(null)
+
+const fatiaAberta = computed(() =>
+  fatias.value.find(f => f.chave === categoriaAberta.value) ?? null,
+)
+
+/*
+ * Esvaziar a categoria — removendo a última compra dela — apaga a fatia, e um
+ * diálogo aberto sobre nada é uma tela morta. Fechar aqui, e não no `onRemover`,
+ * cobre também a compra que sai de cena por uma edição feita em outra aba.
+ */
+watch(fatiaAberta, (fatia) => {
+  if (!fatia) categoriaAberta.value = null
+})
+
+/**
+ * A linha miúda do cartão dentro do diálogo — a mesma que a lista mostrava.
+ *
+ * Numa compra pessoal, "pago por você · integral de você" seria dizer duas
+ * vezes o que o selo já disse. Sobra a data, que é o que ainda informa algo.
+ */
+function detalheDe(compra: CompraDoMes): string {
+  const dia = formatarDia(compra.data_compra)
+  if (ehPessoal(compra)) return dia
+  return `${dia} · pago por ${nomeDoMembro(compra.pago_por)} · ${comoDivide(compra)}`
+}
+
+/*
+ * O diálogo da compra substitui o da categoria em vez de se empilhar sobre ele:
+ * dois modais disputam o foco, e o de baixo vira um fundo clicável que não
+ * responde. Como a categoria continua escolhida, fechar a compra faz ela voltar
+ * sozinha — é de lá que a pessoa veio, e costuma haver mais linhas para ver.
+ */
+const categoriaVisivel = computed({
+  get: () => !!fatiaAberta.value && !dialogoAberto.value,
+  set: (aberto: boolean) => {
+    if (!aberto) categoriaAberta.value = null
+  },
+})
 
 async function onRemover(compra: CompraDoMes) {
   try {
@@ -372,98 +419,40 @@ async function onRemover(compra: CompraDoMes) {
       </div>
     </section>
 
-    <!-- Lista do mês -->
-    <section class="space-y-2">
-      <div v-if="isPending" class="space-y-2">
-        <Skeleton v-for="i in 4" :key="i" class="h-16 w-full rounded-lg" />
-      </div>
-
-      <p v-else-if="!comprasVisiveis.length" class="rounded-lg border border-dashed px-6 py-12 text-center text-sm text-muted-foreground">
-        Nenhuma compra em {{ formatarMes(competencia) }}.
+    <!--
+      Por categoria, e não a lista corrida de antes: com dezenas de linhas no
+      mês, "em que a gente gastou" é uma pergunta que a lista não respondia sem
+      um trabalho de somar de cabeça. As compras continuam a um clique — dentro
+      da categoria a que pertencem, que é onde elas querem dizer alguma coisa.
+    -->
+    <section class="rounded-lg border bg-card p-4">
+      <h2 class="text-sm font-medium">Em que foi</h2>
+      <p class="mt-0.5 text-xs text-muted-foreground">
+        Quanto cada categoria pesou em {{ formatarMes(competencia) }} — pela parcela do mês. Clique para ver as compras.
       </p>
 
-      <article
-        v-for="compra in comprasVisiveis"
+      <div v-if="isPending" class="mt-3 space-y-3">
+        <Skeleton v-for="i in 4" :key="i" class="h-10 w-full rounded-lg" />
+      </div>
+
+      <GraficoCategorias
         v-else
-        :key="compra.id"
-        class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-card p-3 outline-none transition-colors"
-        :class="[
-          podeEditar(compra) ? 'cursor-pointer hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring' : '',
-          ehPessoal(compra) ? 'border-dashed' : '',
-        ]"
-        :tabindex="podeEditar(compra) ? 0 : undefined"
-        :role="podeEditar(compra) ? 'button' : undefined"
-        :aria-label="podeEditar(compra) ? `Editar ${compra.descricao}` : undefined"
-        @click="podeEditar(compra) && editar(compra)"
-        @keydown.enter="podeEditar(compra) && editar(compra)"
-      >
-        <div class="min-w-0 flex-1">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="font-medium">{{ compra.descricao }}</span>
-
-            <!-- De que gaveta a linha veio, legível de relance -->
-            <span
-              v-if="ehPessoal(compra)"
-              class="inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground"
-              title="Só você vê esta compra"
-            >
-              <UserIcon class="size-3" />
-              Pessoal
-            </span>
-
-            <span
-              v-if="compra.categoria"
-              class="rounded-full px-2 py-0.5 text-xs"
-              :class="CLASSE_COR[compra.categoria.cor]"
-            >
-              {{ compra.categoria.nome }}
-            </span>
-
-            <span
-              v-if="compra.parcelas > 1"
-              class="rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground"
-            >
-              {{ compra.numero }}/{{ compra.parcelas }}
-            </span>
-          </div>
-
-          <!--
-            Numa compra pessoal, "pago por você · integral de você" seria dizer
-            três vezes o que o selo já disse. Sobra a data, que é o que ainda
-            informa alguma coisa.
-          -->
-          <p class="mt-0.5 text-xs text-muted-foreground">
-            {{ formatarDia(compra.data_compra) }}
-            <template v-if="!ehPessoal(compra)">
-              · pago por {{ nomeDoMembro(compra.pago_por) }}
-              · {{ comoDivide(compra) }}
-            </template>
-          </p>
-        </div>
-
-        <div class="text-right">
-          <p class="font-semibold tabular-nums">{{ formatarDinheiro(compra.valor) }}</p>
-          <p v-if="compra.parcelas > 1" class="text-xs text-muted-foreground tabular-nums">
-            de {{ formatarDinheiro(compra.valor_total) }}
-          </p>
-        </div>
-
-        <!--
-          `.stop` é essencial aqui: sem ele, remover também dispara o clique do
-          card e abre o diálogo de edição da compra que acabou de sumir.
-        -->
-        <Button
-          v-if="podeEditar(compra)"
-          variant="ghost"
-          size="icon"
-          class="shrink-0"
-          :aria-label="`Remover ${compra.descricao}`"
-          @click.stop="onRemover(compra)"
-        >
-          <Trash2Icon class="size-4" />
-        </Button>
-      </article>
+        class="mt-3"
+        :fatias="fatias"
+        :vazio="`Nenhuma compra em ${formatarMes(competencia)}.`"
+        @selecionar="categoriaAberta = $event"
+      />
     </section>
+
+    <CategoriaCompras
+      v-model:aberto="categoriaVisivel"
+      :fatia="fatiaAberta"
+      :periodo="formatarMes(competencia)"
+      :pode-editar="podeEditar"
+      :detalhe="detalheDe"
+      @selecionar="editar"
+      @remover="onRemover"
+    />
 
     <CompraDialogo
       v-model:aberto="dialogoAberto"

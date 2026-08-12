@@ -7,7 +7,7 @@
  * elas aparece o clássico "você tem +1.150,61 e ela −1.150,62", sem explicação.
  */
 import { describe, expect, it } from 'vitest'
-import { meuBolso, saldoDoMes, totalDoMes } from '~/types/orcamento'
+import { fracaoNaFatia, gastoPorCategoria, meuBolso, saldoDoMes, totalDoMes } from '~/types/orcamento'
 import type { CompraDoMes } from '~/types/orcamento'
 
 const EU = 'eu'
@@ -131,5 +131,89 @@ describe('meuBolso', () => {
     const bolso = meuBolso([compra(100, ELA, { [EU]: 1, [ELA]: 2 })], [pessoal(0.01)], EU)
 
     expect(bolso).toBe(33.34)
+  })
+})
+
+/**
+ * O gráfico "Em que foi" da tela de Orçamentos.
+ *
+ * As duas propriedades que a tela promete e que só existem aqui: as frações
+ * somam 1, e "Não categorizado" nunca disputa posição com uma categoria de
+ * verdade — ele é o resto, e resto fica por último.
+ */
+describe('gastoPorCategoria', () => {
+  const categorizada = (
+    valor: number,
+    nome: string | null,
+    id = nome ?? 'sem',
+  ): CompraDoMes => ({
+    ...compra(valor, EU, { [EU]: 1, [ELA]: 1 }),
+    id: `${id}-${valor}`,
+    descricao: nome ?? 'Avulsa',
+    categoria: nome ? { id, nome, cor: 'verde' as const } : null,
+  })
+
+  it('junta por categoria, do maior para o menor', () => {
+    const fatias = gastoPorCategoria([
+      categorizada(30, 'Lazer'),
+      categorizada(100, 'Mercado'),
+      categorizada(50, 'Mercado'),
+    ])
+
+    expect(fatias.map(f => [f.nome, f.total])).toEqual([
+      ['Mercado', 150],
+      ['Lazer', 30],
+    ])
+    expect(fatias[0]!.compras).toHaveLength(2)
+  })
+
+  it('deixa "Não categorizado" por último, mesmo sendo o maior', () => {
+    const fatias = gastoPorCategoria([
+      categorizada(1000, null),
+      categorizada(10, 'Lazer'),
+    ])
+
+    expect(fatias.map(f => f.nome)).toEqual(['Lazer', 'Não categorizado'])
+    expect(fatias[1]!.cor).toBeNull()
+  })
+
+  /*
+   * Cada espaço tem a sua tabela de categorias, então "Mercado" do casal e
+   * "Mercado" do pessoal têm ids diferentes. Agrupar por id mostraria duas
+   * barras "Mercado" — fiel ao banco, e mentiroso para quem lê.
+   */
+  it('unifica o mesmo nome vindo de espaços diferentes, e a caixa não importa', () => {
+    const fatias = gastoPorCategoria([
+      categorizada(100, 'Mercado', 'cat-casal'),
+      { ...categorizada(40, 'mercado', 'cat-pessoal'), space_id: 'pessoal' },
+    ])
+
+    expect(fatias).toHaveLength(1)
+    expect(fatias[0]!.total).toBe(140)
+  })
+
+  it('as frações somam o período inteiro', () => {
+    const fatias = gastoPorCategoria([
+      categorizada(33.33, 'Mercado'),
+      categorizada(66.67, 'Lazer'),
+      categorizada(0.01, null),
+    ])
+
+    expect(soma(fatias.map(f => f.fracao))).toBe(1)
+  })
+
+  it('ordena as compras da fatia pela maior, que é o que puxou o número', () => {
+    const fatias = gastoPorCategoria([
+      categorizada(10, 'Mercado'),
+      categorizada(200, 'Mercado'),
+      categorizada(50, 'Mercado'),
+    ])
+
+    expect(fatias[0]!.compras.map(c => c.valor)).toEqual([200, 50, 10])
+    expect(fracaoNaFatia(fatias[0]!, fatias[0]!.compras[0]!)).toBeCloseTo(200 / 260)
+  })
+
+  it('não divide por zero num mês sem compras', () => {
+    expect(gastoPorCategoria([])).toEqual([])
   })
 })
