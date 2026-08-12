@@ -879,3 +879,55 @@ mudou.
 conferido num DOM de verdade, antes e depois, reproduzindo o sintoma da tela do usuário. A causa do
 bug 2 foi confirmada por consulta ao banco real: seis pessoas com mais linhas de membership do que
 espaços, "Matheus Bacca" entre elas com 3 linhas para 2 espaços.
+
+---
+
+## 2026-08-12 — Rechecagem diária de preço: medir antes de construir
+
+**Contexto:** o pedido é um cron diário que reabra a URL de cada produto salvo e atualize os
+preços, sem atualizar quando não conseguir ler. Antes de construir o pipeline, foi montada a
+**medição** — porque a taxa de acerto muda o desenho, e ela não se adivinha.
+
+**A armadilha que definiu onde isso roda.** Raspar no servidor não é raspar no navegador. A
+`raspar()` da extensão funciona porque roda numa aba com o JS da loja já executado; um `fetch` de
+Edge Function recebe o HTML cru. JSON-LD e Open Graph costumam estar lá, mas **preço Pix e
+parcelamento quase nunca** — são montados no cliente, e são exatamente os números que decidem uma
+compra no Brasil. Um cron por Edge Function atualizaria mal justamente o que mais importa, e ainda
+tomaria 403 das lojas grandes por vir de IP de datacenter.
+
+**Decisão: Chromium headless no GitHub Actions, reusando a MESMA `raspar()`.** Ela é autocontida
+por exigência do `chrome.scripting.executeScript`, que serializa a função e injeta o texto — e
+`page.evaluate()` do Playwright faz exatamente a mesma coisa. Então a função roda ali sem uma linha
+de adaptação: um raspador só, três consumidores (extensão, testes, cron). Um segundo raspador
+divergiria do primeiro no primeiro mês. Como o repositório é público, os minutos de Actions são
+gratuitos. Verificado que a função serializa sem referência a nada de fora dela (10.504 chars,
+zero forasteiros).
+
+**Decisão: o Playwright fica fora do `package.json`.** Ele serve só a este workflow, e entraria no
+`npm ci` de todo mundo — inclusive do workflow que publica a extensão — sem servir a nada lá. A
+versão está fixada no YAML.
+
+**Decisão: o relatório não imprime URL nem nome de produto.** O repositório é público, e o log do
+Actions com ele — um relatório detalhado publicaria a lista de desejos do casal num lugar que
+qualquer um lê. Sai hostname, contagens e o que foi lido ou não; a variação de preço sai em
+percentual, não em reais.
+
+**Decisão: uma conta de robô, não a senha pessoal.** Os produtos estão atrás da RLS, então ler
+exige JWT de usuário. Autenticar como usuário (e não com `service_role`) mantém a RLS valendo, e
+uma credencial criada só para isto se revoga sem afetar mais nada — o que importa num repositório
+público.
+
+**O que a medição responde, por loja:** a página veio ou foi bloqueada; leu nome, preço, Pix,
+parcelado; de qual nível da cascata veio. Hoje há 4 produtos salvos, em `amazon.com.br` e
+`kabum.com.br` — e a Amazon é das mais agressivas em bloqueio, então a medição tem chance real de
+dizer "não vale a pena para esta loja".
+
+**Verificado:** YAML parseado, sintaxe do script conferida, `raspar()` importada fora do contexto
+da extensão e conferida como serializável, e confirmado que estes arquivos não casam com os `paths`
+do workflow da extensão (não disparam release por acidente). A medição em si **não rodou ainda** —
+depende dos secrets `APPINGOS_EMAIL` e `APPINGOS_SENHA`, e o sandbox desta sessão não alcança
+lojas, então ela só roda no Actions.
+
+**Nada do pipeline de escrita foi construído.** Schema de histórico (`interesse_produto_preco`,
+`verificado_em`, `falhas_seguidas`), o cron e o aviso de queda entram depois da medição, com o
+desenho ajustado ao que ela mostrar.
