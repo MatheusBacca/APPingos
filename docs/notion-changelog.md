@@ -931,3 +931,78 @@ lojas, então ela só roda no Actions.
 **Nada do pipeline de escrita foi construído.** Schema de histórico (`interesse_produto_preco`,
 `verificado_em`, `falhas_seguidas`), o cron e o aviso de queda entram depois da medição, com o
 desenho ajustado ao que ela mostrar.
+
+---
+
+## 2026-08-12 — O papel `robo`: um membro que não enxerga nada
+
+**Contexto:** a rechecagem de preço roda fora do app e precisa de um JWT para ler os produtos, e
+um JWT precisa de uma conta. A pergunta era se dava para usar a conta de quem criou o interesse.
+
+**Não dá, e é assim que tem que ser.** `interesse.criado_por` guarda um UUID, que identifica mas
+não autentica — não existe caminho de "id do usuário" para "token válido". A exceção técnica
+(forjar um JWT com a `service_role`) é justamente o que se quer evitar: seria pôr no CI de um
+repositório público uma chave que ignora a RLS do projeto inteiro.
+
+**Distinção que estava embutida na pergunta e precisava sair:** "o bot roda sem bloqueios" mistura
+dois muros diferentes. O muro do nosso banco (a RLS recusando ler) o bot resolve por completo. O
+muro da loja (Amazon devolvendo 403 para IP de datacenter) ele não toca — a loja olha de onde a
+requisição vem, e nada feito dentro do Supabase muda isso. Só a medição dirá o tamanho do segundo.
+
+**Decisão: um papel `robo` em `membership`, e não uma credencial escondida.** Assim o bot é uma
+linha na tabela: aparece na lista de membros em Espaços e some de lá quando o dono o remove. A
+revogação é visível e usa a tela que já existe.
+
+**Decisão: uma linha em `is_space_member()` faz o isolamento inteiro.** Toda policy do app passa
+por esse helper, então `and m.papel <> 'robo'` tira o robô de todos os módulos de uma vez —
+inclusive dos que ainda não existem. Não há uma segunda lista a manter em dia. `is_space_owner` e
+`is_space_admin` já o excluíam por construção, exigindo papéis específicos.
+
+Em `shares_space_with` a exclusão vai **só do lado de quem pergunta**: barrar também o outro lado
+faria o robô aparecer como "Alguém" na lista de membros, e a revogação visível — que é metade do
+motivo do papel existir — ficaria pela metade.
+
+**Decisão: convidar pelo fluxo que já existe.** A conta do robô resgata um convite normal (entra
+como `membro`) e o dono muda o cargo para `robo` em Espaços. Um convite direto para `robo` pediria
+um segundo tipo de convite para economizar um clique.
+
+**Os corpos de `notificar()` e `deletar_espaco()` foram extraídos das migrations de origem e
+patchados programaticamente**, não recopiados: são 82 e 42 linhas, e transcrição à mão deriva. O
+diff foi conferido linha a linha antes de entrar.
+
+**Dois erros que o Postgres descartável pegou:**
+
+- O patch do `deletar_espaco` inseriu a condição **depois do ponto e vírgula**, deixando um `and`
+  órfão — erro de sintaxe na cara. Reescrito para entrar antes do `;`.
+- A primeira rodada do teste "o robô não recebe aviso" **não provava nada**: as notificações
+  contadas tinham sido criadas na etapa anterior, quando ele ainda era `membro` comum. Refeito com
+  o robô já rebaixado antes de qualquer evento — aí sim só a Bia foi avisada.
+
+**Verificado** num Postgres 16 com as 22 migrations e três usuários (dona, membro e robô):
+
+| | como `membro` | como `robo` |
+| --- | --- | --- |
+| interesses / produtos / roteiros / compras / categorias | vê todos | **0 em todos** |
+| "para quem" do presente | vê | não vê |
+| gravar interesse | grava | recusado pela RLS |
+| perfis alcançáveis | todos | só o próprio |
+| aparece na lista de membros para os humanos | sim | **sim** |
+| recebe aviso de gasto novo | sim | **não** |
+| recebe aviso de exclusão do espaço | sim | **não** |
+
+`espacos_do_robo()` foi criada porque o isolamento é tão completo que o robô não enxerga nem a
+própria linha de `membership` — sem ela não teria como descobrir a que espaços pertence. Devolve id
+e nada mais.
+
+**No app:** `Papel` ganhou `'robo'` (a união é espelhada à mão do CHECK), o `Record<Papel, string>`
+forçou o rótulo, e o seletor de cargo em Espaços passou a oferecê-lo. Teste novo garante que
+`ehAdmin('robo')` é falso — se alguém um dia acrescentar `robo` ali "para o bot conseguir fazer X",
+o robô ganharia poderes de admin em todas as telas de uma vez, e em silêncio.
+
+**Não aplicado na nuvem**, de propósito: a migration está pronta e validada, mas o cron que a
+justifica depende da medição. Aplicá-la hoje seria inócuo (ninguém tem papel `robo`), e ainda assim
+ela redefine `is_space_member`, que sustenta todas as policies — não é mudança para entrar sem
+motivo.
+
+**Fora desta migration, de propósito:** as RPCs de preço (ler URLs para rechecar, gravar o que
+leu) e o schema de histórico. Elas entram com a feature, quando a medição disser que ela vale.

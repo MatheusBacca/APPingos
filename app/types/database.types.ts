@@ -16,7 +16,15 @@ export type Database = GeneratedDatabase
  * ao mexer no CHECK de uma migration, ajuste aqui também.
  * Ver supabase/migrations/20260730120000_foundation.sql
  */
-export type Papel = 'dono' | 'admin' | 'membro'
+/**
+ * `robo` é um membro que não enxerga nada do espaço.
+ *
+ * Ele existe para a rechecagem de preço, que roda fora do app e precisa de um JWT
+ * para ler os produtos. `is_space_member()` no banco exclui `robo`, então esse
+ * papel não passa em policy nenhuma — o que ele pode fazer vem só de RPCs
+ * dedicadas. Ver supabase/migrations/20260812230000_membership_robo.sql
+ */
+export type Papel = 'dono' | 'admin' | 'membro' | 'robo'
 export type TipoEspaco = 'pessoal' | 'casal'
 
 /*
@@ -60,6 +68,7 @@ export const PAPEL_ROTULO: Record<Papel, string> = {
   dono: 'Dono',
   admin: 'Admin',
   membro: 'Membro',
+  robo: 'Robô',
 }
 
 /** Dono é admin por definição — espelha `is_space_admin` no banco. */

@@ -136,12 +136,22 @@ async function copiarLink() {
 
 const souDono = computed(() => store.espacoAtivo?.papel === 'dono')
 
-const PAPEL_DESCRICAO: Record<'admin' | 'membro', string> = {
+/**
+ * Os cargos que o dono pode atribuir aqui. `dono` fica de fora — transferir posse
+ * é outra história — e `robo` entra porque é assim que um bot ganha (e perde)
+ * acesso ao espaço.
+ */
+const PAPEIS_ATRIBUIVEIS = ['admin', 'membro', 'robo'] as const
+
+type PapelAtribuivel = typeof PAPEIS_ATRIBUIVEIS[number]
+
+const PAPEL_DESCRICAO: Record<PapelAtribuivel, string> = {
   admin: 'Pode marcar quem assistiu junto, no lugar da pessoa.',
   membro: 'Só mexe nos próprios registros.',
+  robo: 'Conta automática: não enxerga nada do espaço, só atualiza preços.',
 }
 
-async function onDefinirPapel(userId: string, papel: 'admin' | 'membro') {
+async function onDefinirPapel(userId: string, papel: PapelAtribuivel) {
   try {
     await definirPapel.mutateAsync({ userId, papel })
     toast.success(`Cargo alterado para ${PAPEL_ROTULO[papel]}.`)
@@ -268,7 +278,7 @@ async function onResgatar() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" class="w-52">
                   <DropdownMenuItem
-                    v-for="papel in (['admin', 'membro'] as const)"
+                    v-for="papel in PAPEIS_ATRIBUIVEIS"
                     :key="papel"
                     class="flex-col items-start gap-0"
                     :disabled="membro.papel === papel"
