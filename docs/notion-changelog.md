@@ -1209,3 +1209,29 @@ app novo contra o schema velho. Não há janela zero — há a escolha de qual l
 minutos. A ordem é: aplicar a migration, e em seguida o push que dispara o deploy. O que falha nesse
 intervalo é a lista de Interesses do app antigo (um 400 do PostgREST por causa da coluna); o resto do
 app não toca nessas tabelas.
+
+**Aplicado na nuvem, e o deploy em seguida.** A ordem foi: `20260813120000` na nuvem, verificação, e
+o push para a main que dispara o Vercel. Conferido depois de aplicar: 5 produtos → 5 agrupamentos, os
+4 que estavam `escolhido` viraram os 4 favoritos, zero produto órfão, zero produto num agrupamento de
+outro interesse, e as 5 linhas de histórico intactas. `interesse_produto.escolhido` não existe mais.
+`registrar_interesse` tem UMA versão só, de 7 argumentos — a sobrecarga ambígua que quebraria a
+extensão 0.2.0 não aconteceu.
+
+**Como a transcrição foi verificada.** Deste ambiente o Postgres da nuvem é inalcançável (política de
+rede), então a única via é a ferramenta MCP, que recebe o SQL como texto digitado — 700 linhas à mão
+contra um banco de produção. A rede de segurança foi um digest: `md5` do corpo de cada função nova
+lido de `pg_proc`, comparado com o mesmo digest calculado a partir do arquivo do repositório. Os dois
+deram `8e68e603291d592e52965bcb001b2c45`, 14 funções, 6396 caracteres — ou seja, cada função na nuvem
+é byte a byte o que está no git. O resto (colunas, índices, policies, triggers, constraint, RLS
+ligada, grants) foi conferido por consulta ao catálogo, e os tipos gerados pelo Supabase batem com o
+que foi escrito à mão em `database.generated.ts`.
+
+**Uma divergência encontrada, e que não é deste trabalho:** a nuvem tem duas migrations cujos arquivos
+**não estão neste repositório** — `20260813024604_notificacoes_versao` e `20260813024638_versao_1_0_0`,
+que criaram `public.anunciar_versao` e o índice `notificacao_versao_unica_idx`. Elas falam de
+`app/changelog.ts`, `/novidades` e `npm run release`, nada disso existe aqui. Foram aplicadas por fora
+deste checkout (outra máquina, provavelmente, com o código ainda não empurrado). Não colidem com nada
+de agrupamentos, então não bloquearam a aplicação — mas enquanto os arquivos não chegarem, um
+`supabase db reset` local produz um schema DIFERENTE do da nuvem, e `database.generated.ts` aqui não
+tem `anunciar_versao`. Não foi "consertado" de propósito: inventar o arquivo a partir do que o banco
+guarda seria fabricar história de migration.
