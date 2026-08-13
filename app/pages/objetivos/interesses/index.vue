@@ -12,7 +12,7 @@
  * terça". `agruparPorDestino` já devolve só os grupos com conteúdo.
  */
 import { useLocalStorage } from '@vueuse/core'
-import { PlusIcon, ShoppingBagIcon } from '@lucide/vue'
+import { GiftIcon, PlusIcon, ShoppingBagIcon } from '@lucide/vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -22,16 +22,26 @@ import {
   agruparPorDestino,
   ESTADOS,
   ESTADOS_ABERTOS,
+  interesseDeFora,
+  paraQuemDoInteresse,
+  produtosDoInteresse,
   rotuloEstado,
   totalDosInteresses,
   valorDoInteresse,
 } from '~/types/interesse'
-import type { EstadoInteresse, InteresseComProdutos } from '~/types/interesse'
-import { useInteresses } from '~/composables/useInteresses'
+import type { EstadoInteresse, InteresseComAgrupamentos } from '~/types/interesse'
+import { useInteresses, useVista } from '~/composables/useInteresses'
+import { usePessoas } from '~/composables/useMembros'
+import { useUsuarioId } from '~/composables/useUsuarioId'
+import { useSpaceStore } from '~/stores/space'
 
 useHead({ title: 'Interesses · APPingos' })
 
 const { data: interesses, isPending, isError, error } = useInteresses()
+const { data: pessoas } = usePessoas()
+const vista = useVista()
+const euId = useUsuarioId()
+const store = useSpaceStore()
 
 const dialogoAberto = ref(false)
 
@@ -44,12 +54,32 @@ const dialogoAberto = ref(false)
  */
 const filtro = useLocalStorage<EstadoInteresse | null>('appingos:interesses:estado', null)
 
-const visiveis = computed<InteresseComProdutos[]>(() => {
+const visiveis = computed<InteresseComAgrupamentos[]>(() => {
   const todos = interesses.value ?? []
   return filtro.value === null
     ? todos.filter(i => ESTADOS_ABERTOS.includes(i.estado))
     : todos.filter(i => i.estado === filtro.value)
 })
+
+/**
+ * O card diz de onde o interesse vem quando ele é de fora.
+ *
+ * No espaço pessoal aparecem também os interesses que a pessoa criou no espaço do
+ * casal e os que ela assumiu — sem este rótulo, eles pareceriam dado duplicado.
+ */
+function deOnde(interesse: InteresseComAgrupamentos): string | null {
+  if (!interesseDeFora(interesse, vista.value.spaceId)) return null
+  return store.espacos.find(e => e.id === interesse.space_id)?.nome ?? 'outro espaço'
+}
+
+/** Quem assumiu o presente — só o fato de estar assumido interessa na lista. */
+function assumido(interesse: InteresseComAgrupamentos): boolean {
+  return !!interesse.assumido_por
+}
+
+function euAssumi(interesse: InteresseComAgrupamentos): boolean {
+  return interesse.assumido_por === euId.value
+}
 
 const grupos = computed(() => agruparPorDestino(visiveis.value))
 
@@ -132,18 +162,34 @@ async function onCriado(id: string) {
               </Badge>
             </div>
 
-            <p v-if="interesse.para_quem" class="text-xs text-muted-foreground">
-              para {{ interesse.para_quem }}
-            </p>
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              <span v-if="paraQuemDoInteresse(interesse, pessoas)">
+                para {{ paraQuemDoInteresse(interesse, pessoas) }}
+              </span>
+              <span v-if="deOnde(interesse)" class="rounded-full border px-1.5">
+                de {{ deOnde(interesse) }}
+              </span>
+              <span v-if="assumido(interesse)" class="flex items-center gap-1 text-primary">
+                <GiftIcon class="size-3" />
+                {{ euAssumi(interesse) ? 'você dá' : 'já tem quem dê' }}
+              </span>
+            </div>
 
             <div class="mt-auto flex items-baseline justify-between gap-2 pt-1">
-              <span v-if="valorDoInteresse(interesse.produtos) !== null" class="font-semibold">
-                {{ formatarDinheiro(valorDoInteresse(interesse.produtos)!) }}
+              <span v-if="valorDoInteresse(interesse.agrupamentos) !== null" class="font-semibold">
+                {{ formatarDinheiro(valorDoInteresse(interesse.agrupamentos)!) }}
               </span>
               <span v-else class="text-xs text-muted-foreground">sem preço ainda</span>
 
               <span class="text-xs text-muted-foreground">
-                {{ interesse.produtos.length === 1 ? '1 produto' : `${interesse.produtos.length} produtos` }}
+                <template v-if="interesse.agrupamentos.length > 1">
+                  {{ interesse.agrupamentos.length }} alternativas
+                </template>
+                <template v-else>
+                  {{ produtosDoInteresse(interesse.agrupamentos).length === 1
+                    ? '1 produto'
+                    : `${produtosDoInteresse(interesse.agrupamentos).length} produtos` }}
+                </template>
               </span>
             </div>
           </NuxtLink>

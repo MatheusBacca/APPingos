@@ -318,6 +318,8 @@ export type Database = {
       }
       interesse: {
         Row: {
+          assumido_em: string | null
+          assumido_por: string | null
           convertido_em: string | null
           convertido_ref_id: string | null
           convertido_tipo: string | null
@@ -328,11 +330,14 @@ export type Database = {
           id: string
           observacao: string | null
           para_quem: string | null
+          para_quem_user_id: string | null
           space_id: string
           titulo: string
           updated_at: string
         }
         Insert: {
+          assumido_em?: string | null
+          assumido_por?: string | null
           convertido_em?: string | null
           convertido_ref_id?: string | null
           convertido_tipo?: string | null
@@ -343,11 +348,14 @@ export type Database = {
           id?: string
           observacao?: string | null
           para_quem?: string | null
+          para_quem_user_id?: string | null
           space_id: string
           titulo: string
           updated_at?: string
         }
         Update: {
+          assumido_em?: string | null
+          assumido_por?: string | null
           convertido_em?: string | null
           convertido_ref_id?: string | null
           convertido_tipo?: string | null
@@ -358,6 +366,7 @@ export type Database = {
           id?: string
           observacao?: string | null
           para_quem?: string | null
+          para_quem_user_id?: string | null
           space_id?: string
           titulo?: string
           updated_at?: string
@@ -372,11 +381,79 @@ export type Database = {
           },
         ]
       }
-      interesse_produto: {
+      interesse_agrupamento: {
         Row: {
-          capturado_em: string
           created_at: string
           escolhido: boolean
+          id: string
+          interesse_id: string
+          nome: string | null
+        }
+        Insert: {
+          created_at?: string
+          escolhido?: boolean
+          id?: string
+          interesse_id: string
+          nome?: string | null
+        }
+        Update: {
+          created_at?: string
+          escolhido?: boolean
+          id?: string
+          interesse_id?: string
+          nome?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interesse_agrupamento_interesse_id_fkey"
+            columns: ["interesse_id"]
+            isOneToOne: false
+            referencedRelation: "interesse"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interesse_compartilhamento: {
+        Row: {
+          compartilhado_por: string
+          created_at: string
+          interesse_id: string
+          space_id: string
+        }
+        Insert: {
+          compartilhado_por: string
+          created_at?: string
+          interesse_id: string
+          space_id: string
+        }
+        Update: {
+          compartilhado_por?: string
+          created_at?: string
+          interesse_id?: string
+          space_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interesse_compartilhamento_interesse_id_fkey"
+            columns: ["interesse_id"]
+            isOneToOne: false
+            referencedRelation: "interesse"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interesse_compartilhamento_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interesse_produto: {
+        Row: {
+          agrupamento_id: string
+          capturado_em: string
+          created_at: string
           falhas_seguidas: number
           id: string
           imagem_url: string | null
@@ -392,9 +469,9 @@ export type Database = {
           verificado_em: string | null
         }
         Insert: {
+          agrupamento_id: string
           capturado_em?: string
           created_at?: string
-          escolhido?: boolean
           falhas_seguidas?: number
           id?: string
           imagem_url?: string | null
@@ -410,9 +487,9 @@ export type Database = {
           verificado_em?: string | null
         }
         Update: {
+          agrupamento_id?: string
           capturado_em?: string
           created_at?: string
-          escolhido?: boolean
           falhas_seguidas?: number
           id?: string
           imagem_url?: string | null
@@ -428,6 +505,13 @@ export type Database = {
           verificado_em?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "interesse_produto_agrupamento_id_fkey"
+            columns: ["agrupamento_id"]
+            isOneToOne: false
+            referencedRelation: "interesse_agrupamento"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "interesse_produto_interesse_id_fkey"
             columns: ["interesse_id"]
@@ -1044,6 +1128,11 @@ export type Database = {
         Args: { p_interesse: string; p_produto: Json }
         Returns: string
       }
+      adicionar_produto_ao_agrupamento: {
+        Args: { p_agrupamento: string; p_produto: Json }
+        Returns: string
+      }
+      assumir_interesse: { Args: { p_interesse: string }; Returns: undefined }
       atualizar_compra: {
         Args: {
           p_categoria_cor?: string
@@ -1061,8 +1150,16 @@ export type Database = {
       }
       avisar_viagens_proximas: { Args: never; Returns: number }
       can_access_entry: { Args: { p_entry: string }; Returns: boolean }
+      compartilhar_interesse: {
+        Args: { p_interesse: string; p_space: string }
+        Returns: undefined
+      }
       create_space: {
         Args: { p_nome: string; p_tipo?: string }
+        Returns: string
+      }
+      criar_agrupamento: {
+        Args: { p_interesse: string; p_nome?: string }
         Returns: string
       }
       criar_convite: { Args: { p_space: string }; Returns: string }
@@ -1076,6 +1173,14 @@ export type Database = {
       }
       deletar_espaco: { Args: { p_space: string }; Returns: undefined }
       descadastrar_email: { Args: { p_token: string }; Returns: undefined }
+      descompartilhar_interesse: {
+        Args: { p_interesse: string; p_space: string }
+        Returns: undefined
+      }
+      escolher_agrupamento: {
+        Args: { p_agrupamento: string }
+        Returns: undefined
+      }
       escolher_produto: { Args: { p_produto: string }; Returns: undefined }
       faxina_notificacoes: { Args: never; Returns: number }
       gerar_codigo_convite: { Args: never; Returns: string }
@@ -1083,6 +1188,7 @@ export type Database = {
       is_space_member: { Args: { p_space: string }; Returns: boolean }
       is_space_owner: { Args: { p_space: string }; Returns: boolean }
       lembrete_semanal_filmes: { Args: never; Returns: number }
+      liberar_interesse: { Args: { p_interesse: string }; Returns: undefined }
       liberar_roteiro: { Args: { p_roteiro: string }; Returns: undefined }
       marcar_assistiram_comigo: {
         Args: { p_entry: string; p_usuarios: string[] }
@@ -1125,6 +1231,7 @@ export type Database = {
         Args: { p_data: string; p_entry: string }
         Returns: number
       }
+      pode_ver_interesse: { Args: { p_interesse: string }; Returns: boolean }
       pode_ver_roteiro: { Args: { p_roteiro: string }; Returns: boolean }
       registrar_compra: {
         Args: {
@@ -1146,6 +1253,7 @@ export type Database = {
           p_destino?: string
           p_observacao?: string
           p_para_quem?: string
+          p_para_quem_user_id?: string
           p_produto?: Json
           p_space: string
           p_titulo: string
@@ -1180,6 +1288,10 @@ export type Database = {
         }[]
       }
       shares_space_with: { Args: { p_user: string }; Returns: boolean }
+      sou_dono_do_interesse: {
+        Args: { p_interesse: string }
+        Returns: boolean
+      }
       status_do_email: { Args: never; Returns: Json }
     }
     Enums: {

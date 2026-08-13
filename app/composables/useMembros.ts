@@ -1,7 +1,8 @@
-import { useMutation, useQueryClient } from '@tanstack/vue-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { Papel } from '~/types/database.types'
 import { nomeDeExibicao } from '~/types/database.types'
 import { useSpaceQuery } from '~/composables/useSpaceQuery'
+import { useUsuarioId } from '~/composables/useUsuarioId'
 import { useSpaceStore } from '~/stores/space'
 
 export interface Membro {
@@ -54,6 +55,40 @@ export function useMembros() {
       }
     })
   })
+}
+
+/**
+ * Todo mundo que este app sabe nomear: você e quem divide algum espaço com você.
+ *
+ * Existe porque `useMembros()` é do espaço ATIVO, e há nomes a mostrar que não estão
+ * nele: um interesse do casal visto do espaço pessoal pode ter sido assumido pela
+ * outra pessoa, e ali `useMembros()` devolveria só você — a tela diria "assumido
+ * por" e ficaria sem nome. Sem escopo de espaço, então, com o mesmo cache servindo
+ * todas as telas; quem limita é a policy de `profile`, que já libera só você mais
+ * quem compartilha espaço (`shares_space_with`).
+ */
+export function usePessoas() {
+  const supabase = useSupabaseClient()
+  const usuarioId = useUsuarioId()
+
+  return useQuery({
+    queryKey: ['pessoas', usuarioId],
+    enabled: computed(() => !!usuarioId.value),
+    queryFn: async (): Promise<Map<string, string>> => {
+      const { data, error } = await supabase.from('profile').select('id, nome, apelido')
+      if (error) throw error
+
+      return new Map(
+        (data ?? []).map(p => [p.id, nomeDeExibicao({ nome: p.nome, apelido: p.apelido })]),
+      )
+    },
+  })
+}
+
+/** Como chamar esta pessoa, ou um rótulo neutro quando ela não está no alcance. */
+export function nomeDaPessoa(pessoas: Map<string, string> | undefined, userId: string | null) {
+  if (!userId) return null
+  return pessoas?.get(userId) ?? 'Alguém'
 }
 
 /** Promover ou rebaixar alguém. A RPC recusa quem não for dono do espaço. */

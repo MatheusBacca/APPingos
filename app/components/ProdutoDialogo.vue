@@ -1,16 +1,27 @@
 <script setup lang="ts">
 /**
- * Acrescenta um produto candidato a um interesse, à mão.
+ * O formulário de um produto — para criar e para editar, no mesmo lugar.
  *
- * É o caminho de quem está no computador sem a extensão instalada, ou de quem viu
- * o preço numa loja física. Os mesmos campos que a extensão manda, com os mesmos
- * opcionais: só nome e link são obrigatórios.
+ * Três destinos possíveis, e é o que os props dizem:
+ *
+ * - `produto`        → edita esse produto
+ * - `agrupamentoId`  → acrescenta a um agrupamento que já existe ("e também o suporte")
+ * - `interesseId`    → cria um agrupamento novo com este produto como primeiro
+ *
+ * ## O link não é editável na edição
+ *
+ * É por `url` que a extensão reabre a página para reler o preço. Trocar a url à mão
+ * faria a próxima rechecagem ler OUTRO produto e sobrescrever o preço e o histórico
+ * deste com os de outra coisa — sem erro visível, e sem como descobrir depois que o
+ * gráfico virou dois produtos misturados. Produto errado se remove e captura de
+ * novo; é uma ação a mais e mantém o histórico honesto.
  *
  * `loja` não é digitada — sai do hostname da url por `lojaDaUrl`. Pedir a loja
- * depois de pedir o link seria pedir duas vezes a mesma informação, e é assim que
- * a extensão faz também.
+ * depois de pedir o link seria pedir duas vezes a mesma informação, e é assim que a
+ * extensão faz também.
  */
 import { toast } from 'vue-sonner'
+import { LockIcon } from '@lucide/vue'
 import { mensagemDeErro } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -24,13 +35,32 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { lojaDaUrl } from '~/types/interesse'
-import { useAdicionarProduto } from '~/composables/useInteresses'
+import type { InteresseProduto } from '~/types/interesse'
+import {
+  useAdicionarProduto,
+  useAtualizarProduto,
+  useCriarAgrupamento,
+} from '~/composables/useInteresses'
 
-const props = defineProps<{ interesseId: string }>()
+const props = defineProps<{
+  produto?: InteresseProduto | null
+  agrupamentoId?: string | null
+  interesseId?: string | null
+  /** Nome sugerido para o agrupamento novo, quando é o caso. */
+  nomeDoAgrupamento?: string | null
+}>()
 
 const aberto = defineModel<boolean>('aberto', { required: true })
 
 const adicionar = useAdicionarProduto()
+const atualizar = useAtualizarProduto()
+const criarAgrupamento = useCriarAgrupamento()
+
+const editando = computed(() => !!props.produto)
+
+const salvando = computed(() =>
+  adicionar.isPending.value || atualizar.isPending.value || criarAgrupamento.isPending.value,
+)
 
 const nome = ref('')
 const url = ref('')
@@ -41,46 +71,81 @@ const parcelas = ref<number | undefined>(undefined)
 const valorParcela = ref<number | undefined>(undefined)
 const imagemUrl = ref('')
 
+/** Numa edição, `null` no campo numérico significa apagar o valor, não "não mexi". */
+function comoNumero(valor: number | null): number | undefined {
+  return valor ?? undefined
+}
+
 watch(aberto, (estaAberto) => {
   if (!estaAberto) return
-  nome.value = ''
-  url.value = ''
-  preco.value = undefined
-  precoPix.value = undefined
-  parcelas.value = undefined
-  valorParcela.value = undefined
-  imagemUrl.value = ''
+
+  const p = props.produto
+  nome.value = p?.nome ?? ''
+  url.value = p?.url ?? ''
+  preco.value = comoNumero(p?.preco ?? null)
+  precoPix.value = comoNumero(p?.preco_pix ?? null)
+  parcelas.value = comoNumero(p?.parcelas ?? null)
+  valorParcela.value = comoNumero(p?.valor_parcela ?? null)
+  imagemUrl.value = p?.imagem_url ?? ''
 })
 
 const loja = computed(() => lojaDaUrl(url.value.trim()))
 
-const podeSalvar = computed(() =>
-  nome.value.trim().length > 0 && url.value.trim().length > 0 && !adicionar.isPending.value,
-)
+const podeSalvar = computed(() => {
+  if (salvando.value) return false
+  if (!nome.value.trim()) return false
+  return editando.value || url.value.trim().length > 0
+})
+
+/** Os campos que os três caminhos têm em comum. */
+function valores() {
+  return {
+    nome: nome.value.trim(),
+    imagem_url: imagemUrl.value.trim() || null,
+    preco: preco.value ?? null,
+    preco_pix: precoPix.value ?? null,
+    parcelas: parcelas.value ?? null,
+    valor_parcela: valorParcela.value ?? null,
+  }
+}
 
 async function salvar() {
   if (!podeSalvar.value) return
 
   try {
-    await adicionar.mutateAsync({
-      interesseId: props.interesseId,
-      produto: {
-        nome: nome.value.trim(),
+    if (props.produto) {
+      await atualizar.mutateAsync({ id: props.produto.id, ...valores() })
+      toast.success('Produto atualizado.')
+    }
+    else {
+      const produto = {
+        ...valores(),
         url: url.value.trim(),
         loja: loja.value,
-        imagem_url: imagemUrl.value.trim() || null,
-        preco: preco.value ?? null,
-        preco_pix: precoPix.value ?? null,
-        parcelas: parcelas.value ?? null,
-        valor_parcela: valorParcela.value ?? null,
-        origem: 'manual',
-      },
-    })
-    toast.success('Produto adicionado.')
+        origem: 'manual' as const,
+      }
+
+      if (props.agrupamentoId) {
+        await adicionar.mutateAsync({ agrupamentoId: props.agrupamentoId, produto })
+      }
+      else if (props.interesseId) {
+        await criarAgrupamento.mutateAsync({
+          interesseId: props.interesseId,
+          nome: props.nomeDoAgrupamento ?? null,
+          produto,
+        })
+      }
+      else {
+        throw new Error('Sem agrupamento nem interesse para receber o produto.')
+      }
+
+      toast.success('Produto adicionado.')
+    }
+
     aberto.value = false
   }
   catch (e) {
-    toast.error(mensagemDeErro(e, 'Não deu para adicionar o produto.'))
+    toast.error(mensagemDeErro(e, 'Não deu para salvar o produto.'))
   }
 }
 </script>
@@ -89,9 +154,18 @@ async function salvar() {
   <Dialog v-model:open="aberto">
     <DialogContent class="sm:max-w-lg">
       <DialogHeader>
-        <DialogTitle>Adicionar produto</DialogTitle>
+        <DialogTitle>{{ editando ? 'Editar produto' : 'Adicionar produto' }}</DialogTitle>
         <DialogDescription>
-          Um candidato para este interesse. Só o nome e o link são obrigatórios.
+          <template v-if="editando">
+            Corrija o que a captura leu errado. O link fica travado — é por ele que o
+            preço é relido.
+          </template>
+          <template v-else-if="agrupamentoId">
+            Um item que faz parte do mesmo conjunto — o preço deles é somado.
+          </template>
+          <template v-else>
+            Uma alternativa para este interesse. Só o nome e o link são obrigatórios.
+          </template>
         </DialogDescription>
       </DialogHeader>
 
@@ -103,7 +177,21 @@ async function salvar() {
 
         <div class="space-y-1.5">
           <Label for="produto-url">Link</Label>
+
+          <!--
+            Travado com `readonly` em vez de escondido: o link é a informação mais
+            importante do card, e ver de onde o produto veio ajuda a decidir se é
+            este mesmo que se quer corrigir.
+          -->
           <Input
+            v-if="editando"
+            id="produto-url"
+            :model-value="url"
+            readonly
+            class="text-muted-foreground"
+          />
+          <Input
+            v-else
             id="produto-url"
             v-model="url"
             type="url"
@@ -112,7 +200,15 @@ async function salvar() {
             autocomplete="off"
             required
           />
-          <p v-if="loja" class="text-xs text-muted-foreground">Loja: {{ loja }}</p>
+
+          <p v-if="editando" class="flex items-start gap-1.5 text-xs text-muted-foreground">
+            <LockIcon class="mt-0.5 size-3 shrink-0" />
+            <span>
+              É por este link que a extensão relê o preço. Para trocar de produto,
+              remova este e capture o novo.
+            </span>
+          </p>
+          <p v-else-if="loja" class="text-xs text-muted-foreground">Loja: {{ loja }}</p>
         </div>
 
         <div class="grid gap-4 sm:grid-cols-2">
@@ -145,7 +241,7 @@ async function salvar() {
         <DialogFooter>
           <Button type="button" variant="ghost" @click="aberto = false">Cancelar</Button>
           <Button type="submit" :disabled="!podeSalvar">
-            {{ adicionar.isPending.value ? 'Salvando…' : 'Adicionar' }}
+            {{ salvando ? 'Salvando…' : editando ? 'Salvar' : 'Adicionar' }}
           </Button>
         </DialogFooter>
       </form>

@@ -1,17 +1,23 @@
 <script setup lang="ts">
 /**
- * O detalhe de um interesse: a ideia em cima, os candidatos embaixo.
+ * O detalhe de um interesse: a ideia em cima, as saídas possíveis embaixo.
  *
  * É o destino do link que a extensão do Chrome mostra depois de capturar, então
  * "não encontrado" é caso comum e não borda — um link colado no celular de quem
  * está com outro espaço ativo cai aqui, e a RLS torna o interesse invisível. Por
  * isso o estado de erro é uma tela explicada, e não o erro cru do PostgREST.
  *
- * A comparação entre candidatos é o valor da tela: `economiaPossivel` diz quanto
- * o escolhido custa a mais que o mais barato da lista, e só aparece quando há de
+ * A comparação é o valor da tela, e ela é entre AGRUPAMENTOS: "monitor 27 + braço"
+ * contra "monitor 24 + base", não produto contra produto. `economiaPossivel` diz
+ * quanto o favorito custa a mais que a saída mais barata, e só aparece quando há de
  * fato uma escolha a questionar.
+ *
+ * Quem não é dono vê a tela inteira e mexe em quase tudo — produtos, favorito,
+ * estado — mas não na intenção (título, destino, para quem, observação). Quem impõe
+ * isso é o trigger `interesse_intencao_protegida`; aqui os botões que ele recusaria
+ * simplesmente não aparecem, para o erro não ser a forma de descobrir a regra.
  */
-import { PencilIcon, PlusIcon, Trash2Icon } from '@lucide/vue'
+import { GiftIcon, PencilIcon, PlusIcon, Trash2Icon, UndoIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,25 +26,46 @@ import { formatarDinheiro } from '@/lib/dinheiro'
 import { mensagemDeErro } from '@/lib/utils'
 import {
   economiaPossivel,
-  precoEfetivo,
+  interesseDeFora,
+  paraQuemDoInteresse,
+  produtosDoInteresse,
   rotuloDestino,
   rotuloEstado,
+  somaDoAgrupamento,
   valorDoInteresse,
 } from '~/types/interesse'
+import type { Agrupamento, InteresseProduto } from '~/types/interesse'
 import {
   useApagarInteresse,
-  useEscolherProduto,
+  useAssumirInteresse,
+  useEscolherAgrupamento,
   useInteresse,
+  useLiberarInteresse,
+  useRemoverAgrupamento,
   useRemoverProduto,
+  useRenomearAgrupamento,
+  useVista,
 } from '~/composables/useInteresses'
+import { nomeDaPessoa, usePessoas } from '~/composables/useMembros'
+import { useUsuarioId } from '~/composables/useUsuarioId'
+import { useSpaceStore } from '~/stores/space'
 
 const route = useRoute()
 const interesseId = route.params.id as string
 
 const { data: interesse, isPending, isError, error } = useInteresse(interesseId)
+const { data: pessoas } = usePessoas()
+const euId = useUsuarioId()
+const vista = useVista()
+const store = useSpaceStore()
+
 const apagar = useApagarInteresse()
-const escolher = useEscolherProduto()
-const remover = useRemoverProduto()
+const escolher = useEscolherAgrupamento()
+const renomear = useRenomearAgrupamento()
+const removerAgrupamento = useRemoverAgrupamento()
+const removerProduto = useRemoverProduto()
+const assumir = useAssumirInteresse()
+const liberar = useLiberarInteresse()
 
 useHead({
   title: () => {
@@ -51,37 +78,128 @@ useHead({
 const dialogoInteresse = ref(false)
 const dialogoProduto = ref(false)
 
-const produtos = computed(() => interesse.value?.produtos ?? [])
+/** O que o diálogo de produto vai fazer quando abrir. */
+const produtoEmEdicao = ref<InteresseProduto | null>(null)
+const agrupamentoAlvo = ref<string | null>(null)
 
-/** Ordem: o escolhido primeiro, depois do mais barato ao mais caro. */
-const produtosOrdenados = computed(() =>
-  [...produtos.value].sort((a, b) => {
+const souDono = computed(() => !!interesse.value && interesse.value.criado_por === euId.value)
+
+/** Interesse visto de fora da casa dele — a tela diz de onde ele vem. */
+const casa = computed(() => {
+  if (!interesse.value || !interesseDeFora(interesse.value, vista.value.spaceId)) return null
+  return store.espacos.find(e => e.id === interesse.value!.space_id)?.nome ?? 'outro espaço'
+})
+
+const agrupamentos = computed(() => interesse.value?.agrupamentos ?? [])
+const produtos = computed(() => produtosDoInteresse(agrupamentos.value))
+
+/** Ordem: o favorito primeiro, depois do mais barato ao mais caro. */
+const ordenados = computed(() =>
+  [...agrupamentos.value].sort((a, b) => {
     if (a.escolhido !== b.escolhido) return a.escolhido ? -1 : 1
-    // Sem preço vai para o fim: `Infinity` os empurra sem inventar um valor.
-    return (precoEfetivo(a) ?? Infinity) - (precoEfetivo(b) ?? Infinity)
+    // Sem soma vai para o fim: `Infinity` os empurra sem inventar um valor.
+    return (somaDoAgrupamento(a) ?? Infinity) - (somaDoAgrupamento(b) ?? Infinity)
   }),
 )
 
-const valor = computed(() => valorDoInteresse(produtos.value))
-const economia = computed(() => economiaPossivel(produtos.value))
+const valor = computed(() => valorDoInteresse(agrupamentos.value))
+const economia = computed(() => economiaPossivel(agrupamentos.value))
 
-async function onEscolher(produtoId: string) {
+const paraQuem = computed(() =>
+  interesse.value ? paraQuemDoInteresse(interesse.value, pessoas.value) : null,
+)
+
+const quemAssumiu = computed(() =>
+  nomeDaPessoa(pessoas.value, interesse.value?.assumido_por ?? null),
+)
+
+const euAssumi = computed(
+  () => !!interesse.value?.assumido_por && interesse.value.assumido_por === euId.value,
+)
+
+function abrirNovoAgrupamento() {
+  produtoEmEdicao.value = null
+  agrupamentoAlvo.value = null
+  dialogoProduto.value = true
+}
+
+function abrirAdicionarAoAgrupamento(agrupamento: Agrupamento) {
+  produtoEmEdicao.value = null
+  agrupamentoAlvo.value = agrupamento.id
+  dialogoProduto.value = true
+}
+
+function abrirEdicaoDeProduto(produto: InteresseProduto) {
+  produtoEmEdicao.value = produto
+  agrupamentoAlvo.value = null
+  dialogoProduto.value = true
+}
+
+/** Um envelope só para os erros das ações de uma linha. */
+async function tentar(acao: () => Promise<unknown>, sucesso: string, falha: string) {
   try {
-    await escolher.mutateAsync(produtoId)
+    await acao()
+    toast.success(sucesso)
   }
   catch (e) {
-    toast.error(mensagemDeErro(e, 'Não deu para marcar o produto.'))
+    toast.error(mensagemDeErro(e, falha))
   }
 }
 
-async function onRemoverProduto(produtoId: string) {
-  try {
-    await remover.mutateAsync(produtoId)
-    toast.success('Produto removido.')
-  }
-  catch (e) {
-    toast.error(mensagemDeErro(e, 'Não deu para remover o produto.'))
-  }
+function onEscolher(agrupamento: Agrupamento) {
+  return tentar(
+    () => escolher.mutateAsync(agrupamento.id),
+    'Favorito trocado.',
+    'Não deu para marcar o favorito.',
+  )
+}
+
+function onRenomear(agrupamento: Agrupamento, nome: string | null) {
+  return tentar(
+    () => renomear.mutateAsync({ id: agrupamento.id, nome }),
+    'Nome salvo.',
+    'Não deu para renomear.',
+  )
+}
+
+function onRemoverAgrupamento(agrupamento: Agrupamento) {
+  return tentar(
+    () => removerAgrupamento.mutateAsync(agrupamento.id),
+    'Conjunto apagado.',
+    'Não deu para apagar o conjunto.',
+  )
+}
+
+/**
+ * Remover o último produto de um agrupamento leva o agrupamento junto — senão
+ * sobraria um cartão vazio que não custa nada e ainda concorre a favorito.
+ */
+function onRemoverProduto(agrupamento: Agrupamento, produto: InteresseProduto) {
+  return tentar(
+    () => removerProduto.mutateAsync({
+      id: produto.id,
+      agrupamentoId: agrupamento.id,
+      ultimo: agrupamento.produtos.length === 1,
+    }),
+    'Produto removido.',
+    'Não deu para remover o produto.',
+  )
+}
+
+function onAssumir() {
+  return tentar(
+    () => assumir.mutateAsync(interesseId),
+    'Você assumiu este presente.',
+    'Não deu para assumir.',
+  )
+}
+
+function onLiberar() {
+  return tentar(
+    () => liberar.mutateAsync(interesseId),
+    'Responsabilidade liberada.',
+    'Não deu para liberar.',
+  )
 }
 
 async function onApagar() {
@@ -128,16 +246,58 @@ async function onApagar() {
           <div class="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <Badge variant="secondary">{{ rotuloDestino(interesse.destino) }}</Badge>
             <Badge variant="outline">{{ rotuloEstado(interesse.estado) }}</Badge>
-            <span v-if="interesse.para_quem">para {{ interesse.para_quem }}</span>
+            <span v-if="paraQuem">para {{ paraQuem }}</span>
+            <!--
+              De onde ele vem, quando é de fora: sem isso um interesse do casal
+              aparecendo no espaço pessoal parece dado duplicado, e quem editar vai
+              estranhar a mudança acontecer nos dois lugares.
+            -->
+            <Badge v-if="casa" variant="outline" class="font-normal">de {{ casa }}</Badge>
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
-          <Button variant="outline" size="sm" class="gap-1.5" @click="dialogoInteresse = true">
+        <div class="flex flex-wrap items-center gap-2">
+          <CompartilharInteresse v-if="souDono" :interesse="interesse" />
+
+          <!--
+            "Darei de presente para ele" só para quem não criou: assumir o próprio
+            interesse não quer dizer nada, e o banco recusa.
+          -->
+          <Button
+            v-if="!souDono && !interesse.assumido_por"
+            variant="outline"
+            size="sm"
+            class="gap-1.5"
+            @click="onAssumir"
+          >
+            <GiftIcon class="size-4" />
+            Darei de presente
+          </Button>
+
+          <Button
+            v-if="euAssumi || (souDono && interesse.assumido_por)"
+            variant="ghost"
+            size="sm"
+            class="gap-1.5 text-muted-foreground"
+            @click="onLiberar"
+          >
+            <UndoIcon class="size-4" />
+            Liberar
+          </Button>
+
+          <Button
+            v-if="souDono"
+            variant="outline"
+            size="sm"
+            class="gap-1.5"
+            @click="dialogoInteresse = true"
+          >
             <PencilIcon class="size-4" />
             Editar
           </Button>
+
           <Button
+            v-if="souDono"
             variant="ghost"
             size="sm"
             class="gap-1.5 text-muted-foreground hover:text-destructive"
@@ -149,6 +309,22 @@ async function onApagar() {
         </div>
       </header>
 
+      <!--
+        Quem assumiu aparece para todos, inclusive para quem criou: o app é de gente
+        que coordena, não que faz surpresa. Esconder isso do dono deixaria os dois
+        comprando o mesmo presente.
+      -->
+      <p
+        v-if="interesse.assumido_por"
+        class="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm"
+      >
+        <GiftIcon class="size-4 shrink-0 text-primary" />
+        <span>
+          <template v-if="euAssumi">Você vai dar isto de presente.</template>
+          <template v-else>{{ quemAssumiu }} vai dar isto de presente.</template>
+        </span>
+      </p>
+
       <p v-if="interesse.observacao" class="whitespace-pre-line text-sm text-muted-foreground">
         {{ interesse.observacao }}
       </p>
@@ -157,30 +333,37 @@ async function onApagar() {
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 class="text-sm font-medium">
-              {{ produtos.length === 1 ? '1 produto' : `${produtos.length} produtos` }}
+              {{ agrupamentos.length === 1 ? '1 saída possível' : `${agrupamentos.length} saídas possíveis` }}
+              <span v-if="produtos.length !== agrupamentos.length" class="font-normal text-muted-foreground">
+                · {{ produtos.length }} produtos
+              </span>
             </h2>
             <p v-if="valor !== null" class="text-xs text-muted-foreground">
               Vale {{ formatarDinheiro(valor) }}
               <template v-if="economia !== null">
-                — o mais barato sai {{ formatarDinheiro(economia) }} menos
+                — a saída mais barata sai {{ formatarDinheiro(economia) }} menos
               </template>
             </p>
           </div>
 
-          <Button variant="outline" size="sm" class="gap-1.5" @click="dialogoProduto = true">
+          <Button variant="outline" size="sm" class="gap-1.5" @click="abrirNovoAgrupamento">
             <PlusIcon class="size-4" />
-            Adicionar produto
+            Nova alternativa
           </Button>
         </div>
 
-        <div v-if="produtos.length" class="space-y-2">
-          <ProdutoDoInteresse
-            v-for="produto in produtosOrdenados"
-            :key="produto.id"
-            :produto="produto"
-            :pode-escolher="produtos.length > 1"
-            @escolher="onEscolher(produto.id)"
-            @remover="onRemoverProduto(produto.id)"
+        <div v-if="agrupamentos.length" class="space-y-3">
+          <AgrupamentoDoInteresse
+            v-for="agrupamento in ordenados"
+            :key="agrupamento.id"
+            :agrupamento="agrupamento"
+            :pode-escolher="agrupamentos.length > 1"
+            @escolher="onEscolher(agrupamento)"
+            @renomear="nome => onRenomear(agrupamento, nome)"
+            @remover="onRemoverAgrupamento(agrupamento)"
+            @adicionar-produto="abrirAdicionarAoAgrupamento(agrupamento)"
+            @editar-produto="abrirEdicaoDeProduto"
+            @remover-produto="produto => onRemoverProduto(agrupamento, produto)"
           />
         </div>
 
@@ -191,7 +374,12 @@ async function onApagar() {
       </section>
 
       <InteresseDialogo v-model:aberto="dialogoInteresse" :interesse="interesse" />
-      <ProdutoDialogo v-model:aberto="dialogoProduto" :interesse-id="interesseId" />
+      <ProdutoDialogo
+        v-model:aberto="dialogoProduto"
+        :produto="produtoEmEdicao"
+        :agrupamento-id="agrupamentoAlvo"
+        :interesse-id="interesseId"
+      />
     </template>
   </div>
 </template>

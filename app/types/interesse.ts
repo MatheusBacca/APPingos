@@ -1,11 +1,21 @@
 /**
  * Interesses — o domínio, e a conta que a tela não deve refazer.
  *
- * Um interesse é uma vontade ("trocar o sofá") com vários produtos candidatos
- * atrás dela. Toda pergunta interessante é sobre o conjunto: qual candidato vale
- * o valor do interesse, quanto custa a lista inteira, quanto o candidato mais
- * barato economiza. É isso que mora aqui, puro e testável fora do Nuxt — o mesmo
- * arranjo de `app/types/orcamento.ts`.
+ * Um interesse é uma vontade ("monitor novo"), e cada jeito de realizá-la é um
+ * **agrupamento**: um ou mais produtos que só valem juntos ("o monitor de 27 mais
+ * o braço de mesa"). Comparar interesse é comparar agrupamento contra agrupamento,
+ * nunca produto contra produto — um monitor de 24" sozinho não concorre com um
+ * monitor de 27" mais suporte, e tratar os quatro como quatro candidatos soltos
+ * responderia "o mais barato é o suporte de R$ 150".
+ *
+ *     Interesse "Monitor novo"
+ *       ├── Agrupamento (escolhido)   Monitor 27" 1.800 + braço 300  = 2.100
+ *       └── Agrupamento               Monitor 24" 1.200 + base   150 = 1.350
+ *
+ * Toda a conta interessante é sobre esse conjunto: quanto vale o interesse, quanto
+ * custaria querer tudo, quanto o favorito custa a mais que a saída mais barata. É
+ * isso que mora aqui, puro e testável fora do Nuxt — o mesmo arranjo de
+ * `app/types/orcamento.ts`.
  *
  * As uniões abaixo espelham à mão os CHECKs de
  * `supabase/migrations/20260812150000_objetivos_interesses.sql`, pelo mesmo motivo
@@ -54,6 +64,14 @@ export function rotuloEstado(estado: EstadoInteresse): string {
 export interface InteresseProduto {
   id: string
   interesse_id: string
+  /**
+   * O agrupamento a que este produto pertence.
+   *
+   * `interesse_id` continua aqui, e não é redundância por acidente: a RLS e a
+   * consulta da extensão passam por ele. Um trigger no banco garante que os dois
+   * caminhos apontem para o mesmo interesse.
+   */
+  agrupamento_id: string
   nome: string
   url: string
   loja: string | null
@@ -62,7 +80,6 @@ export interface InteresseProduto {
   preco_pix: number | null
   parcelas: number | null
   valor_parcela: number | null
-  escolhido: boolean
   origem: OrigemProduto
   capturado_em: string
   /** `null` = nunca rechecado desde a captura. */
@@ -70,6 +87,22 @@ export interface InteresseProduto {
   /** Rechecagens seguidas que não conseguiram ler preço nenhum. */
   falhas_seguidas: number
   created_at: string
+}
+
+/**
+ * Um jeito de realizar o interesse: um produto, ou vários que só valem juntos.
+ *
+ * `nome` é `null` na maioria dos casos — o agrupamento de um produto só não precisa
+ * de batismo, e chamar "Sofá" de "Sofá" é ruído. `nomeDoAgrupamento` cobre isso.
+ */
+export interface Agrupamento {
+  id: string
+  interesse_id: string
+  nome: string | null
+  /** O favorito. No máximo um por interesse, garantido por índice único parcial. */
+  escolhido: boolean
+  created_at: string
+  produtos: InteresseProduto[]
 }
 
 /** Uma observação de preço no tempo — só entra quando algo mudou. */
@@ -113,8 +146,20 @@ export interface Interesse {
   titulo: string
   destino: DestinoInteresse
   estado: EstadoInteresse
+  /** Texto livre — vale para quem não tem conta aqui ("minha mãe"). */
   para_quem: string | null
+  /** Um membro do espaço, quando o presente é para alguém que usa o app. */
+  para_quem_user_id: string | null
   observacao: string | null
+  /**
+   * Quem disse "darei de presente para ele".
+   *
+   * Visível para todo mundo, inclusive para quem criou o interesse: o app é de
+   * gente que coordena, não que faz surpresa. Nunca é o dono — assumir o próprio
+   * interesse não quer dizer nada, e o banco recusa.
+   */
+  assumido_por: string | null
+  assumido_em: string | null
   convertido_em: string | null
   convertido_tipo: 'objetivo' | 'compra' | 'viagem' | null
   convertido_ref_id: string | null
@@ -122,8 +167,18 @@ export interface Interesse {
   updated_at: string
 }
 
-export interface InteresseComProdutos extends Interesse {
-  produtos: InteresseProduto[]
+/** Onde um interesse aparece além da casa dele. */
+export interface InteresseCompartilhamento {
+  interesse_id: string
+  space_id: string
+  compartilhado_por: string
+  created_at: string
+}
+
+/** Um interesse com seus agrupamentos, cada um com seus produtos. */
+export interface InteresseComAgrupamentos extends Interesse {
+  agrupamentos: Agrupamento[]
+  compartilhamentos: InteresseCompartilhamento[]
 }
 
 /** O que o diálogo de criação/edição manda para o banco. */
@@ -131,6 +186,7 @@ export interface NovoInteresse {
   titulo: string
   destino: DestinoInteresse
   para_quem: string | null
+  para_quem_user_id: string | null
   observacao: string | null
 }
 
@@ -178,61 +234,209 @@ export function totalParcelado(produto: InteresseProduto): number | null {
 }
 
 /**
- * O candidato que representa o interesse.
+ * Quantos produtos do agrupamento ainda não têm preço.
  *
- * O escolhido manda, sempre — é uma decisão humana, e o mais barato não é
- * necessariamente o que se quer (o sofá certo pode ser o caro). Sem escolhido,
- * cai no mais barato com preço conhecido; sem nenhum preço, no primeiro, que ao
- * menos tem nome e link.
+ * A tela usa para dizer "1 sem preço" ao lado de uma soma incompleta, em vez de
+ * apresentar um número parcial como se fosse o custo.
  */
-export function produtoDoInteresse(produtos: InteresseProduto[]): InteresseProduto | null {
-  if (!produtos.length) return null
-
-  const escolhido = produtos.find(p => p.escolhido)
-  if (escolhido) return escolhido
-
-  const comPreco = produtos.filter(p => precoEfetivo(p) !== null)
-  if (!comPreco.length) return produtos[0] ?? null
-
-  return comPreco.reduce((maisBarato, p) =>
-    precoEfetivo(p)! < precoEfetivo(maisBarato)! ? p : maisBarato,
-  )
+export function produtosSemPreco(agrupamento: Agrupamento): number {
+  return agrupamento.produtos.filter(p => precoEfetivo(p) === null).length
 }
 
-/** O preço que representa o interesse, ou `null` se nenhum candidato tem preço. */
-export function valorDoInteresse(produtos: InteresseProduto[]): number | null {
-  const produto = produtoDoInteresse(produtos)
-  return produto ? precoEfetivo(produto) : null
+/** O que já se sabe somar, ignorando os produtos sem preço. */
+export function somaParcial(agrupamento: Agrupamento): number {
+  return agrupamento.produtos.reduce((soma, p) => soma + (precoEfetivo(p) ?? 0), 0)
 }
 
 /**
- * Quanto o candidato escolhido custa a mais que o mais barato da lista.
+ * O que custa levar tudo o que este agrupamento pede.
  *
- * `null` quando não há escolha a comparar (menos de dois com preço) ou quando o
- * escolhido já é o mais barato — nesses casos não há nada a dizer, e a tela some
- * com a linha em vez de mostrar "R$ 0,00 a mais".
+ * `null` enquanto **qualquer** produto estiver sem preço, e não a soma dos que têm:
+ * uma soma parcial não é um preço menor, é um preço incompleto — e é justamente
+ * comparando somas que a tela diz "dá para economizar R$ 750". Devolver 1.800 para
+ * "monitor 1.800 + suporte sem preço" faria essa frase mentir a favor do
+ * agrupamento pior documentado. Para exibir o que se sabe existe `somaParcial`.
+ *
+ * Agrupamento vazio também é `null` — ele existe (a tela acabou de criá-lo, os
+ * produtos vêm em seguida), mas não custa zero.
  */
-export function economiaPossivel(produtos: InteresseProduto[]): number | null {
-  const comPreco = produtos.filter(p => precoEfetivo(p) !== null)
-  if (comPreco.length < 2) return null
+export function somaDoAgrupamento(agrupamento: Agrupamento): number | null {
+  if (!agrupamento.produtos.length) return null
+  if (produtosSemPreco(agrupamento) > 0) return null
 
-  const atual = produtoDoInteresse(produtos)
-  if (!atual || precoEfetivo(atual) === null) return null
+  return somaParcial(agrupamento)
+}
 
-  const menor = Math.min(...comPreco.map(p => precoEfetivo(p)!))
-  const diferenca = precoEfetivo(atual)! - menor
+/**
+ * Como chamar o agrupamento na tela.
+ *
+ * Com nome, o nome. Sem nome e com um produto só, o nome do produto — é o caso
+ * comum, e um cabeçalho "(sem nome)" acima de "Sofá Retrátil" não informa nada.
+ * Sem nome e com vários, os nomes juntos, que é literalmente o que ele é.
+ */
+export function nomeDoAgrupamento(agrupamento: Agrupamento): string {
+  if (agrupamento.nome) return agrupamento.nome
+  if (!agrupamento.produtos.length) return 'Sem produtos ainda'
+
+  return agrupamento.produtos.map(p => p.nome).join(' + ')
+}
+
+/**
+ * O agrupamento que representa o interesse.
+ *
+ * O escolhido manda, sempre — é uma decisão humana, e o mais barato não é
+ * necessariamente o que se quer (o sofá certo pode ser o caro). Sem escolhido, cai
+ * no mais barato com soma completa; sem nenhuma soma, no primeiro, que ao menos tem
+ * nome e link.
+ */
+export function agrupamentoDoInteresse(agrupamentos: Agrupamento[]): Agrupamento | null {
+  if (!agrupamentos.length) return null
+
+  const escolhido = agrupamentos.find(a => a.escolhido)
+  if (escolhido) return escolhido
+
+  const comSoma = agrupamentos.filter(a => somaDoAgrupamento(a) !== null)
+  if (!comSoma.length) return agrupamentos[0] ?? null
+
+  return comSoma.reduce((maisBarato, a) =>
+    somaDoAgrupamento(a)! < somaDoAgrupamento(maisBarato)! ? a : maisBarato,
+  )
+}
+
+/** O preço que representa o interesse, ou `null` se nenhum agrupamento fecha conta. */
+export function valorDoInteresse(agrupamentos: Agrupamento[]): number | null {
+  const agrupamento = agrupamentoDoInteresse(agrupamentos)
+  return agrupamento ? somaDoAgrupamento(agrupamento) : null
+}
+
+/**
+ * Quanto o agrupamento escolhido custa a mais que a saída mais barata.
+ *
+ * `null` quando não há escolha a comparar (menos de dois com soma completa) ou
+ * quando o escolhido já é o mais barato — nesses casos não há nada a dizer, e a
+ * tela some com a linha em vez de mostrar "R$ 0,00 a mais".
+ */
+export function economiaPossivel(agrupamentos: Agrupamento[]): number | null {
+  const comSoma = agrupamentos.filter(a => somaDoAgrupamento(a) !== null)
+  if (comSoma.length < 2) return null
+
+  const atual = agrupamentoDoInteresse(agrupamentos)
+  if (!atual || somaDoAgrupamento(atual) === null) return null
+
+  const menor = Math.min(...comSoma.map(a => somaDoAgrupamento(a)!))
+  const diferenca = somaDoAgrupamento(atual)! - menor
 
   return diferenca > 0 ? diferenca : null
+}
+
+/** Todos os produtos do interesse, achatados — para contar e para rechecar preço. */
+export function produtosDoInteresse(agrupamentos: Agrupamento[]): InteresseProduto[] {
+  return agrupamentos.flatMap(a => a.produtos)
+}
+
+/**
+ * O produto que ilustra o interesse na lista: o primeiro do agrupamento que o
+ * representa. Serve para a miniatura e para dizer de que loja veio.
+ */
+export function produtoDaCapa(agrupamentos: Agrupamento[]): InteresseProduto | null {
+  const agrupamento = agrupamentoDoInteresse(agrupamentos)
+  return agrupamento?.produtos[0] ?? null
 }
 
 /**
  * A soma dos interesses abertos — o "quanto custaria querer tudo isso".
  *
- * Conta um produto por interesse (o que o representa), não todos: somar os três
+ * Conta um agrupamento por interesse (o que o representa), não todos: somar os três
  * sofás candidatos diria que a gente quer três sofás.
  */
-export function totalDosInteresses(interesses: InteresseComProdutos[]): number {
-  return interesses.reduce((soma, i) => soma + (valorDoInteresse(i.produtos) ?? 0), 0)
+export function totalDosInteresses(interesses: InteresseComAgrupamentos[]): number {
+  return interesses.reduce((soma, i) => soma + (valorDoInteresse(i.agrupamentos) ?? 0), 0)
+}
+
+/**
+ * Para quem é isto, em texto.
+ *
+ * As duas formas do campo se resolvem aqui, num lugar só: um membro do espaço
+ * (`para_quem_user_id`, cujo nome vem do mapa de pessoas) ou texto livre
+ * (`para_quem`, para quem não tem conta aqui). O nome NÃO é copiado para
+ * `para_quem` na hora de salvar de propósito — ele mudaria de apelido e o interesse
+ * ficaria apontando para um nome que não existe mais.
+ *
+ * O rótulo genérico cobre o caso de o mapa não ter a pessoa: ela saiu do espaço, ou
+ * a lista de perfis ainda está carregando. Melhor "alguém do espaço" do que a tela
+ * dizer que não é para ninguém.
+ */
+export function paraQuemDoInteresse(
+  interesse: Interesse,
+  pessoas?: Map<string, string>,
+): string | null {
+  if (interesse.para_quem_user_id) {
+    return pessoas?.get(interesse.para_quem_user_id) ?? 'alguém do espaço'
+  }
+
+  return interesse.para_quem
+}
+
+/**
+ * De onde a pessoa está olhando — o que decide quais interesses cabem na tela.
+ *
+ * A RLS já responde "quais eu PODERIA ver" (os dos meus espaços, mais os que
+ * alguém compartilhou num espaço meu). Isto responde outra pergunta, que é de
+ * apresentação: dos que posso ver, quais fazem sentido AQUI.
+ */
+export interface Vista {
+  spaceId: string
+  /** O espaço ativo é o pessoal de quem está olhando. */
+  pessoal: boolean
+  userId: string | null
+}
+
+/**
+ * Este interesse aparece nesta vista?
+ *
+ * Três caminhos, e o terceiro é o que dá sentido ao espaço pessoal:
+ *
+ * 1. **Mora aqui** — foi criado neste espaço.
+ * 2. **Foi compartilhado aqui** — o dono o trouxe para cá de propósito.
+ * 3. **É meu, e este é o meu espaço pessoal.** Um interesse que eu criei no
+ *    espaço do casal, ou que eu assumi ("darei de presente para ele"), continua
+ *    sendo assunto meu. Sem esta regra, o espaço pessoal seria o único lugar do
+ *    app que esconde o que a própria pessoa está tocando, e ela teria de trocar de
+ *    espaço para lembrar do presente que prometeu.
+ *
+ * O caminho 3 vale só no pessoal: dentro do espaço do casal, os interesses
+ * pessoais de cada um seguem invisíveis até que alguém os compartilhe — que é o
+ * ponto de existir espaço pessoal.
+ */
+export function interesseNaVista(interesse: InteresseComAgrupamentos, vista: Vista): boolean {
+  if (interesse.space_id === vista.spaceId) return true
+
+  if (interesse.compartilhamentos.some(c => c.space_id === vista.spaceId)) return true
+
+  if (vista.pessoal && vista.userId) {
+    return interesse.criado_por === vista.userId || interesse.assumido_por === vista.userId
+  }
+
+  return false
+}
+
+/** O recorte da vista, preservando a ordem recebida. */
+export function interessesDaVista(
+  interesses: InteresseComAgrupamentos[],
+  vista: Vista,
+): InteresseComAgrupamentos[] {
+  return interesses.filter(i => interesseNaVista(i, vista))
+}
+
+/**
+ * O interesse está sendo visto de fora da casa dele.
+ *
+ * A tela usa para dizer de onde ele vem — sem isso, um interesse do casal
+ * aparecendo no espaço pessoal parece um dado duplicado, e quem editar vai
+ * estranhar a mudança acontecer nos dois lugares.
+ */
+export function interesseDeFora(interesse: Interesse, spaceId: string): boolean {
+  return interesse.space_id !== spaceId
 }
 
 /**
@@ -242,8 +446,8 @@ export function totalDosInteresses(interesses: InteresseComProdutos[]): number {
  * cabeçalhos para dois interesses.
  */
 export function agruparPorDestino(
-  interesses: InteresseComProdutos[],
-): { destino: DestinoInteresse, rotulo: string, itens: InteresseComProdutos[] }[] {
+  interesses: InteresseComAgrupamentos[],
+): { destino: DestinoInteresse, rotulo: string, itens: InteresseComAgrupamentos[] }[] {
   return DESTINOS
     .map(({ valor, rotulo }) => ({
       destino: valor,

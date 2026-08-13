@@ -1,27 +1,32 @@
 <script setup lang="ts">
 /**
- * Um produto candidato dentro de um interesse.
+ * Um produto dentro de um agrupamento.
  *
  * Os três preços aparecem juntos porque é a comparação que a loja não faz: ela
  * anuncia "12x de R$ 219,90" ao lado de "R$ 2.399,00" e deixa a soma para quem
  * está comprando. Aqui o total do parcelado é calculado e mostrado, e quando ele
  * passa do preço à vista o card diz quanto isso custa a mais.
  *
+ * O card inteiro é clicável e abre a edição — é o caminho de corrigir o que a
+ * raspagem leu errado, que é frequente o bastante para não merecer um botão
+ * escondido. O link para a loja e o botão de remover são `<a>`/`<button>` de
+ * verdade por cima, e param a propagação: clicar em "abrir na loja" não pode abrir
+ * o modal por baixo da aba nova.
+ *
  * A imagem é `imagem_url` da loja, carregada de fora. Ela falha com o tempo — link
  * de CDN de e-commerce não é estável — então o `@error` troca por um placeholder
  * em vez de deixar o ícone de imagem quebrada.
  */
-import { ExternalLinkIcon, ImageIcon, StarIcon, Trash2Icon } from '@lucide/vue'
+import { ExternalLinkIcon, ImageIcon, Trash2Icon } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { formatarDia, tempoRelativo } from '@/lib/datas'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { FALHAS_ATE_AVISAR, precoEfetivo, totalParcelado } from '~/types/interesse'
 import type { InteresseProduto } from '~/types/interesse'
 
-const props = defineProps<{ produto: InteresseProduto, podeEscolher: boolean }>()
+const props = defineProps<{ produto: InteresseProduto }>()
 
-const emit = defineEmits<{ escolher: [], remover: [] }>()
+const emit = defineEmits<{ editar: [], remover: [] }>()
 
 const imagemQuebrada = ref(false)
 
@@ -65,9 +70,18 @@ const lojaBloqueando = computed(() => props.produto.falhas_seguidas >= FALHAS_AT
 </script>
 
 <template>
+  <!--
+    `role="button"` num `<article>` em vez de um `<button>` envolvendo tudo: um
+    botão não pode conter link nem outro botão, e aqui há os dois dentro.
+  -->
   <article
-    class="flex gap-3 rounded-lg border bg-card p-3"
-    :class="produto.escolhido ? 'border-primary/50' : ''"
+    class="flex cursor-pointer gap-3 rounded-lg border bg-card p-3 text-left hover:border-primary/40"
+    role="button"
+    tabindex="0"
+    :aria-label="`Editar ${produto.nome}`"
+    @click="emit('editar')"
+    @keydown.enter.prevent="emit('editar')"
+    @keydown.space.prevent="emit('editar')"
   >
     <div class="grid size-16 shrink-0 place-items-center overflow-hidden rounded-md bg-muted">
       <img
@@ -83,13 +97,7 @@ const lojaBloqueando = computed(() => props.produto.falhas_seguidas >= FALHAS_AT
     </div>
 
     <div class="min-w-0 flex-1 space-y-1">
-      <div class="flex flex-wrap items-start gap-2">
-        <p class="min-w-0 flex-1 text-sm font-medium leading-snug">{{ produto.nome }}</p>
-        <Badge v-if="produto.escolhido" variant="secondary" class="shrink-0 gap-1">
-          <StarIcon class="size-3" />
-          Escolhido
-        </Badge>
-      </div>
+      <p class="text-sm font-medium leading-snug">{{ produto.nome }}</p>
 
       <p v-if="produto.loja" class="text-xs text-muted-foreground">{{ produto.loja }}</p>
 
@@ -131,21 +139,15 @@ const lojaBloqueando = computed(() => props.produto.falhas_seguidas >= FALHAS_AT
 
     <div class="flex shrink-0 flex-col gap-1">
       <Button as-child variant="ghost" size="icon" title="Abrir na loja">
-        <a :href="produto.url" target="_blank" rel="noopener noreferrer">
+        <a
+          :href="produto.url"
+          target="_blank"
+          rel="noopener noreferrer"
+          @click.stop
+        >
           <ExternalLinkIcon class="size-4" />
           <span class="sr-only">Abrir na loja</span>
         </a>
-      </Button>
-
-      <Button
-        v-if="podeEscolher && !produto.escolhido"
-        variant="ghost"
-        size="icon"
-        title="Marcar como escolhido"
-        @click="emit('escolher')"
-      >
-        <StarIcon class="size-4" />
-        <span class="sr-only">Marcar como escolhido</span>
       </Button>
 
       <Button
@@ -153,7 +155,7 @@ const lojaBloqueando = computed(() => props.produto.falhas_seguidas >= FALHAS_AT
         size="icon"
         class="text-muted-foreground hover:text-destructive"
         title="Remover produto"
-        @click="emit('remover')"
+        @click.stop="emit('remover')"
       >
         <Trash2Icon class="size-4" />
         <span class="sr-only">Remover produto</span>

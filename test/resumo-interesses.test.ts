@@ -12,12 +12,13 @@ import { describe, expect, it } from 'vitest'
 // um literal digitado com espaço comum falha com as duas strings idênticas na tela.
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { linhasDoResumo } from '~/composables/useResumoInteresses'
-import type { EstadoInteresse, InteresseComProdutos, InteresseProduto } from '~/types/interesse'
+import type { Agrupamento, EstadoInteresse, InteresseComAgrupamentos, InteresseProduto } from '~/types/interesse'
 
 function produto(preco: number | null): InteresseProduto {
   return {
     id: `p-${preco}`,
     interesse_id: 'i1',
+    agrupamento_id: 'a1',
     nome: 'Produto',
     url: 'https://loja.com.br/p',
     loja: 'loja.com.br',
@@ -26,18 +27,31 @@ function produto(preco: number | null): InteresseProduto {
     preco_pix: null,
     parcelas: null,
     valor_parcela: null,
-    escolhido: true,
     origem: 'extensao',
     capturado_em: '2026-08-12T12:00:00Z',
+    verificado_em: null,
+    falhas_seguidas: 0,
     created_at: '2026-08-12T12:00:00Z',
+  }
+}
+
+/** Um agrupamento escolhido com os preços dados — o formato que o painel soma. */
+function agrupamento(...precos: (number | null)[]): Agrupamento {
+  return {
+    id: 'a1',
+    interesse_id: 'i1',
+    nome: null,
+    escolhido: true,
+    created_at: '2026-08-12T12:00:00Z',
+    produtos: precos.map(produto),
   }
 }
 
 function interesse(
   id: string,
   estado: EstadoInteresse,
-  produtos: InteresseProduto[] = [],
-): InteresseComProdutos {
+  agrupamentos: Agrupamento[] = [],
+): InteresseComAgrupamentos {
   return {
     id,
     space_id: 's1',
@@ -46,13 +60,16 @@ function interesse(
     destino: 'compra',
     estado,
     para_quem: null,
+    para_quem_user_id: null,
     observacao: null,
+    assumido_por: null,
+    assumido_em: null,
     convertido_em: null,
     convertido_tipo: null,
     convertido_ref_id: null,
     created_at: '2026-08-12T12:00:00Z',
     updated_at: '2026-08-12T12:00:00Z',
-    produtos,
+    agrupamentos,
   }
 }
 
@@ -76,8 +93,8 @@ describe('linhasDoResumo', () => {
 
   it('soma o valor dos escolhidos numa segunda linha', () => {
     const linhas = linhasDoResumo([
-      interesse('1', 'rascunho', [produto(2399)]),
-      interesse('2', 'amadurecendo', [produto(800)]),
+      interesse('1', 'rascunho', [agrupamento(2399)]),
+      interesse('2', 'amadurecendo', [agrupamento(800)]),
     ])
 
     expect(linhas).toHaveLength(2)
@@ -86,18 +103,39 @@ describe('linhasDoResumo', () => {
     expect(linhas[1]?.nota).toBe('os escolhidos')
   })
 
+  /* "Monitor + braço" custa os dois: dentro do agrupamento escolhido, soma tudo. */
+  it('soma o agrupamento inteiro, e não só o primeiro produto', () => {
+    const linhas = linhasDoResumo([interesse('1', 'rascunho', [agrupamento(1800, 300)])])
+    expect(linhas[1]?.valor).toBe(formatarDinheiro(2100))
+  })
+
   /*
    * A ressalva existe porque o total mente sem ela: cinco interesses somando
    * R$ 300 pode ser "tudo barato" ou "quatro sem preço nenhum".
    */
   it('avisa quantos ainda não têm preço', () => {
     const linhas = linhasDoResumo([
-      interesse('1', 'rascunho', [produto(500)]),
+      interesse('1', 'rascunho', [agrupamento(500)]),
       interesse('2', 'rascunho'),
       interesse('3', 'rascunho'),
     ])
 
     expect(linhas[1]?.nota).toBe('2 sem preço ainda')
+  })
+
+  /*
+   * Um agrupamento com um produto sem preço não entra na soma, então precisa entrar
+   * na ressalva: contá-lo como precificado esconderia exatamente o caso que o aviso
+   * existe para dar.
+   */
+  it('conta como sem preço o agrupamento incompleto', () => {
+    const linhas = linhasDoResumo([
+      interesse('1', 'rascunho', [agrupamento(500)]),
+      interesse('2', 'rascunho', [agrupamento(1800, null)]),
+    ])
+
+    expect(linhas[1]?.valor).toBe(formatarDinheiro(500))
+    expect(linhas[1]?.nota).toBe('1 sem preço ainda')
   })
 
   it('omite a linha do total quando ninguém tem preço', () => {
@@ -117,7 +155,7 @@ describe('linhasDoResumo', () => {
 
   it('cabe no teto de três linhas do painel', () => {
     const muitos = Array.from({ length: 30 }, (_, i) =>
-      interesse(String(i), 'rascunho', [produto(100)]),
+      interesse(String(i), 'rascunho', [agrupamento(100)]),
     )
     expect(linhasDoResumo(muitos).length).toBeLessThanOrEqual(3)
   })

@@ -33,12 +33,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { DESTINOS, ESTADOS, rotuloDestino, rotuloEstado } from '~/types/interesse'
-import type { DestinoInteresse, EstadoInteresse, InteresseComProdutos } from '~/types/interesse'
+import type { DestinoInteresse, EstadoInteresse, InteresseComAgrupamentos } from '~/types/interesse'
 import { useRegistrarInteresse, useAtualizarInteresse } from '~/composables/useInteresses'
+import { useMembros } from '~/composables/useMembros'
+import { useUsuarioId } from '~/composables/useUsuarioId'
 
 const props = defineProps<{
   /** Preenchido = o diálogo abre em modo de edição. */
-  interesse?: InteresseComProdutos | null
+  interesse?: InteresseComAgrupamentos | null
 }>()
 
 const emit = defineEmits<{ criado: [id: string] }>()
@@ -47,6 +49,8 @@ const aberto = defineModel<boolean>('aberto', { required: true })
 
 const registrar = useRegistrarInteresse()
 const atualizar = useAtualizarInteresse()
+const { data: membros } = useMembros()
+const euId = useUsuarioId()
 
 const editando = computed(() => !!props.interesse)
 const salvando = computed(() => registrar.isPending.value || atualizar.isPending.value)
@@ -55,6 +59,7 @@ const titulo = ref('')
 const destino = ref<DestinoInteresse>('compra')
 const estado = ref<EstadoInteresse>('rascunho')
 const paraQuem = ref('')
+const paraQuemUserId = ref<string | null>(null)
 const observacao = ref('')
 
 function reiniciar() {
@@ -62,14 +67,16 @@ function reiniciar() {
   destino.value = 'compra'
   estado.value = 'rascunho'
   paraQuem.value = ''
+  paraQuemUserId.value = null
   observacao.value = ''
 }
 
-function preencherCom(interesse: InteresseComProdutos) {
+function preencherCom(interesse: InteresseComAgrupamentos) {
   titulo.value = interesse.titulo
   destino.value = interesse.destino
   estado.value = interesse.estado
   paraQuem.value = interesse.para_quem ?? ''
+  paraQuemUserId.value = interesse.para_quem_user_id
   observacao.value = interesse.observacao ?? ''
 }
 
@@ -89,7 +96,10 @@ async function salvar() {
   const campos = {
     titulo: titulo.value.trim(),
     destino: destino.value,
-    para_quem: paraQuem.value.trim() || null,
+    // Só um dos dois vai — `ParaQuemCampo` já zera o outro, e o `null` explícito é
+    // o que apaga a resposta antiga ao trocar de membro para texto livre.
+    para_quem: paraQuemUserId.value ? null : (paraQuem.value.trim() || null),
+    para_quem_user_id: paraQuemUserId.value,
     observacao: observacao.value.trim() || null,
   }
 
@@ -183,15 +193,12 @@ async function salvar() {
             </DropdownMenu>
           </div>
 
-          <div class="space-y-1.5">
-            <Label for="interesse-para-quem">Para quem <span class="text-muted-foreground">(opcional)</span></Label>
-            <Input
-              id="interesse-para-quem"
-              v-model="paraQuem"
-              placeholder="minha mãe"
-              autocomplete="off"
-            />
-          </div>
+          <ParaQuemCampo
+            v-model:user-id="paraQuemUserId"
+            v-model:texto="paraQuem"
+            :membros="membros ?? []"
+            :eu-id="euId"
+          />
         </div>
 
         <div class="space-y-1.5">
