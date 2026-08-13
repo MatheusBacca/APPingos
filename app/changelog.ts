@@ -48,6 +48,12 @@ export interface Lancamento {
  */
 export const LANCAMENTOS: Lancamento[] = [
   {
+    versao: '1.1.0',
+    titulo: 'Interesses que se comparam por conjunto',
+    descricao: 'Um interesse agora tem saídas possíveis — produtos que só valem juntos —, e a comparação é entre elas: dá para juntar e separar produtos arrastando, compartilhar o interesse com o espaço, e escolher na extensão quais preços reler.',
+    data: '2026-08-13',
+  },
+  {
     versao: '1.0.0',
     titulo: 'Novidades, com versão e changelog',
     descricao: 'O app passa a ter versão, e cada atualização vira um aviso na sua caixa e uma parada nesta timeline.',
