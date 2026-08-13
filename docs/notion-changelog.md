@@ -1047,7 +1047,7 @@ pessoa clicar fora. Gravando na hora, uma rodada interrompida deixa metade do tr
 de perdido — e como a lista vem ordenada por `verificado_em.asc.nullsfirst`, a rodada seguinte
 ataca o mais desatualizado em vez de repetir os mesmos dois.
 
-**Verificado** num Postgres 16 com as 23 migrations: a captura semeia o histórico; rechecagem sem
+**Verificado** num Postgres 16 com todas as migrations: a captura semeia o histórico; rechecagem sem
 preço não mexe em valor e conta a falha; preço igual não duplica linha e zera o contador; queda
 grava histórico e devolve antes/depois; **ler só o preço cheio não apagou o Pix nem o
 parcelamento**; produto de outro espaço é recusado pela RLS; apagar o produto leva o histórico.
@@ -1065,3 +1065,37 @@ repositório **sem ter sido aplicada** — e uma migration não aplicada não es
 o próximo `db push` a aplica junto. Se o caminho do bot não voltar, ela deveria sair. O mesmo vale
 para o workflow de medição, que existia para decidir se o cron em CI era viável — pergunta que o
 botão tornou sem efeito.
+
+---
+
+## 2026-08-13 — Removido o que não vai ser usado
+
+**Contexto:** com a rechecagem virando um botão no navegador de quem usa, duas coisas construídas
+para o caminho do cron em CI deixaram de ter função. Ficaram fora.
+
+**O que saiu:**
+
+- `supabase/migrations/20260812230000_membership_robo.sql` — o papel `robo` e as mudanças em
+  `is_space_member`, `shares_space_with`, `definir_papel`, `notificar` e `deletar_espaco`
+- `.github/workflows/medir-precos.yml` e `scripts/medir-precos.mjs` — a medição existia para
+  decidir se raspar de um IP de datacenter era viável, pergunta que o botão tornou sem efeito
+- No app: `'robo'` saiu da união `Papel`, do `PAPEL_ROTULO` e do seletor de cargo em Espaços
+
+**Por que a migration do robô não podia simplesmente ficar parada.** Uma migration não aplicada
+não está em espera — está **na fila**: o próximo `db push` a aplicaria junto com a de preço. E ela
+redefine `is_space_member`, que sustenta todas as policies do app. Um papel que ninguém usa
+mudando a função de autorização central é exatamente o tipo de coisa que ninguém lembra de olhar
+quando algo der errado meses depois. O git guarda o trabalho se o caminho do bot voltar.
+
+**O que ficou do episódio, e é bom que tenha ficado:** o teste de `ehAdmin`. Ele nasceu para
+garantir que o robô nunca virasse admin, mas o que ele protege é geral — um papel que escorregue
+para dentro daquela função ganha poderes de admin em todas as telas de uma vez, e em silêncio.
+Perdeu a menção ao robô e continua valendo.
+
+**Verificado:** as 21 migrations restantes aplicam em sequência num Postgres 16 limpo, o CHECK de
+`papel` voltou aos três valores originais, e nem `is_space_member` nem `notificar` mencionam
+`robo` — ou seja, as funções voltaram exatamente ao que eram. A feature de preço segue de pé no
+mesmo banco (tabela de histórico, RPC e as duas colunas novas). `npm run verificar` limpo.
+
+**Correção de um número na entrada anterior:** ela dizia "as 23 migrations", e eram 22 na ocasião.
+Trocado por "todas as migrations", que não envelhece.
