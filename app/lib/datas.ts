@@ -74,6 +74,23 @@ export function formatarDia(iso: string): string {
   })
 }
 
+/**
+ * "12 de agosto de 2026" — com o ano, para quando ele NÃO é óbvio.
+ *
+ * `formatarDia` existe ao lado e é a escolha certa em quase toda tela: ali a
+ * data está perto de hoje. Aqui o caso é o inverso — a timeline de `/novidades`
+ * desce até julho e vai atravessar viradas de ano, e "30 de julho" sem o ano
+ * viraria uma data ambígua na primeira delas.
+ */
+export function formatarDiaCompleto(iso: string): string {
+  const { ano, mes, dia } = partesDaData(iso)
+  return new Date(ano, mes - 1, dia).toLocaleDateString('pt-BR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
 /** Só o nome do mês — "Julho". Para rótulo curto, onde o ano é óbvio. */
 export function nomeDoMes(mesIso: string): string {
   const { ano, mes } = partesDaData(mesIso)

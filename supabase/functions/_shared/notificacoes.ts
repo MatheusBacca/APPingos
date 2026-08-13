@@ -35,6 +35,7 @@ export type TipoNotificacao =
   | 'interesse_novo'
   | 'marcado_assistiu'
   | 'lembrete_filmes'
+  | 'app_atualizado'
 
 export interface Notificacao {
   id: string
@@ -82,6 +83,31 @@ export function formatarDataIso(iso: unknown): string {
     day: 'numeric',
     month: 'long',
   })
+}
+
+/**
+ * `1.0.0` → `v1.000.0`.
+ *
+ * O zero à esquerda no meio é escolha de exibição, e ele tem função: alinha a
+ * coluna de versões da timeline e faz `v1.002.0` e `v1.010.0` terem a mesma
+ * largura, em vez de a lista dançar a cada release. O que é gravado e comparado
+ * é sempre o semver cru — o padding nunca entra em `dados` nem no `package.json`.
+ *
+ * Mora aqui, e não em `app/changelog.ts`, porque o assunto da versão aparece nos
+ * dois runtimes: a linha do sino e o assunto do e-mail. Este é o único arquivo
+ * que os dois leem. `app/changelog.ts` a importa de volta via `~/lib/notificacoes`.
+ *
+ * Versão fora do formato devolve string vazia — e não um `v` sozinho ou o texto
+ * cru —, para quem chama poder cair num texto sem versão em vez de mostrar lixo.
+ */
+export function formatarVersao(versao: unknown): string {
+  if (typeof versao !== 'string') return ''
+
+  const partes = versao.trim().replace(/^v/, '').split('.')
+  if (partes.length !== 3 || partes.some(p => !/^\d+$/.test(p))) return ''
+
+  const [maior, menor, correcao] = partes.map(Number) as [number, number, number]
+  return `v${maior}.${String(menor).padStart(3, '0')}.${correcao}`
 }
 
 function texto(dados: Record<string, unknown>, chave: string, padrao = ''): string {
@@ -217,6 +243,29 @@ export function textoDaNotificacao(n: Notificacao): TextoNotificacao {
         icone: 'ClapperboardIcon',
       }
 
+    /*
+      A versão nova do app.
+
+      Único tipo em que o texto vem INTEIRO do `dados`, e não montado a partir de
+      campos: título e descrição são o changelog daquele release, escritos à mão
+      por quem publicou (ver `app/changelog.ts`). Gravados como snapshot, então o
+      aviso de duas versões atrás continua dizendo o que ELA trouxe.
+
+      Também é o único que não tem ator: ninguém do espaço causou isto. Por isso
+      não passa por `notificar()` — quem insere é `anunciar_versao()`, como os
+      lembretes do cron.
+    */
+    case 'app_atualizado': {
+      const versao = formatarVersao(d.versao)
+      const oQue = texto(d, 'titulo', 'Melhorias e correções')
+      return {
+        titulo: versao ? `APPingos ${versao} — ${oQue}` : `Atualização do APPingos: ${oQue}`,
+        corpo: texto(d, 'descricao'),
+        rota: n.rota ?? '/novidades',
+        icone: 'RocketIcon',
+      }
+    }
+
     default:
       return {
         titulo: 'Novidade no APPingos',
@@ -345,15 +394,25 @@ export function tempoRelativo(iso: string, agora: number = Date.now()): string {
 // Preferências
 // ---------------------------------------------------------------------------
 
-export type CategoriaNotificacao = 'orcamentos' | 'viagens' | 'filmes' | 'edicoes' | 'lembretes'
+export type CategoriaNotificacao =
+  | 'orcamentos'
+  | 'viagens'
+  | 'filmes'
+  | 'edicoes'
+  | 'lembretes'
+  | 'app'
 
 /**
- * Onze tipos em cinco interruptores.
+ * Doze tipos em seis interruptores.
  *
- * A tabela do banco é por TIPO, e a tela é por CATEGORIA: uma caixa com onze
+ * A tabela do banco é por TIPO, e a tela é por CATEGORIA: uma caixa com doze
  * chaves é uma caixa que ninguém configura. O agrupamento vive aqui, e não numa
  * coluna, para poder mudar sem migration no dia em que "Edições" precisar ser
  * partida ao meio.
+ *
+ * "Novidades do app" é a última de propósito: é a categoria menos frequente
+ * (algumas por mês, contra várias por dia das outras) e a única que não fala de
+ * algo que a outra pessoa fez.
  */
 export const TIPOS_DA_CATEGORIA: Record<CategoriaNotificacao, TipoNotificacao[]> = {
   orcamentos: ['gasto_novo', 'mes_fechado'],
@@ -361,6 +420,7 @@ export const TIPOS_DA_CATEGORIA: Record<CategoriaNotificacao, TipoNotificacao[]>
   filmes: ['interesse_novo', 'marcado_assistiu'],
   edicoes: ['gasto_editado', 'gasto_removido', 'roteiro_editado'],
   lembretes: ['lembrete_filmes', 'viagem_perto'],
+  app: ['app_atualizado'],
 }
 
 export const CATEGORIAS = Object.keys(TIPOS_DA_CATEGORIA) as CategoriaNotificacao[]
@@ -371,6 +431,7 @@ export const CATEGORIA_ROTULO: Record<CategoriaNotificacao, string> = {
   filmes: 'Filmes & Séries',
   edicoes: 'Edições e remoções',
   lembretes: 'Lembretes',
+  app: 'Novidades do app',
 }
 
 export const CATEGORIA_DESCRICAO: Record<CategoriaNotificacao, string> = {
@@ -379,6 +440,7 @@ export const CATEGORIA_DESCRICAO: Record<CategoriaNotificacao, string> = {
   filmes: 'Interesse novo e quando marcam que você assistiu.',
   edicoes: 'Quando o outro mexe ou apaga algo que já existia.',
   lembretes: 'Domingo de filmes e a viagem que se aproxima.',
+  app: 'Quando uma versão nova entra no ar, com o que ela trouxe.',
 }
 
 export interface Preferencia {

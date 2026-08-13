@@ -1296,3 +1296,50 @@ chamador, com testes dando a impressão de que estava em uso.
 
 **Verificação:** `npm run verificar` limpo — 97 arquivos sem depender de auto-import, typecheck sem
 erro, 319 testes em 18 arquivos.
+---
+
+## 2026-08-12 — O app passa a ter versão, e cada versão se anuncia
+
+**Contexto:** o projeto rodou cinco semanas sem numeração, e nada avisava quem usa que uma
+atualização chegou. O toast do service worker ("nova versão disponível, recarregue") existia
+desde 11/08, mas ele fala do build daquele navegador — não do que a versão trouxe.
+
+**Feito:** versionamento em `MAIOR.MENOR.CORRECAO` (exibido `vX.XXX.X`), `app/changelog.ts` como
+registro único dos releases, tela `/novidades` com a timeline (a marca do pingo em cada parada,
+"vX.XXX.X — Título" e a descrição embaixo), tipo de notificação `app_atualizado` com a categoria
+"Novidades do app" nas preferências, e `npm run release` — um comando que escreve `package.json`,
+a entrada do changelog e a migration do anúncio de uma vez. 9 versões no registro: v0.001.0 a
+v0.008.0 retroativas (do histórico deste arquivo) e v1.000.0, a primeira que anuncia.
+
+**Decisão: o changelog é constante do build, não tabela no banco.** Uma tabela `app_versao` daria
+changelog atualizável sem deploy — só que changelog descreve o que ESTE build faz, então "sem
+deploy" não é vantagem, é incoerência: a pessoa leria sobre uma versão que o app dela não tem.
+Em troca vinham tabela, RLS, tipos gerados, consulta com skeleton e uma tela que não abre
+offline. O que precisa do banco é a NOTIFICAÇÃO (uma linha por pessoa, com estado de lida), e o
+título/descrição vão nela como snapshot — o mesmo desenho do resto do motor.
+
+**Decisão: o anúncio é uma migration por release**, gerada pelo `npm run release` e aplicada no
+`supabase db push` do deploy. Não é cron (não há hora marcada: o evento é o deploy), não é
+gatilho de tabela (não há tabela), não é botão de admin (o app não tem tela de admin, e não vale
+criar uma para isto). É o passo que já existia para publicar. Idempotente por índice único
+(`user_id` + versão), como os lembretes: reaplicar não gera aviso repetido.
+
+**Decisão: os dois avisos convivem.** O toast é sobre o build ("recarregue"), a notificação é
+sobre o produto ("chegou o gráfico de barras"). O primeiro nasce no client porque só ele sabe
+qual service worker baixou; a segunda nasce no servidor porque é igual para as duas pessoas e
+precisa esperar na caixa de quem só abre o app no fim de semana.
+
+**Decisão: as 8 versões retroativas não notificam.** Elas existem para a timeline não começar
+vazia. Anunciar oito releases de uma vez seria estrear a feature com oito avisos não lidos.
+
+**Detalhe de implementação:** o glifo do pingo saiu de dentro do `AppLogo` para
+`PingoIcone.vue` — a timeline precisava do mesmo desenho em outro tamanho, e duas cópias do
+`<path>` seriam duas marcas no dia em que a gota mudar de curva.
+
+**Verificado:** `npm run verificar` limpo (158 testes, 13 novos em `test/changelog.test.ts` —
+padding da versão, ordem e duplicidade do registro, `package.json` alinhado com o topo, e o
+texto da notificação com `dados` incompleto). A timeline conferida no navegador em claro e
+escuro, desktop e 375px: 9 paradas, pingos alinhados na linha, sem overflow horizontal.
+
+**Pendência:** a migration ainda **não foi aplicada** no banco da nuvem — o anúncio da v1.000.0
+acontece no `npx supabase db push`, que ficou para o momento de publicar.

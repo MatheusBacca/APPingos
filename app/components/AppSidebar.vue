@@ -5,10 +5,12 @@ import {
   LogOutIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
+  RocketIcon,
   SettingsIcon,
 } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { VERSAO_ATUAL_EXIBICAO } from '~/changelog'
 import { MODULOS_ORDENADOS, MODULOS_COM_RESUMO } from '~/modules'
 import { useAuth } from '~/composables/useAuth'
 import { useSidebar } from '~/composables/useSidebar'
@@ -121,6 +123,23 @@ const classeLink = computed(() => aberta.value ? 'px-3' : 'justify-center px-0')
         <NuxtLink to="/espacos">
           <SettingsIcon class="size-4" />
           <span v-if="aberta">Espaços</span>
+        </NuxtLink>
+      </Button>
+
+      <!--
+        A versão é o link para as novidades — o rodapé é onde se procura "que
+        versão eu tenho", e o changelog é a resposta longa da mesma pergunta.
+        Recolhida sobra só o foguete: `v1.000.0` em 4rem de largura não cabe.
+      -->
+      <Button
+        variant="ghost"
+        size="icon"
+        :aria-label="`Novidades — ${VERSAO_ATUAL_EXIBICAO}`"
+        :title="`Novidades — ${VERSAO_ATUAL_EXIBICAO}`"
+        as-child
+      >
+        <NuxtLink to="/novidades">
+          <RocketIcon class="size-4" />
         </NuxtLink>
       </Button>
 

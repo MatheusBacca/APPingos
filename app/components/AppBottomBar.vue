@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { EllipsisIcon, LayoutDashboardIcon } from '@lucide/vue'
+import { EllipsisIcon, LayoutDashboardIcon, RocketIcon } from '@lucide/vue'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { VERSAO_ATUAL_EXIBICAO } from '~/changelog'
 import { MODULOS } from '~/modules'
 
 // 5 alvos é o teto antes de virarem pequenos demais para o dedo.
@@ -55,6 +56,21 @@ const noMais = MODULOS.filter(m => !m.naBarra)
           </DropdownMenuItem>
           <DropdownMenuItem as-child class="gap-2">
             <NuxtLink to="/espacos">Espaços e convites</NuxtLink>
+          </DropdownMenuItem>
+
+          <!--
+            No mobile não há rodapé de sidebar para carregar a versão, e o "Mais"
+            é o único lugar do celular que junta o que não é módulo. A versão vem
+            no rótulo porque é a pergunta que mais chega junto com o changelog.
+          -->
+          <DropdownMenuItem as-child class="gap-2">
+            <NuxtLink to="/novidades">
+              <RocketIcon class="size-4 text-muted-foreground" />
+              <span class="flex-1">Novidades</span>
+              <span class="text-xs tabular-nums text-muted-foreground">
+                {{ VERSAO_ATUAL_EXIBICAO }}
+              </span>
+            </NuxtLink>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

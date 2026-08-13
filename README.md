@@ -269,6 +269,53 @@ Para testar no celular pela rede local:
 npm run dev -- --host
 ```
 
+## Publicar uma versão
+
+O app é versionado em `MAIOR.MENOR.CORRECAO` e mostrado como `vX.XXX.X` (o menor com três
+dígitos, para a coluna de versões da timeline não dançar a cada release). Publicar é **um
+comando**:
+
+```bash
+npm run release 1.1.0 "Título curto" "Uma ou duas frases sobre o que chegou."
+```
+
+Ele escreve as três pontas de uma vez, a partir do texto digitado uma vez:
+
+| onde | o que |
+| --- | --- |
+| `package.json` | a versão do pacote |
+| `app/changelog.ts` | a entrada nova no topo de `LANCAMENTOS` — é o que a tela `/novidades` desenha |
+| `supabase/migrations/<carimbo>_versao_1_1_0.sql` | `select public.anunciar_versao(...)` — a notificação para todo mundo |
+
+Depois, na ordem:
+
+```bash
+npm run verificar
+git add -A && git commit
+npx supabase db push
+git push
+```
+
+**É o `db push` que cria a notificação** — uma linha por usuário, com o título e a descrição
+gravados como snapshot. Reaplicar a mesma migration não gera aviso repetido (índice único por
+`user_id` + versão). O `git push` é o que faz o Vercel publicar o build que aquele texto
+descreve, então mantenha os dois no mesmo release: anunciar antes de publicar é prometer o que
+o app ainda não tem.
+
+Quem não quiser o aviso desliga "Novidades do app" em Notificações › Preferências — é a sexta
+categoria, com os dois canais (app e e-mail) independentes, como as outras cinco.
+
+**Dois avisos diferentes, e os dois existem de propósito:** o toast "nova versão disponível" é
+do service worker e fala do *build daquele navegador* ("recarregue"); a notificação do sino
+fala do *produto* ("chegou o gráfico de barras"), é igual para as duas pessoas, tem estado de
+lida e espera na caixa. O porquê inteiro está no cabeçalho de
+`supabase/migrations/20260812150000_notificacoes_versao.sql`.
+
+O changelog **não** é tabela no banco, de propósito: ele descreve o que *este build* faz, então
+poder editá-lo sem deploy não seria vantagem, e sim incoerência. `test/changelog.test.ts` trava
+o que ninguém revisa duas vezes — ordem, duplicidade, e o `package.json` alinhado com o topo do
+registro.
+
 ## Trabalhando de mais de um computador
 
 O código sincroniza pelo GitHub — [github.com/MatheusBacca/APPingos](https://github.com/MatheusBacca/APPingos)
@@ -322,6 +369,7 @@ app/
   pages/              # rotas — filmes/, espacos.vue, login.vue...
   stores/             # Pinia — espaço ativo
   modules.ts          # registro único dos módulos do app (navegação)
+  changelog.ts        # registro único das versões — a timeline de /novidades
   types/              # tipos do banco e do domínio
 server/
   api/tmdb/           # proxy do TMDB — a chave nunca vai ao client

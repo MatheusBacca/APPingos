@@ -188,7 +188,9 @@ describe('categoriasDePreferencia', () => {
   it('sem linha nenhuma, tudo ligado', () => {
     const cats = categoriasDePreferencia([])
 
-    expect(cats).toHaveLength(5)
+    // Seis desde que "Novidades do app" entrou — o número está escrito para
+    // quebrar quando uma categoria for acrescentada sem revisar esta tela.
+    expect(cats).toHaveLength(6)
     expect(cats.every(c => c.app === 'ligado' && c.email === 'ligado')).toBe(true)
   })
 

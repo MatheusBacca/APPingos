@@ -2,7 +2,9 @@
   "name": "appingos",
   "type": "module",
   "private": true,
+  "version": "1.0.0",
   "scripts": {
+    "release": "node scripts/nova-versao.mjs",
     "build": "nuxt build",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
