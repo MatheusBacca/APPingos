@@ -3,7 +3,7 @@
 -- A primeira do formato, e escrita à mão porque é a que estreia o mecanismo — as
 -- próximas saem de `npm run release`. O anúncio acontece no `supabase db push`:
 -- uma notificação para cada usuário, com este texto gravado como snapshot.
--- Reaplicar é inócuo — ver o índice em 20260812150000_notificacoes_versao.sql.
+-- Reaplicar é inócuo — ver o índice em 20260813024604_notificacoes_versao.sql.
 --
 -- As versões retroativas (v0.001.0 a v0.008.0) NÃO são anunciadas: elas existem
 -- só na timeline de `/novidades`, para o histórico não começar vazio. Anunciar

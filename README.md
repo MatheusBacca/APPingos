@@ -309,7 +309,7 @@ categoria, com os dois canais (app e e-mail) independentes, como as outras cinco
 do service worker e fala do *build daquele navegador* ("recarregue"); a notificação do sino
 fala do *produto* ("chegou o gráfico de barras"), é igual para as duas pessoas, tem estado de
 lida e espera na caixa. O porquê inteiro está no cabeçalho de
-`supabase/migrations/20260812150000_notificacoes_versao.sql`.
+`supabase/migrations/20260813024604_notificacoes_versao.sql`.
 
 O changelog **não** é tabela no banco, de propósito: ele descreve o que *este build* faz, então
 poder editá-lo sem deploy não seria vantagem, e sim incoerência. `test/changelog.test.ts` trava

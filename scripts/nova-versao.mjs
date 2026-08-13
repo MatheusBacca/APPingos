@@ -129,7 +129,7 @@ const sql = `-- APPingos ${versao} — ${titulo}
 --
 -- Gerada por \`npm run release\`. O anúncio acontece no \`supabase db push\`: uma
 -- notificação para cada usuário, com este texto gravado como snapshot. Reaplicar
--- é inócuo — ver o índice em 20260812150000_notificacoes_versao.sql.
+-- é inócuo — ver o índice em 20260813024604_notificacoes_versao.sql.
 select public.anunciar_versao(
   '${versao}',
   '${paraSql(titulo)}',
