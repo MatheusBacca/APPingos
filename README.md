@@ -302,6 +302,12 @@ npx supabase db push
 git push
 ```
 
+**A tag sai sozinha.** O workflow `.github/workflows/versao.yml` cria `vX.Y.Z` anotada assim que
+a `version` do `package.json` muda na `main` — não há passo manual, do mesmo jeito que a
+extensão se autotagueia em `extensao-vX.Y.Z`. A tag carrega o título e a descrição do release,
+então `git show v1.1.0` responde "o que mudou nesta versão?" sem abrir o changelog. Bumpar sem
+querer não duplica nada: se a tag já existe, o job é pulado com um aviso no resumo.
+
 **É o `db push` que cria a notificação** — uma linha por usuário, com o título e a descrição
 gravados como snapshot. Reaplicar a mesma migration não gera aviso repetido (índice único por
 `user_id` + versão). O `git push` é o que faz o Vercel publicar o build que aquele texto
@@ -389,6 +395,7 @@ extensao/             # extensão do Chrome — JS puro, sem build (ver seção 
   lib/api.js          # Auth + PostgREST sobre fetch, com renovação de token
 .github/workflows/
   extensao.yml        # publica o .zip da extensão em Releases quando a version muda
+  versao.yml          # cria a tag vX.Y.Z do app quando o package.json muda
 ```
 
 ## Arquitetura de dados

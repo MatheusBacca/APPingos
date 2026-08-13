@@ -1,0 +1,90 @@
+# Cria a tag `vX.Y.Z` do APP quando a versão do `package.json` muda.
+#
+# Por que existe: a extensão já se autotagueia (`extensao.yml`), e o app não —
+# ele dependia de alguém lembrar de `git tag` depois do push. Lembrar funciona
+# até o dia em que não funciona, e uma versão sem tag é um release que não dá
+# para achar depois: "qual commit é a v1.001.0?" vira arqueologia de changelog.
+#
+# ## O que dispara
+#
+# Push na `main` que toque em `package.json` ou no changelog. Só cria a tag se ela
+# ainda não existir — o `package.json` é a fonte da verdade da versão, e
+# `scripts/versao-atual.mjs` recusa continuar se ele e o topo de
+# `app/changelog.ts` discordarem (release feito pela metade).
+#
+# Esquecer de bumpar não quebra nada: o job é pulado com um aviso no resumo, como
+# no workflow da extensão.
+#
+# ## O que ele NÃO faz
+#
+# Não cria GitHub Release e não publica artefato: o entregável do app é o site no
+# Vercel, que já sobe pelo push. Aqui a tag é o marcador de "este commit é esta
+# versão" — e é ela que o `git describe` e o compare de duas versões usam.
+#
+# A NOTIFICAÇÃO in-app continua sendo outra coisa, e continua saindo do
+# `supabase db push` do release (ver README › Publicar uma versão). Taggear é
+# registro de código; anunciar é conversa com quem usa.
+
+name: Tag da versão do app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'app/changelog.ts'
+      - '.github/workflows/versao.yml'
+  workflow_dispatch:
+
+# Dois pushes seguidos na main não podem correr para criar a mesma tag.
+concurrency:
+  group: app-tag
+  cancel-in-progress: false
+
+jobs:
+  taggear:
+    runs-on: ubuntu-latest
+    # Sem isto o push da tag volta 403: o token do workflow é somente leitura.
+    permissions:
+      contents: write
+    steps:
+      # `fetch-depth: 0` porque sem o histórico e as tags o `git tag -l` abaixo
+      # responderia "não existe" para toda tag e o passo tentaria recriá-las.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Ler a versão e o texto do release
+        id: ler
+        run: |
+          dados=$(node scripts/versao-atual.mjs)
+          echo "tag=$(node -pe 'JSON.parse(process.argv[1]).tag' "$dados")" >> "$GITHUB_OUTPUT"
+          {
+            echo 'mensagem<<FIM'
+            node -pe 'const d=JSON.parse(process.argv[1]); `APPingos ${d.tag} — ${d.titulo}\n\n${d.descricao}`' "$dados"
+            echo 'FIM'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Criar a tag, se ainda não existir
+        env:
+          TAG: ${{ steps.ler.outputs.tag }}
+          MENSAGEM: ${{ steps.ler.outputs.mensagem }}
+        run: |
+          if [ -n "$(git tag -l "$TAG")" ]; then
+            echo "A tag \`$TAG\` já existe — nada a fazer." >> "$GITHUB_STEP_SUMMARY"
+            echo "Para publicar uma versão nova, rode \`npm run release\`." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # Tag ANOTADA, e não leve: ela carrega o texto do release e a data, que
+          # é o que faz `git show $TAG` responder "o que mudou nesta versão?".
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              tag -a "$TAG" -m "$MENSAGEM"
+          git push origin "$TAG"
+
+          echo "Tag [\`$TAG\`]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$TAG) criada." >> "$GITHUB_STEP_SUMMARY"

@@ -159,5 +159,5 @@ console.log(`
     npm run verificar          tipos, imports e testes (inclui o changelog)
     git add -A && git commit
     npx supabase db push       é aqui que a notificação é criada
-    git push                   o deploy do Vercel sai daqui
+    git push                   o deploy do Vercel e a tag v${versao} saem daqui
 `)
