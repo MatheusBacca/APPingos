@@ -1099,3 +1099,19 @@ mesmo banco (tabela de histórico, RPC e as duas colunas novas). `npm run verifi
 
 **Correção de um número na entrada anterior:** ela dizia "as 23 migrations", e eram 22 na ocasião.
 Trocado por "todas as migrations", que não envelhece.
+
+**Aplicado na nuvem em seguida.** A migration de preço e o backfill foram para o projeto de
+verdade, e o histórico das versões foi corrigido para casar com o nome dos arquivos (aplicar por
+fora do CLI registra a versão pela hora da aplicação, e aí o próximo `db push` tentaria reaplicar).
+
+**Um buraco que a verificação pós-aplicação revelou:** o trigger que semeia o histórico só dispara
+em `INSERT`, então os 4 produtos capturados ANTES da migration ficaram sem a primeira linha — e na
+primeira rechecagem que mudasse algo, o preço de quando cada um foi salvo se perderia. Daí a
+migration de backfill, separada em vez de embutida na anterior: aquela já estava aplicada, e
+reescrever migration aplicada é o começo da deriva entre o git e o banco. Ela usa `capturado_em`
+como `visto_em`, e não `now()` — a observação aconteceu quando a extensão leu a página. Idempotente
+por `not exists`, então num banco novo é no-op e o `db reset` dá o mesmo resultado.
+
+Conferido depois de aplicar: 4 produtos, 4 com preço, 4 linhas de histórico, zero pendentes. E a
+nulabilidade de todas as colunas novas bate com os tipos que foram escritos à mão em
+`database.generated.ts`.
