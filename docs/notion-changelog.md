@@ -1341,5 +1341,20 @@ padding da versão, ordem e duplicidade do registro, `package.json` alinhado com
 texto da notificação com `dados` incompleto). A timeline conferida no navegador em claro e
 escuro, desktop e 375px: 9 paradas, pingos alinhados na linha, sem overflow horizontal.
 
-**Pendência:** a migration ainda **não foi aplicada** no banco da nuvem — o anúncio da v1.000.0
-acontece no `npx supabase db push`, que ficou para o momento de publicar.
+**Aplicado na nuvem:** as duas migrations foram aplicadas pelo MCP (o CLI não está linkado
+nesta máquina, e `supabase login` é fluxo de navegador). A v1.000.0 gerou **9 notificações**,
+uma por conta, e a reexecução de `anunciar_versao('1.0.0', ...)` devolveu 0 — a idempotência do
+índice validada contra o banco de verdade, e não só no papel. Nenhum e-mail enfileirado, porque
+ninguém está inscrito no canal.
+
+**O MCP carimba a própria versão**, então os arquivos locais foram renomeados para
+`20260813024604_notificacoes_versao.sql` e `20260813024638_versao_1_0_0.sql`. Sem o rename, o
+próximo `db push` veria dois arquivos que o banco não conhece e tentaria aplicá-los de novo.
+
+**Deriva encontrada de graça:** o carimbo `20260812150000` que eu havia escolhido à mão já
+estava OCUPADO na nuvem por uma migration `objetivos_interesses`, e o banco tem outras duas
+(`interesse_preco_historico`, `interesse_preco_backfill`) que **não existem neste repositório**
+— nem na `main`, nem em branch nenhuma. Ou seja: há schema na nuvem sem SQL versionado no git,
+que é exatamente o que a "regra de ouro" do README existe para evitar. Não foi mexido aqui;
+fica registrado para ser resolvido (recuperar o SQL das três e commitá-lo, ou reconstruí-lo por
+`supabase db pull`).
