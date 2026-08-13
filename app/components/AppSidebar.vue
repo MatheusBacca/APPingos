@@ -112,24 +112,38 @@ const classeLink = computed(() => aberta.value ? 'px-3' : 'justify-center px-0')
 
     <Separator class="my-2" />
 
-    <div class="flex items-center gap-1" :class="aberta ? '' : 'flex-col'">
+    <!--
+      Só ícones, aberta ou recolhida.
+
+      "Espaços" era o único com rótulo, e ele tomava a largura com `flex-1`
+      enquanto os outros quatro se espremiam — com o foguete das novidades a
+      conta estourou e os ícones saíam da barra. Cinco ícones de 2,25rem mais os
+      vãos cabem nos 14,5rem úteis da barra aberta, e o rodapé fica igual nos dois
+      estados: o nome do módulo já está na navegação acima, e aqui ele só repetia
+      informação cobrando espaço. O `title` de cada botão continua dizendo o que é
+      para quem passar o mouse, e o `aria-label`, para quem usa leitor de tela.
+    -->
+    <div
+      class="flex items-center gap-1"
+      :class="aberta ? 'justify-between' : 'flex-col'"
+    >
       <Button
         variant="ghost"
-        :size="aberta ? 'sm' : 'icon'"
-        :class="aberta ? 'flex-1 justify-start gap-2' : ''"
+        size="icon"
+        aria-label="Espaços"
         title="Espaços"
         as-child
       >
         <NuxtLink to="/espacos">
           <SettingsIcon class="size-4" />
-          <span v-if="aberta">Espaços</span>
         </NuxtLink>
       </Button>
 
       <!--
         A versão é o link para as novidades — o rodapé é onde se procura "que
-        versão eu tenho", e o changelog é a resposta longa da mesma pergunta.
-        Recolhida sobra só o foguete: `v1.000.0` em 4rem de largura não cabe.
+        versão eu tenho", e o changelog é a resposta longa da mesma pergunta. Ela
+        vai no `title`, e não ao lado do ícone: escrita, seria o rótulo mais largo
+        do rodapé, e foi justamente o rótulo que tirou os ícones da barra.
       -->
       <Button
         variant="ghost"
