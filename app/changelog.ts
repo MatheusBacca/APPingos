@@ -54,6 +54,12 @@ export const LANCAMENTOS: Lancamento[] = [
     data: '2026-08-12',
   },
   {
+    versao: '0.9.0',
+    titulo: 'Interesses, e a extensão que captura da loja',
+    descricao: 'O módulo Objetivos estreia com a aba Interesses: produto visto na internet com preço por loja e histórico de preço, e a extensão do Chrome que captura a página com um clique.',
+    data: '2026-08-12',
+  },
+  {
     versao: '0.8.0',
     titulo: 'O mês em gráfico de barras',
     descricao: 'A lista de gastos do mês virou um gráfico por categoria — dá para ver para onde o dinheiro foi sem somar nada.',

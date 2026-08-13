@@ -275,6 +275,12 @@ O app é versionado em `MAIOR.MENOR.CORRECAO` e mostrado como `vX.XXX.X` (o meno
 dígitos, para a coluna de versões da timeline não dançar a cada release). Publicar é **um
 comando**:
 
+> **Duas versões independentes no repositório, e é de propósito.** Esta é a do APP
+> (`package.json` + `app/changelog.ts`). A extensão do Chrome tem a sua, em
+> `extensao/manifest.json`, e é ela que dispara o workflow de Releases (seção 7) — `npm run
+> release` não a toca, e subir a extensão não anuncia versão nova do app. Elas mudam por motivos
+> diferentes e em ritmos diferentes.
+
 ```bash
 npm run release 1.1.0 "Título curto" "Uma ou duas frases sobre o que chegou."
 ```

@@ -1351,10 +1351,15 @@ ninguém está inscrito no canal.
 `20260813024604_notificacoes_versao.sql` e `20260813024638_versao_1_0_0.sql`. Sem o rename, o
 próximo `db push` veria dois arquivos que o banco não conhece e tentaria aplicá-los de novo.
 
-**Deriva encontrada de graça:** o carimbo `20260812150000` que eu havia escolhido à mão já
-estava OCUPADO na nuvem por uma migration `objetivos_interesses`, e o banco tem outras duas
-(`interesse_preco_historico`, `interesse_preco_backfill`) que **não existem neste repositório**
-— nem na `main`, nem em branch nenhuma. Ou seja: há schema na nuvem sem SQL versionado no git,
-que é exatamente o que a "regra de ouro" do README existe para evitar. Não foi mexido aqui;
-fica registrado para ser resolvido (recuperar o SQL das três e commitá-lo, ou reconstruí-lo por
-`supabase db pull`).
+**Um susto que não era deriva:** o carimbo `20260812150000` que eu havia escolhido à mão já
+estava OCUPADO na nuvem, por `objetivos_interesses`, e o banco tinha outras duas migrations que
+não existiam no clone local. Cheguei a registrar isso aqui como schema sem SQL no git — estava
+errado: era o clone que estava velho. As três estão na `main` remota (sessões de Interesses e da
+extensão, do mesmo dia), e um `git fetch` desfez o diagnóstico. A colisão de carimbo, essa foi
+real, e só não virou problema porque o MCP renumera.
+
+**Rebase acima da `main` de verdade:** um conflito, em `docs/notion-changelog.md` — duas sessões
+acrescentando entrada no fim do mesmo arquivo. Resolvido mantendo as duas. E a timeline ganhou a
+v0.009.0: Interesses e a extensão são features visíveis que chegaram antes da v1.000.0, e uma
+timeline que promete "tudo o que chegou" não pode pular o que a `main` entregou no mesmo dia.
+`npm run verificar` limpo em cima do merge (274 testes).

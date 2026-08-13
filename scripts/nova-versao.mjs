@@ -20,6 +20,10 @@
  *
  * O script NÃO commita, NÃO builda e NÃO dá push: o release ainda é uma decisão,
  * e ele só prepara as três pontas. As instruções do que fazer depois saem no fim.
+ *
+ * NÃO É A VERSÃO DA EXTENSÃO. A do Chrome vive em `extensao/manifest.json` e é ela
+ * que dispara o workflow de Releases; esta é a do app. Duas versões porque são
+ * dois artefatos, publicados por caminhos diferentes e em ritmos diferentes.
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
