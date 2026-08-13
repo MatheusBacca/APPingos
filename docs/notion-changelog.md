@@ -1115,3 +1115,97 @@ por `not exists`, então num banco novo é no-op e o `db reset` dá o mesmo resu
 Conferido depois de aplicar: 4 produtos, 4 com preço, 4 linhas de histórico, zero pendentes. E a
 nulabilidade de todas as colunas novas bate com os tipos que foram escritos à mão em
 `database.generated.ts`.
+
+---
+
+## 2026-08-13 — Interesse como conjunto, compartilhado, e a extensão 0.3.0
+
+**Contexto:** seis pedidos que, juntos, mudam o que um interesse É. Antes ele era uma vontade com
+uma lista de produtos candidatos; agora é uma vontade com **saídas possíveis**, cada uma podendo
+exigir mais de um produto — e ele pode circular entre espaços com alguém assumindo a compra.
+
+**A decisão que organiza tudo: agrupamento.**
+
+"Monitor novo" não é um monitor. É um monitor **mais** um braço de mesa, e a alternativa é um
+monitor menor mais uma base simples. Comparado produto a produto, o "mais barato" desse interesse
+seria o suporte de R$ 150 — resposta correta para a pergunta errada. Então a comparação passou a ser
+entre agrupamentos:
+
+```
+Interesse "Monitor novo"
+  ├── Agrupamento (favorito)   Monitor 27" 1.800 + braço 300  = 2.100
+  └── Agrupamento              Monitor 24" 1.200 + base   150 = 1.350
+```
+
+**A regra que sustenta essa comparação:** `somaDoAgrupamento` devolve `null` enquanto **qualquer**
+item estiver sem preço. Uma soma parcial não é um preço menor, é um preço incompleto — devolver
+1.800 para "monitor 1.800 + braço sem preço" faria a tela anunciar "economize R$ 750" a favor do
+agrupamento pior documentado. O parcial aparece na tela com a ressalva ao lado ("R$ 1.800 até agora
+— 1 item sem preço"), o que informa sem entrar na conta.
+
+**Compartilhar não move.** O interesse continua morando em `interesse.space_id`; cada linha de
+`interesse_compartilhamento` o torna visível também num espaço. É o que permite guardar um presente
+no espaço pessoal e ainda mostrá-lo no espaço do casal para a outra pessoa dizer "eu dou". Só o dono
+compartilha, e a policy é quem barra — a RPC só traduz para uma mensagem legível.
+
+**Quem assumiu aparece para todos, inclusive para o dono.** Foi uma escolha, e o contrário era
+defensável (surpresa). Mas o app é de gente que coordena: esconder do dono que o presente já tem
+dono deixaria os dois comprando a mesma coisa.
+
+**"É meu" atravessa espaços, mas só no pessoal.** `interesseNaVista` tem três caminhos: mora aqui,
+foi compartilhado aqui, ou **é meu e este é o meu espaço pessoal** (criado por mim, ou assumido por
+mim). Sem o terceiro, o espaço pessoal seria o único lugar do app que esconde o que a própria pessoa
+está tocando — e ela teria de trocar de espaço para lembrar do presente que prometeu. O caminho vale
+só no pessoal: dentro do casal, a lista de desejos de cada um segue invisível até ser compartilhada,
+que é o ponto de existir espaço pessoal.
+
+**A url do produto é somente-leitura na edição.** O card virou clicável (corrigir o que a raspagem
+leu errado é frequente), mas o link fica travado com a explicação ao lado. É por ele que a
+rechecagem reabre a página: trocá-lo à mão faria a próxima leitura ler OUTRO produto e sobrescrever
+preço e histórico deste com os de outra coisa — sem erro visível, e sem como descobrir depois que o
+gráfico virou dois produtos misturados.
+
+**"Para quem" tem duas formas e só uma vale por vez:** um membro do espaço (`para_quem_user_id`) ou
+texto livre (`para_quem`, para quem não tem conta aqui). O nome do membro **não** é copiado para o
+texto: a pessoa trocaria de apelido e o interesse ficaria apontando para um nome que não existe mais.
+
+**Cache num lugar só, e este é o único módulo assim.** Todo o resto usa `useSpaceQuery`, com uma
+query por espaço. Aqui a MESMA linha é vista de até três lugares, então um cache por espaço
+guardaria três cópias — e compartilhar de dentro de um espaço deixaria os outros dois desatualizados
+por até um minuto (o `staleTime` global), com sintoma silencioso: compartilha, troca de espaço, não
+encontra nada. Uma chave `['interesses']` com tudo o que a RLS alcança, e o recorte por
+`interessesDaVista`, que é puro e testado.
+
+**Extensão 0.3.0:**
+
+- Escolha de quais produtos reler, com caixinhas agrupadas por interesse
+- "Só os favoritos de cada interesse" — um atalho de **marcação**, não um filtro de exibição: ele
+  marca os favoritos e desmarca o resto, e as caixinhas seguem editáveis. Um filtro esconderia
+  produtos e faria "reler 3 de 15" parecer bug. A preferência fica guardada, e marcar à mão a
+  desliga (o atalho descreve uma marcação; aceso sobre outra seleção seria mentira na tela)
+- Interesse sem favorito nenhum não entra quando "só os favoritos" está ligado — a pessoa pediu os
+  favoritos, e ali não há um
+- "Para quem" virou lista de membros do espaço, com "Outra pessoa…" abrindo o texto livre
+- `lib/selecao.js` novo, puro e testado: a regra da marcação em função pura é regra que se prova.
+  `popup.js` não é importável em teste (puxaria `config.gerado.js`, que o build escreve)
+
+**Dois testes que existem por causa da forma dos bugs anteriores:**
+
+1. `#recheck-escolha` e `#grupo-para-quem-livre` somem ao receber `hidden`. É a mesma armadilha do
+   `#grupo-novo` na 0.1.0: elemento com classe de layout declarando `display: flex`, escondido por
+   atributo. Os dois testes rodam a cascata de verdade no happy-dom.
+2. Todo módulo de `lib/` que a extensão carrega em cadeia é conferido pelo workflow. A lista de
+   verificação do `.zip` é escrita à mão e envelhece calada — `lib/recheck.js` já estava de fora
+   desde a 0.2.0. O dia em que a cópia falhar, o pacote sai sem o arquivo, é publicado como release,
+   e o sintoma é a extensão quebrando num import sem nada vermelho no CI.
+
+**Verificado:** `npm run verificar` limpo, 312 testes. O `.zip` 0.3.0 empacota com os seis módulos
+de `lib/`.
+
+**A migration `20260813120000` continua sem aplicar, e por um motivo que não é preguiça:** ela
+remove `interesse_produto.escolhido`, coluna que o app **publicado** ainda lê. Aplicá-la antes do
+deploy quebra a tela de Interesses de quem estiver com o app aberto; fazer o deploy antes quebra o
+app novo contra o schema velho. Não há janela zero — há a escolha de qual lado quebra por dois
+minutos. A ordem é: aplicar a migration, e em seguida o push que dispara o deploy. O que falha nesse
+intervalo é a lista de Interesses do app antigo (um 400 do PostgREST por causa da coluna); o resto do
+app não toca nessas tabelas.

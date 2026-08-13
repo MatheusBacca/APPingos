@@ -86,6 +86,46 @@ describe('popup.js contra popup.html', () => {
   it('o config gerado está no .gitignore', () => {
     expect(ler('.gitignore')).toContain('extensao/lib/config.gerado.js')
   })
+
+  /*
+   * O workflow confere o conteúdo do .zip com uma lista escrita à mão, e essa lista
+   * envelhece calada: um módulo novo em `lib/` é copiado pelo build (a pasta vai
+   * inteira) e simplesmente não é conferido. O dia em que a cópia falhar, o pacote
+   * sai sem o arquivo, é publicado como release, e o sintoma é a extensão instalada
+   * quebrando num import — sem nada vermelho no CI.
+   *
+   * A varredura segue os imports em cadeia porque nem todo módulo é importado pelo
+   * popup: `recheck.js` importa `raspagem.js` e `api.js`, e um módulo importado só
+   * por ele é tão necessário quanto os outros.
+   */
+  it('todo módulo de lib/ que a extensão carrega é conferido no workflow', () => {
+    const workflow = ler('.github/workflows/extensao.yml')
+
+    const vistos = new Set<string>()
+    const fila = ['popup.js']
+
+    while (fila.length) {
+      const arquivo = fila.shift()!
+      if (vistos.has(arquivo)) continue
+      vistos.add(arquivo)
+
+      // O config é gerado pelo build e não existe num clone novo. Ele conta para a
+      // conferência (e está na lista), mas não há o que ler dele aqui.
+      if (arquivo.includes('config.gerado')) continue
+
+      const fonte = semComentarios(ler(`extensao/${arquivo}`))
+      for (const m of fonte.matchAll(/from\s+'(\.[^']+)'/g)) {
+        const alvo = m[1]!.replace(/^\.\//, '').replace(/^\.\.\//, '')
+        fila.push(alvo.startsWith('lib/') ? alvo : `lib/${alvo}`)
+      }
+    }
+
+    const modulos = [...vistos].filter(a => a.startsWith('lib/'))
+    expect(modulos.length).toBeGreaterThan(3)
+
+    const faltando = modulos.filter(m => !workflow.includes(m))
+    expect(faltando).toEqual([])
+  })
 })
 
 describe('popup.css — o atributo hidden precisa ganhar', () => {
@@ -145,6 +185,23 @@ describe('popup.css — o atributo hidden precisa ganhar', () => {
   it('grupo-novo some quando o alvo é um interesse existente', () => {
     montarPopup()
     expect(somiuAoOcultar('grupo-novo')).toBe(true)
+  })
+
+  /*
+   * `#recheck-escolha` é a mesma armadilha do `#grupo-novo`: ele usa `.pilha`, que
+   * declara `display: flex`, e o JS o esconde durante a rodada. Sem o `[hidden]`
+   * global as caixinhas ficariam clicáveis por cima do progresso, prometendo mudar
+   * uma leitura que já está acontecendo.
+   */
+  it('a escolha de produtos some durante a rodada', () => {
+    montarPopup()
+    expect(somiuAoOcultar('recheck-escolha')).toBe(true)
+  })
+
+  /* O texto livre do "para quem" também é um `.campo`, que declara `display: flex`. */
+  it('o campo de texto livre do "para quem" começa escondido', () => {
+    montarPopup()
+    expect(somiuAoOcultar('grupo-para-quem-livre')).toBe(true)
   })
 
   it('as mensagens de erro somem quando vazias', () => {

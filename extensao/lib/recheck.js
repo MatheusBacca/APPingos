@@ -32,7 +32,7 @@
  * lista vem ordenada pelo mais desatualizado, a rodada seguinte pega de onde
  * parou sem repetir o que já foi.
  */
-import { produtosParaRechecar, registrarPrecoLido } from './api.js'
+import { registrarPrecoLido } from './api.js'
 import { raspar } from './raspagem.js'
 
 /** Teto de tempo esperando uma loja terminar de carregar. */
@@ -111,15 +111,19 @@ async function rasparEmAbaNova(url) {
 }
 
 /**
- * Recheca todos os produtos, avisando o progresso a cada um.
+ * Recheca os produtos DADOS, avisando o progresso a cada um.
+ *
+ * A lista vem de fora, e não de dentro: quem escolhe o que reler é a pessoa, na tela
+ * de seleção. Cada produto relido é uma aba aberta e ~5 segundos de espera, então
+ * "todos" nem sempre é o que se quer — quem tem quinze produtos salvos e só quer
+ * saber do sofá não deve esperar pelos outros catorze.
  *
  * `aoProgresso` é chamado com o resultado de cada produto assim que ele fica
  * pronto, para a tela ir preenchendo em vez de ficar parada até o fim. Numa lista
  * de dez produtos a rodada leva quase um minuto, e um popup congelado esse tempo
  * todo parece travado.
  */
-export async function rechecarTudo(aoProgresso = () => {}) {
-  const produtos = await produtosParaRechecar()
+export async function rechecarTudo(produtos, aoProgresso = () => {}) {
   const resultados = []
 
   for (const produto of produtos) {

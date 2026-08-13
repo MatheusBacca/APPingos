@@ -27,11 +27,14 @@ import {
   lerSessao,
   listarEspacos,
   listarInteressesAbertos,
+  listarMembros,
+  produtosParaRechecar,
   registrarInteresse,
   sair,
 } from './lib/api.js'
 import { raspar } from './lib/raspagem.js'
 import { pedirPermissao, rechecarTudo, temPermissao } from './lib/recheck.js'
+import { blocosPorInteresse, idsParaMarcar, rotuloDeRodar } from './lib/selecao.js'
 
 const DESTINOS = [
   ['compra', 'Compra'],
@@ -49,10 +52,33 @@ const ROTULO_FONTE = {
   'texto': 'texto da página',
 }
 
+/** Chave do "só os favoritos" no storage, para a preferência sobreviver ao popup. */
+const CHAVE_SO_FAVORITOS = 'appingos:so-favoritos'
+
 const el = id => document.getElementById(id)
+
+/** Escapa o que veio do banco antes de virar HTML. */
+function escapar(texto) {
+  return String(texto).replace(/[<>&"]/g, c => (
+    { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]
+  ))
+}
 
 /** O que a raspagem trouxe, para o envio saber o que não é editável na tela. */
 let capturado = null
+
+/** Os produtos rechecáveis, carregados ao abrir a tela de "Atualizar preços". */
+let rechecaveis = []
+
+/**
+ * Os ids marcados para reler.
+ *
+ * Num Set à parte, e não num campo dentro de cada produto: os objetos vêm da API e
+ * são o que `rechecarTudo` recebe de volta, então enfiar estado de tela dentro deles
+ * misturaria as duas coisas — e o próximo campo que a API ganhasse com esse nome
+ * sobrescreveria a seleção sem aviso.
+ */
+let marcados = new Set()
 
 // ---- Telas -----------------------------------------------------------------
 
@@ -124,15 +150,39 @@ function preencherAlvos(interesses) {
   for (const interesse of interesses) {
     // `textContent` de um option criado por innerHTML não escapa sozinho; o título
     // vem do banco, mas passou por um popup antes — escapar é barato.
-    const rotulo = interesse.titulo.replace(/[<>&]/g, c => (
-      { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]
-    ))
-    opcoes.push(`<option value="${interesse.id}">Adicionar a: ${rotulo}</option>`)
+    opcoes.push(`<option value="${interesse.id}">Adicionar a: ${escapar(interesse.titulo)}</option>`)
   }
 
   el('campo-alvo').innerHTML = opcoes.join('')
   el('campo-alvo').value = 'novo'
   alternarGrupoNovo()
+}
+
+/**
+ * A lista de "para quem", com os membros do espaço mais "outra pessoa".
+ *
+ * "Outra pessoa" no fim, e não um campo de texto sempre visível ao lado: o caso
+ * comum é presente para quem usa o app, e dois campos concorrendo pela mesma
+ * resposta convidam a preencher os dois — e só um é enviado.
+ */
+function preencherMembros(membros) {
+  const opcoes = ['<option value="">Ninguém em especial</option>']
+
+  for (const membro of membros) {
+    opcoes.push(`<option value="${escapar(membro.user_id)}">${escapar(membro.nome)}</option>`)
+  }
+
+  opcoes.push('<option value="outra">Outra pessoa…</option>')
+
+  el('campo-para-quem-membro').innerHTML = opcoes.join('')
+  el('campo-para-quem-membro').value = ''
+  alternarParaQuemLivre()
+}
+
+function alternarParaQuemLivre() {
+  const livre = el('campo-para-quem-membro').value === 'outra'
+  el('grupo-para-quem-livre').hidden = !livre
+  if (!livre) el('campo-para-quem').value = ''
 }
 
 /** Título e destino só fazem sentido para um interesse novo. */
@@ -215,13 +265,15 @@ async function abrirCaptura() {
     preencherEspacos(espacos, await lerEspacoEscolhido())
 
     // Raspar e listar em paralelo: são independentes, e o popup só é útil quando
-    // as duas terminam.
-    const [achado, interesses] = await Promise.all([
+    // as três terminam.
+    const [achado, interesses, membros] = await Promise.all([
       rasparAbaAtiva(),
       listarInteressesAbertos(el('campo-espaco').value),
+      listarMembros(el('campo-espaco').value),
     ])
 
     preencherAlvos(interesses)
+    preencherMembros(membros)
     preencherComCaptura(achado)
 
     mostrar('captura')
@@ -285,12 +337,21 @@ el('campo-espaco').addEventListener('change', async () => {
   await gravarEspacoEscolhido(spaceId)
 
   try {
-    preencherAlvos(await listarInteressesAbertos(spaceId))
+    // Os membros também trocam: oferecer alguém do espaço anterior seria oferecer
+    // um `para_quem_user_id` que não participa deste.
+    const [interesses, membros] = await Promise.all([
+      listarInteressesAbertos(spaceId),
+      listarMembros(spaceId),
+    ])
+    preencherAlvos(interesses)
+    preencherMembros(membros)
   }
   catch (e) {
     mostrarErro('erro-captura', e.message)
   }
 })
+
+el('campo-para-quem-membro').addEventListener('change', alternarParaQuemLivre)
 
 el('form-captura').addEventListener('submit', async (evento) => {
   evento.preventDefault()
@@ -316,11 +377,16 @@ el('form-captura').addEventListener('submit', async (evento) => {
     let interesseId = alvo
 
     if (alvo === 'novo') {
+      // "outra" é a opção que abre o texto livre; ela não é um `user_id`.
+      const membro = el('campo-para-quem-membro').value
+      const paraQuemUserId = membro && membro !== 'outra' ? membro : null
+
       interesseId = await registrarInteresse({
         spaceId: el('campo-espaco').value,
         titulo: el('campo-titulo').value.trim() || produto.nome,
         destino: el('campo-destino').value,
         paraQuem: texto('campo-para-quem'),
+        paraQuemUserId,
         observacao: null,
         produto,
       })
@@ -405,19 +471,148 @@ function desenharLinha(li, linha) {
   li.append(esquerda, direita)
 }
 
+/**
+ * Uma caixinha de produto, com a estrela quando ele é o favorito.
+ *
+ * `document.createElement` em vez de `innerHTML` porque o nome do produto vem da
+ * loja: passou por uma página que a extensão não controla, e `textContent` fecha esse
+ * caminho sem depender de escapar certo.
+ */
+function caixaDeProduto(produto) {
+  const li = document.createElement('li')
+  const rotulo = document.createElement('label')
+  rotulo.className = 'marcador produto-linha'
+
+  const caixa = document.createElement('input')
+  caixa.type = 'checkbox'
+  caixa.checked = marcados.has(produto.id)
+  caixa.dataset.produto = produto.id
+  caixa.addEventListener('change', async () => {
+    if (caixa.checked) marcados.add(produto.id)
+    else marcados.delete(produto.id)
+
+    await desligarSoFavoritos()
+    atualizarContagem()
+  })
+
+  rotulo.append(caixa)
+
+  if (produto.favorito) {
+    const estrela = document.createElement('span')
+    estrela.className = 'estrela'
+    estrela.textContent = '★'
+    estrela.title = 'Favorito deste interesse'
+    rotulo.append(estrela)
+  }
+
+  const nome = document.createElement('span')
+  nome.className = 'nome'
+  nome.textContent = produto.nome
+  rotulo.append(nome)
+
+  li.append(rotulo)
+  return li
+}
+
+/**
+ * As caixinhas de seleção, agrupadas por interesse.
+ *
+ * O título do interesse acima do bloco dele é o que faz "só os favoritos" ter
+ * sentido visual: um favorito por bloco. Sem os cabeçalhos, a lista seria um monte
+ * de nomes de produto e a marcação pareceria arbitrária.
+ */
+function desenharSelecao() {
+  const lista = el('recheck-selecao')
+  lista.innerHTML = ''
+
+  for (const bloco of blocosPorInteresse(rechecaveis)) {
+    const cabecalho = document.createElement('li')
+    cabecalho.className = 'titulo'
+    cabecalho.textContent = bloco.titulo
+    lista.append(cabecalho)
+
+    for (const produto of bloco.produtos) lista.append(caixaDeProduto(produto))
+  }
+}
+
+function selecionados() {
+  return rechecaveis.filter(p => marcados.has(p.id))
+}
+
+/**
+ * Desliga o atalho "só os favoritos" quando a marcação deixa de ser a dos favoritos.
+ *
+ * O atalho descreve uma marcação; deixá-lo aceso sobre outra seleção seria uma
+ * mentira na tela. A preferência guardada cai junto, senão o atalho voltaria a valer
+ * na próxima abertura contra a vontade de quem acabou de marcar à mão.
+ */
+async function desligarSoFavoritos() {
+  if (!el('recheck-so-favoritos').checked) return
+  el('recheck-so-favoritos').checked = false
+  await chrome.storage.local.set({ [CHAVE_SO_FAVORITOS]: false })
+}
+
+function atualizarContagem() {
+  const quantos = selecionados().length
+  const botao = el('botao-rodar-recheck')
+
+  botao.disabled = quantos === 0
+  botao.textContent = rotuloDeRodar(quantos, rechecaveis.length)
+}
+
+/** Aplica a marcação que a preferência pede. A regra mora em `lib/selecao.js`. */
+function aplicarMarcacao(soFavoritos) {
+  marcados = idsParaMarcar(rechecaveis, soFavoritos)
+  desenharSelecao()
+  atualizarContagem()
+}
+
+function marcarTodos(marcado) {
+  marcados = marcado ? new Set(rechecaveis.map(p => p.id)) : new Set()
+  desenharSelecao()
+  atualizarContagem()
+}
+
 async function abrirRecheck() {
   mostrarErro('erro-recheck', '')
   el('recheck-lista').innerHTML = ''
+  el('recheck-selecao').innerHTML = ''
+  mostrar('recheck')
+
+  el('recheck-dica').textContent = 'Procurando os produtos salvos…'
+  el('botao-rodar-recheck').disabled = true
+
+  try {
+    rechecaveis = await produtosParaRechecar()
+  }
+  catch (e) {
+    mostrarErro('erro-recheck', e.message)
+    el('recheck-dica').textContent = ''
+    return
+  }
+
+  if (!rechecaveis.length) {
+    el('recheck-escolha').hidden = true
+    el('recheck-dica').textContent = 'Nenhum produto salvo para rechecar.'
+    return
+  }
+
+  el('recheck-escolha').hidden = false
+
+  const guardado = await chrome.storage.local.get(CHAVE_SO_FAVORITOS)
+  el('recheck-so-favoritos').checked = guardado[CHAVE_SO_FAVORITOS] === true
+  aplicarMarcacao(el('recheck-so-favoritos').checked)
+
   el('recheck-dica').textContent = (await temPermissao())
     ? 'Abre cada produto numa aba escondida e relê o preço.'
     : 'Na primeira vez o Chrome vai pedir permissão para abrir as páginas das lojas.'
-  el('botao-rodar-recheck').disabled = false
-  el('botao-rodar-recheck').textContent = 'Reler os preços agora'
-  mostrar('recheck')
 }
 
 async function rodarRecheck() {
   mostrarErro('erro-recheck', '')
+
+  const alvos = selecionados()
+  if (!alvos.length) return
 
   /*
    * A permissão precisa ser pedida de dentro do gesto do clique. Em algumas
@@ -436,8 +631,12 @@ async function rodarRecheck() {
   const lista = el('recheck-lista')
   const linhas = new Map()
 
+  // A seleção sai da tela enquanto a rodada corre: mexer nas caixinhas no meio não
+  // muda o que já está sendo lido, e deixá-las clicáveis prometeria que muda.
+  el('recheck-escolha').hidden = true
+
   try {
-    const resultados = await rechecarTudo((linha, total) => {
+    const resultados = await rechecarTudo(alvos, (linha, total) => {
       let li = linhas.get(linha.produto.id)
       if (!li) {
         li = document.createElement('li')
@@ -448,20 +647,16 @@ async function rodarRecheck() {
       el('recheck-dica').textContent = `${linhas.size} de ${total}`
     })
 
-    if (!resultados.length) {
-      el('recheck-dica').textContent = 'Nenhum produto salvo para rechecar.'
-    }
-    else {
-      const mudaram = resultados.filter(r => r.estado === 'mudou').length
-      const falharam = resultados.filter(r => r.estado === 'erro' || r.estado === 'sem-preco').length
-      el('recheck-dica').textContent =
-        `${resultados.length} conferidos · ${mudaram} mudaram · ${falharam} não deram para ler`
-    }
+    const mudaram = resultados.filter(r => r.estado === 'mudou').length
+    const falharam = resultados.filter(r => r.estado === 'erro' || r.estado === 'sem-preco').length
+    el('recheck-dica').textContent =
+      `${resultados.length} conferidos · ${mudaram} mudaram · ${falharam} não deram para ler`
   }
   catch (e) {
     mostrarErro('erro-recheck', e.message)
   }
   finally {
+    el('recheck-escolha').hidden = false
     botao.disabled = false
     botao.textContent = 'Reler de novo'
   }
@@ -470,5 +665,23 @@ async function rodarRecheck() {
 el('botao-recheck').addEventListener('click', abrirRecheck)
 el('botao-voltar-captura').addEventListener('click', () => mostrar('captura'))
 el('botao-rodar-recheck').addEventListener('click', rodarRecheck)
+
+el('recheck-so-favoritos').addEventListener('change', async () => {
+  const soFavoritos = el('recheck-so-favoritos').checked
+  // Guardada porque é uma preferência, não um clique: quem só quer saber dos
+  // favoritos quer isso toda vez, e o popup é descartado a cada fechamento.
+  await chrome.storage.local.set({ [CHAVE_SO_FAVORITOS]: soFavoritos })
+  aplicarMarcacao(soFavoritos)
+})
+
+el('botao-marcar-todos').addEventListener('click', async () => {
+  await desligarSoFavoritos()
+  marcarTodos(true)
+})
+
+el('botao-marcar-nenhum').addEventListener('click', async () => {
+  await desligarSoFavoritos()
+  marcarTodos(false)
+})
 
 iniciar()

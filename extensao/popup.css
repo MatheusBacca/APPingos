@@ -219,6 +219,68 @@ select:focus {
   gap: 6px;
 }
 
+/*
+ * Uma caixinha com rótulo ao lado. `width: auto` porque a regra geral de `input`
+ * acima manda 100% — pensada para os campos do formulário, ela faria a caixa de
+ * seleção ocupar a linha inteira e empurrar o texto para baixo dela.
+ */
+.marcador {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.marcador input {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.lista-selecao {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 190px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+/* O nome do interesse acima das caixinhas dele, para o "só os favoritos" fazer
+   sentido visual: um favorito por bloco. */
+.lista-selecao .titulo {
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--suave);
+}
+
+.lista-selecao .titulo:first-child {
+  margin-top: 0;
+}
+
+.lista-selecao .produto-linha {
+  min-width: 0;
+  padding-left: 4px;
+}
+
+.lista-selecao .nome {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A estrela do favorito — sem cor, porque não é um aviso, é uma marca. */
+.lista-selecao .estrela {
+  flex-shrink: 0;
+  color: var(--suave);
+}
+
 .lista-recheck {
   display: flex;
   flex-direction: column;

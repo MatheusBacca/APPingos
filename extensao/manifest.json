@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "APPingos",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Captura o produto da página e registra como interesse no APPingos.",
   "action": {
     "default_popup": "popup.html",

@@ -84,11 +84,24 @@
             <select id="campo-destino"></select>
           </label>
 
+          <!--
+            "Para quem" em duas partes: a lista de membros do espaço, mais o texto
+            livre que aparece quando a resposta é alguém de fora ("minha mãe"). O
+            `<select>` guarda o `user_id`, para o nome acompanhar quem trocar de
+            apelido; só um dos dois campos é enviado.
+          -->
           <label class="campo">
             <span>Para quem</span>
-            <input id="campo-para-quem" type="text" autocomplete="off" placeholder="opcional">
+            <select id="campo-para-quem-membro">
+              <option value="">Ninguém em especial</option>
+            </select>
           </label>
         </div>
+
+        <label id="grupo-para-quem-livre" class="campo" hidden>
+          <span>Nome de quem recebe</span>
+          <input id="campo-para-quem" type="text" autocomplete="off" placeholder="minha mãe">
+        </label>
       </div>
 
       <hr>
@@ -143,6 +156,29 @@
     </header>
 
     <p id="erro-recheck" class="erro" hidden></p>
+
+    <!--
+      A escolha de quais reler existe porque cada produto custa uma aba aberta e
+      alguns segundos. Quem tem quinze salvos e só quer saber do sofá não deve
+      esperar pelos outros catorze.
+
+      "Só os favoritos" é um atalho de MARCAÇÃO, não um filtro de exibição: ele marca
+      os favoritos e desmarca o resto, e as caixinhas continuam editáveis por cima.
+      Um filtro esconderia produtos e faria "reler 3 de 15" parecer um bug.
+    -->
+    <div id="recheck-escolha" class="pilha">
+      <label class="marcador">
+        <input id="recheck-so-favoritos" type="checkbox">
+        <span>Só os favoritos de cada interesse</span>
+      </label>
+
+      <div class="acoes">
+        <button id="botao-marcar-todos" type="button" class="botao discreto">Marcar todos</button>
+        <button id="botao-marcar-nenhum" type="button" class="botao discreto">Nenhum</button>
+      </div>
+
+      <ul id="recheck-selecao" class="lista-selecao"></ul>
+    </div>
 
     <button id="botao-rodar-recheck" type="button" class="botao primario">Reler os preços agora</button>
 

@@ -127,8 +127,8 @@ depois, para a Web Store (não listada, US$ 5 uma vez, atualização automática
 
 ## Verificação
 
-- `npm run verificar` — 237 testes, incluindo `extensao-precos`, `extensao-raspagem`,
-  `extensao-api` e `extensao-popup`
+- `npm run verificar` — 312 testes, incluindo `extensao-precos`, `extensao-raspagem`,
+  `extensao-api`, `extensao-selecao` e `extensao-popup`
 - A extensão não passa por `nuxt typecheck` (é JS puro fora de `app/`), então
   `extensao-popup.test.ts` cruza os ids de `popup.js` com os de `popup.html` e valida o manifest.
   Um `el('campo-prec')` seria `null.value` em runtime, silencioso até a hora do uso — e clicar no
@@ -142,4 +142,43 @@ depois, para a Web Store (não listada, US$ 5 uma vez, atualização automática
 - **Mobile** — o Chrome no Android não tem extensões; no celular o caminho é o app
 - **Capturar mais de um produto de uma vez** (uma página de busca inteira) — o gesto é "achei
   este", não "importe a vitrine"
-- **Reconferir preço depois** — quer cron e histórico; módulo à parte
+- **Rechecagem automática, sem clique** — precisaria de credencial de bot rodando num servidor, e
+  é justamente o IP de datacenter que as lojas barram. O botão resolve com o navegador de quem já
+  está logado
+- **Editar o interesse pela extensão** — o popup captura e relê preço; corrigir e comparar é a tela
+  do app, que tem espaço para isso
+
+## O que a 0.3.0 acrescentou
+
+**Escolher quais preços reler.** A tela de "Atualizar preços" passou a listar os produtos com uma
+caixinha cada, agrupados pelo interesse a que pertencem, com uma estrela no favorito. Cada produto
+relido é uma aba aberta e alguns segundos de espera; quem tem quinze salvos e só quer saber do sofá
+não deve esperar pelos outros catorze.
+
+**"Só os favoritos de cada interesse" é um atalho de MARCAÇÃO, não um filtro de exibição.** Ele marca
+os favoritos e desmarca o resto, e as caixinhas seguem editáveis por cima. Um filtro esconderia
+produtos e faria "reler 3 de 15" parecer bug. A preferência fica no `chrome.storage` — quem quer só
+os favoritos quer isso toda vez, e o popup é descartado a cada fechamento. Marcar algo à mão desliga
+o atalho: ele descreve uma marcação, e aceso sobre outra seleção seria mentira na tela.
+
+Interesse que ainda não tem favorito escolhido fica de fora inteiro quando o atalho está ligado. É o
+certo: a pessoa pediu os favoritos, e ali não há um. Marcar tudo "para não deixar de fora" abriria as
+abas que ela acabou de dizer que não queria.
+
+**`lib/selecao.js`, novo e puro.** `popup.js` não é importável em teste: ele puxa
+`lib/config.gerado.js`, que o build escreve e não existe num clone novo — um teste que o importasse
+passaria a depender de alguém ter rodado `npm run extensao` antes. Então a regra da marcação saiu para
+um módulo sem dependência nenhuma, e `extensao-selecao.test.ts` a exercita com o mesmo código que
+roda no Chrome.
+
+**"Para quem" virou lista de membros**, com "Outra pessoa…" no fim abrindo o campo de texto livre. Só
+um dos dois é enviado: `p_para_quem_user_id` quando é alguém do espaço (o nome acompanha quem trocar
+de apelido) ou `p_para_quem` em texto. Trocar de espaço recarrega a lista — oferecer alguém do espaço
+anterior seria oferecer um `user_id` que não participa deste.
+
+**Um teste que nasceu de um buraco encontrado agora:** a lista de arquivos que o workflow confere
+dentro do `.zip` é escrita à mão e envelhece calada — `lib/recheck.js` estava de fora desde a 0.2.0.
+Um módulo em `lib/` é copiado pelo build (a pasta vai inteira) e simplesmente não era conferido. O dia
+em que a cópia falhasse, o pacote sairia sem o arquivo, seria publicado como release, e o sintoma
+seria a extensão instalada quebrando num import — sem nada vermelho no CI. Agora o teste segue os
+imports em cadeia a partir de `popup.js` e exige que cada módulo apareça na lista do workflow.

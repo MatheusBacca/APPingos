@@ -55,6 +55,16 @@ Fixe o ícone na barra pelo botão de peça de quebra-cabeça. Um `git pull` já
 O botão **Atualizar preços**, no topo do popup, reabre cada produto salvo numa aba
 escondida, relê o preço e grava o que conseguiu ler.
 
+**Você escolhe quais.** A tela lista os produtos com uma caixinha cada, agrupados pelo interesse a
+que pertencem, e a estrela marca o favorito de cada interesse. Cada produto relido é uma aba aberta e
+alguns segundos de espera, então "todos" nem sempre é o que se quer: quem tem quinze salvos e só
+quer saber do sofá não deve esperar pelos outros catorze.
+
+**Só os favoritos de cada interesse** é um atalho de marcação: ele marca os favoritos e desmarca o
+resto, e as caixinhas continuam editáveis por cima. A preferência fica guardada para a próxima vez, e
+marcar algo à mão a desliga. Um interesse que ainda não tem favorito escolhido fica de fora inteiro
+quando o atalho está ligado — é o que você pediu, e ali não há favorito.
+
 Roda no seu navegador de propósito, e não num servidor: o HTML cru não traz preço Pix nem
 parcelamento (são montados por JS), e loja grande bloqueia IP de datacenter. Aqui a requisição sai
 com o seu IP residencial e o seu Chrome — o tráfego que a loja não tem motivo para barrar.
@@ -77,7 +87,9 @@ lista vem ordenada do mais desatualizado — a rodada seguinte pega de onde paro
 3. Na primeira vez, entre com **o mesmo e-mail e senha do app**
 4. Confira os campos — a raspagem erra, e o popup diz de onde tirou cada coisa
 5. Escolha o espaço e, se quiser, um interesse que já existe ("Adicionar a: Trocar o sofá")
-6. **Salvar interesse**
+6. Se for presente, escolha **para quem** na lista de quem participa do espaço — ou
+   "Outra pessoa…" para escrever um nome de quem não tem conta aqui
+7. **Salvar interesse**
 
 Nada é gravado sem esse clique.
 

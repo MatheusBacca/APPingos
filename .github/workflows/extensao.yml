@@ -137,6 +137,7 @@ jobs:
             manifest.json \
             popup.html popup.css popup.js \
             lib/api.js lib/raspagem.js lib/precos.js lib/config.gerado.js \
+            lib/recheck.js lib/selecao.js \
             icones/16.png icones/32.png icones/48.png icones/128.png
           do
             if ! printf '%s\n' "$lista" | grep -qx "appingos-extensao/$arquivo"; then

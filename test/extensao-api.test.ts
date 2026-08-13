@@ -19,6 +19,8 @@ import {
   lerSessao,
   listarEspacos,
   listarInteressesAbertos,
+  listarMembros,
+  produtosParaRechecar,
   registrarInteresse,
   sair,
 } from '../extensao/lib/api.js'
@@ -322,6 +324,97 @@ describe('leituras', () => {
     expect(url.searchParams.get('estado')).toBe('in.(rascunho,amadurecendo)')
     expect(url.searchParams.get('limit')).toBe('50')
   })
+
+  /* Presente para si mesmo não é presente — e seria o primeiro nome da lista. */
+  it('a lista de membros não inclui quem está usando', async () => {
+    dublarFetch([resposta([
+      { user_id: 'user-1', profile: { nome: 'Ana', apelido: null } },
+      { user_id: 'user-2', profile: { nome: 'Beatriz', apelido: 'Bia' } },
+    ])])
+
+    const membros = await listarMembros('space-1')
+
+    expect(membros).toEqual([{ user_id: 'user-2', nome: 'Bia' }])
+  })
+
+  /* O apelido manda, como `nomeDeExibicao` no app: se o app a chama de Bia, a
+     extensão também — senão as duas telas chamariam a mesma pessoa de dois nomes. */
+  it('o apelido ganha do nome, e vazio cai no nome', async () => {
+    dublarFetch([resposta([
+      { user_id: 'a', profile: { nome: 'Zulmira', apelido: '  ' } },
+      { user_id: 'b', profile: { nome: 'Beatriz', apelido: 'Bia' } },
+      { user_id: 'c', profile: null },
+    ])])
+
+    expect(await listarMembros('space-1')).toEqual([
+      { user_id: 'b', nome: 'Bia' },
+      { user_id: 'c', nome: 'Sem nome' },
+      { user_id: 'a', nome: 'Zulmira' },
+    ])
+  })
+
+  /*
+   * A tela de seleção precisa do título do interesse (para agrupar as caixinhas) e
+   * do `escolhido` do agrupamento (para o "só os favoritos"). O achatamento acontece
+   * aqui para ninguém mais ter de saber que o dado vem de três tabelas.
+   */
+  it('achata interesse e agrupamento no produto a rechecar', async () => {
+    dublarFetch([resposta([{
+      id: 'p1',
+      nome: 'Monitor 27',
+      url: 'https://loja.com/m',
+      loja: 'loja.com',
+      preco: 1800,
+      preco_pix: null,
+      parcelas: null,
+      valor_parcela: null,
+      verificado_em: null,
+      falhas_seguidas: 0,
+      interesse: { id: 'i1', titulo: 'Monitor novo', estado: 'rascunho' },
+      agrupamento: { id: 'a1', nome: 'Monitor + braço', escolhido: true },
+    }])])
+
+    const [produto] = await produtosParaRechecar()
+
+    expect(produto).toMatchObject({
+      id: 'p1',
+      interesse_id: 'i1',
+      interesse_titulo: 'Monitor novo',
+      agrupamento_id: 'a1',
+      agrupamento_nome: 'Monitor + braço',
+      favorito: true,
+    })
+  })
+
+  /* `favorito` precisa ser booleano de verdade: a marcação da tela é `if (favorito)`,
+     e um `undefined` de embed faltante marcaria o produto como não-favorito sem dizer. */
+  it('favorito é falso, e não undefined, quando o agrupamento não é o escolhido', async () => {
+    dublarFetch([resposta([
+      { id: 'p1', interesse: { id: 'i1', titulo: 'X' }, agrupamento: { id: 'a1', escolhido: false } },
+      { id: 'p2', interesse: { id: 'i1', titulo: 'X' } },
+    ])])
+
+    const produtos = await produtosParaRechecar()
+
+    expect(produtos.map(p => p.favorito)).toEqual([false, false])
+    expect(produtos[1]!.agrupamento_id).toBeNull()
+  })
+
+  /*
+   * Do mais esquecido para o mais recente: uma rodada interrompida no meio (o popup
+   * fecha se a pessoa clicar fora) sempre ataca o mais desatualizado, então duas
+   * rodadas parciais cobrem o conjunto em vez de reler os mesmos dois produtos.
+   */
+  it('pede só produtos de interesse vivo, do mais esquecido para o mais novo', async () => {
+    dublarFetch([resposta([])])
+
+    await produtosParaRechecar()
+
+    const url = new URL(chamadas[0]!.url)
+    expect(url.searchParams.get('interesse.estado')).toBe('in.(rascunho,amadurecendo)')
+    expect(url.searchParams.get('order')).toBe('verificado_em.asc.nullsfirst')
+    expect(url.searchParams.get('select')).toContain('interesse_agrupamento!inner')
+  })
 })
 
 describe('escritas', () => {
@@ -354,9 +447,41 @@ describe('escritas', () => {
       p_titulo: 'Trocar o sofá',
       p_destino: 'compra',
       p_para_quem: null,
+      p_para_quem_user_id: null,
       p_observacao: null,
       p_produto: { nome: 'Sofá', url: 'https://loja.com/s', preco: 2399 },
     })
+  })
+
+  /*
+   * "Para quem" tem duas formas e só uma pode ir: o `user_id` (cujo nome acompanha
+   * quem trocar de apelido) ou o texto livre. Mandar os dois faria a tela do app ter
+   * de escolher qual mostrar — e a escolha errada mostraria um nome antigo.
+   */
+  it('o membro escolhido anula o texto livre', async () => {
+    dublarFetch([resposta('id')])
+
+    await registrarInteresse({
+      spaceId: 's',
+      titulo: 't',
+      paraQuem: 'minha mãe',
+      paraQuemUserId: 'user-2',
+      produto: null,
+    })
+
+    const corpo = JSON.parse(chamadas[0]!.opcoes.body as string)
+    expect(corpo.p_para_quem).toBeNull()
+    expect(corpo.p_para_quem_user_id).toBe('user-2')
+  })
+
+  it('sem membro, o texto livre vai como está', async () => {
+    dublarFetch([resposta('id')])
+
+    await registrarInteresse({ spaceId: 's', titulo: 't', paraQuem: 'minha mãe', produto: null })
+
+    const corpo = JSON.parse(chamadas[0]!.opcoes.body as string)
+    expect(corpo.p_para_quem).toBe('minha mãe')
+    expect(corpo.p_para_quem_user_id).toBeNull()
   })
 
   it('destino ausente cai em compra, que é o que a extensão captura', async () => {

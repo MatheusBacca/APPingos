@@ -286,6 +286,36 @@ export async function listarEspacos() {
 }
 
 /**
+ * Quem participa do espaço, para o "para quem" oferecer nomes em vez de só texto.
+ *
+ * O próprio usuário sai da lista: presente para si mesmo não é presente, e é o nome
+ * que estaria em primeiro lugar por acidente de ordenação.
+ *
+ * O nome de exibição segue a regra do app (`nomeDeExibicao`): o apelido quando a
+ * pessoa pôs um, o nome quando não. Reimplementada aqui em uma linha porque a
+ * extensão não importa nada de `app/` — e a alternativa (mostrar sempre o nome de
+ * cadastro) faria a extensão chamar a pessoa de um jeito e o app de outro.
+ */
+export async function listarMembros(spaceId) {
+  const sessao = await lerSessao()
+
+  const params = new URLSearchParams({
+    select: 'user_id,profile(nome,apelido)',
+    space_id: `eq.${spaceId}`,
+  })
+
+  const linhas = (await chamar(`membership?${params}`)) ?? []
+
+  return linhas
+    .filter(linha => linha.user_id !== sessao?.user_id)
+    .map(linha => ({
+      user_id: linha.user_id,
+      nome: linha.profile?.apelido?.trim() || linha.profile?.nome?.trim() || 'Sem nome',
+    }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+}
+
+/**
  * Os interesses ainda vivos do espaço, para "adicionar a um que já existe".
  *
  * Só rascunho e amadurecendo, e no máximo 50: a lista existe para achar "Trocar o
@@ -304,15 +334,24 @@ export async function listarInteressesAbertos(spaceId) {
   return (await chamar(`interesse?${params}`)) ?? []
 }
 
-/** Cria o interesse com o produto capturado, numa transação. Devolve o id. */
-export async function registrarInteresse({ spaceId, titulo, destino, paraQuem, observacao, produto }) {
+/**
+ * Cria o interesse com o produto capturado, numa transação. Devolve o id.
+ *
+ * "Para quem" tem duas formas e só uma vai: `paraQuemUserId` quando é alguém do
+ * espaço (o nome acompanha se a pessoa trocar de apelido) ou `paraQuem` em texto
+ * livre. Mandar os dois faria a tela do app ter de escolher qual mostrar.
+ */
+export async function registrarInteresse({
+  spaceId, titulo, destino, paraQuem, paraQuemUserId, observacao, produto,
+}) {
   return chamar('rpc/registrar_interesse', {
     method: 'POST',
     body: JSON.stringify({
       p_space: spaceId,
       p_titulo: titulo,
       p_destino: destino ?? 'compra',
-      p_para_quem: paraQuem ?? null,
+      p_para_quem: paraQuemUserId ? null : (paraQuem ?? null),
+      p_para_quem_user_id: paraQuemUserId ?? null,
       p_observacao: observacao ?? null,
       p_produto: produto ?? null,
     }),
@@ -337,15 +376,47 @@ export async function adicionarProduto(interesseId, produto) {
  *
  * Só produtos de interesses vivos: rechecar preço de coisa arquivada é gastar
  * requisição contra a loja para atualizar um número que ninguém vai olhar.
+ *
+ * O título do interesse e o `escolhido` do agrupamento vêm embutidos porque a tela
+ * de seleção precisa dos dois: agrupar as caixinhas por interesse, e saber quais
+ * marcar quando a pessoa pede "só os favoritos". Buscá-los depois seria uma
+ * requisição por produto para desenhar uma lista.
+ *
+ * A resposta é achatada aqui, e não na tela: um objeto por produto com o que a
+ * seleção e a rechecagem precisam, sem ninguém mais tendo de saber que veio de três
+ * tabelas.
  */
 export async function produtosParaRechecar() {
   const params = new URLSearchParams({
-    select: 'id,nome,url,loja,preco,preco_pix,parcelas,valor_parcela,verificado_em,falhas_seguidas,interesse!inner(estado)',
+    select: [
+      'id,nome,url,loja,preco,preco_pix,parcelas,valor_parcela,verificado_em,falhas_seguidas',
+      'interesse!inner(id,titulo,estado)',
+      'agrupamento:interesse_agrupamento!inner(id,nome,escolhido)',
+    ].join(','),
     'interesse.estado': 'in.(rascunho,amadurecendo)',
     order: 'verificado_em.asc.nullsfirst',
   })
 
-  return (await chamar(`interesse_produto?${params}`)) ?? []
+  const linhas = (await chamar(`interesse_produto?${params}`)) ?? []
+
+  return linhas.map(linha => ({
+    id: linha.id,
+    nome: linha.nome,
+    url: linha.url,
+    loja: linha.loja,
+    preco: linha.preco,
+    preco_pix: linha.preco_pix,
+    parcelas: linha.parcelas,
+    valor_parcela: linha.valor_parcela,
+    verificado_em: linha.verificado_em,
+    falhas_seguidas: linha.falhas_seguidas,
+    interesse_id: linha.interesse?.id ?? null,
+    interesse_titulo: linha.interesse?.titulo ?? 'Sem título',
+    agrupamento_id: linha.agrupamento?.id ?? null,
+    agrupamento_nome: linha.agrupamento?.nome ?? null,
+    /** O produto está no agrupamento favorito do interesse dele. */
+    favorito: linha.agrupamento?.escolhido === true,
+  }))
 }
 
 /**
