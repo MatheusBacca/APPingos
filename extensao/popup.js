@@ -31,6 +31,7 @@ import {
   sair,
 } from './lib/api.js'
 import { raspar } from './lib/raspagem.js'
+import { pedirPermissao, rechecarTudo, temPermissao } from './lib/recheck.js'
 
 const DESTINOS = [
   ['compra', 'Compra'],
@@ -56,7 +57,7 @@ let capturado = null
 // ---- Telas -----------------------------------------------------------------
 
 function mostrar(qual) {
-  for (const nome of ['carregando', 'login', 'captura', 'pronto']) {
+  for (const nome of ['carregando', 'login', 'captura', 'recheck', 'pronto']) {
     el(`tela-${nome}`).hidden = nome !== qual
   }
 }
@@ -343,5 +344,131 @@ el('form-captura').addEventListener('submit', async (evento) => {
 })
 
 el('botao-outro').addEventListener('click', abrirCaptura)
+
+// ---- Rechecagem de preço ----------------------------------------------------
+
+const DINHEIRO = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+
+/** O preço que representa o produto: Pix quando há, senão o cheio. Igual ao app. */
+function efetivo(valores) {
+  return valores?.pix ?? valores?.preco ?? null
+}
+
+/**
+ * Uma linha da lista de rechecagem.
+ *
+ * Mostra a loja, e não o nome do produto: num popup de 380px o nome de um produto
+ * de e-commerce ("Sofá Retrátil 3 Lugares 220cm Suede Cinza...") ocupa a linha
+ * inteira e empurra o que interessa, que é o número, para fora da tela.
+ */
+function desenharLinha(li, linha) {
+  const { produto, estado, resultado } = linha
+  const loja = produto.loja ?? new URL(produto.url).hostname
+
+  let valor = ''
+  let classe = ''
+
+  if (estado === 'lendo') {
+    valor = 'lendo…'
+    classe = 'falhou'
+  }
+  else if (estado === 'erro' || estado === 'sem-preco') {
+    valor = estado === 'erro' ? 'não abriu' : 'não achei o preço'
+    classe = 'falhou'
+  }
+  else if (estado === 'mudou') {
+    const antes = efetivo({ preco: resultado.preco_antes, pix: resultado.pix_antes })
+    const depois = efetivo({ preco: resultado.preco_depois, pix: resultado.pix_depois })
+
+    if (antes !== null && depois !== null && depois !== antes) {
+      const caiu = depois < antes
+      valor = `${DINHEIRO.format(antes)} → ${DINHEIRO.format(depois)} ${caiu ? '↓' : '↑'}`
+      classe = caiu ? 'baixou' : ''
+    }
+    else {
+      valor = depois === null ? 'atualizado' : DINHEIRO.format(depois)
+    }
+  }
+  else {
+    valor = 'sem mudança'
+    classe = 'falhou'
+  }
+
+  li.innerHTML = ''
+  const esquerda = document.createElement('span')
+  esquerda.className = 'loja'
+  // textContent, não innerHTML: `loja` vem do banco e passou por uma página.
+  esquerda.textContent = loja
+  const direita = document.createElement('span')
+  direita.className = `valor ${classe}`.trim()
+  direita.textContent = valor
+  li.append(esquerda, direita)
+}
+
+async function abrirRecheck() {
+  mostrarErro('erro-recheck', '')
+  el('recheck-lista').innerHTML = ''
+  el('recheck-dica').textContent = (await temPermissao())
+    ? 'Abre cada produto numa aba escondida e relê o preço.'
+    : 'Na primeira vez o Chrome vai pedir permissão para abrir as páginas das lojas.'
+  el('botao-rodar-recheck').disabled = false
+  el('botao-rodar-recheck').textContent = 'Reler os preços agora'
+  mostrar('recheck')
+}
+
+async function rodarRecheck() {
+  mostrarErro('erro-recheck', '')
+
+  /*
+   * A permissão precisa ser pedida de dentro do gesto do clique. Em algumas
+   * versões o Chrome fecha o popup ao mostrar o diálogo — se isso acontecer, a
+   * concessão fica valendo e basta reabrir e clicar de novo.
+   */
+  if (!(await temPermissao()) && !(await pedirPermissao())) {
+    mostrarErro('erro-recheck', 'Sem a permissão não dá para abrir as páginas das lojas.')
+    return
+  }
+
+  const botao = el('botao-rodar-recheck')
+  botao.disabled = true
+  botao.textContent = 'Lendo…'
+
+  const lista = el('recheck-lista')
+  const linhas = new Map()
+
+  try {
+    const resultados = await rechecarTudo((linha, total) => {
+      let li = linhas.get(linha.produto.id)
+      if (!li) {
+        li = document.createElement('li')
+        linhas.set(linha.produto.id, li)
+        lista.append(li)
+      }
+      desenharLinha(li, linha)
+      el('recheck-dica').textContent = `${linhas.size} de ${total}`
+    })
+
+    if (!resultados.length) {
+      el('recheck-dica').textContent = 'Nenhum produto salvo para rechecar.'
+    }
+    else {
+      const mudaram = resultados.filter(r => r.estado === 'mudou').length
+      const falharam = resultados.filter(r => r.estado === 'erro' || r.estado === 'sem-preco').length
+      el('recheck-dica').textContent =
+        `${resultados.length} conferidos · ${mudaram} mudaram · ${falharam} não deram para ler`
+    }
+  }
+  catch (e) {
+    mostrarErro('erro-recheck', e.message)
+  }
+  finally {
+    botao.disabled = false
+    botao.textContent = 'Reler de novo'
+  }
+}
+
+el('botao-recheck').addEventListener('click', abrirRecheck)
+el('botao-voltar-captura').addEventListener('click', () => mostrar('captura'))
+el('botao-rodar-recheck').addEventListener('click', rodarRecheck)
 
 iniciar()

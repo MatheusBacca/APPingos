@@ -326,3 +326,44 @@ export async function adicionarProduto(interesseId, produto) {
     body: JSON.stringify({ p_interesse: interesseId, p_produto: produto }),
   })
 }
+
+/**
+ * Os produtos a rechecar, do mais esquecido para o mais recente.
+ *
+ * `verificado_em.asc.nullsfirst` põe na frente quem nunca foi rechecado desde a
+ * captura, e depois os mais antigos. Assim uma rodada interrompida no meio (o
+ * popup fecha se a pessoa clicar fora) sempre ataca o mais desatualizado — duas
+ * rodadas parciais cobrem o conjunto em vez de reler os mesmos dois produtos.
+ *
+ * Só produtos de interesses vivos: rechecar preço de coisa arquivada é gastar
+ * requisição contra a loja para atualizar um número que ninguém vai olhar.
+ */
+export async function produtosParaRechecar() {
+  const params = new URLSearchParams({
+    select: 'id,nome,url,loja,preco,preco_pix,parcelas,valor_parcela,verificado_em,falhas_seguidas,interesse!inner(estado)',
+    'interesse.estado': 'in.(rascunho,amadurecendo)',
+    order: 'verificado_em.asc.nullsfirst',
+  })
+
+  return (await chamar(`interesse_produto?${params}`)) ?? []
+}
+
+/**
+ * Grava o que a rechecagem leu. Devolve `{ atualizado, preco_antes, ... }`.
+ *
+ * Mandar tudo `null` é o caminho de "não consegui ler": a RPC não mexe em valor
+ * nenhum, só carimba a tentativa e conta a falha. A decisão de não sobrescrever
+ * mora no banco, e não aqui, para valer igual a qualquer chamador.
+ */
+export async function registrarPrecoLido(produtoId, achado) {
+  return chamar('rpc/registrar_preco_lido', {
+    method: 'POST',
+    body: JSON.stringify({
+      p_produto: produtoId,
+      p_preco: achado?.preco ?? null,
+      p_preco_pix: achado?.preco_pix ?? null,
+      p_parcelas: achado?.parcelas ?? null,
+      p_valor_parcela: achado?.valor_parcela ?? null,
+    }),
+  })
+}

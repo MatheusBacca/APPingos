@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "APPingos",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Captura o produto da página e registra como interesse no APPingos.",
   "action": {
     "default_popup": "popup.html",
@@ -14,5 +14,6 @@
     "128": "icones/128.png"
   },
   "permissions": ["storage", "activeTab", "scripting"],
-  "host_permissions": ["https://*.supabase.co/*"]
+  "host_permissions": ["https://*.supabase.co/*"],
+  "optional_host_permissions": ["https://*/*"]
 }

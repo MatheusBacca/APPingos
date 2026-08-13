@@ -65,8 +65,46 @@ export interface InteresseProduto {
   escolhido: boolean
   origem: OrigemProduto
   capturado_em: string
+  /** `null` = nunca rechecado desde a captura. */
+  verificado_em: string | null
+  /** Rechecagens seguidas que não conseguiram ler preço nenhum. */
+  falhas_seguidas: number
   created_at: string
 }
+
+/** Uma observação de preço no tempo — só entra quando algo mudou. */
+export interface PrecoObservado {
+  id: string
+  produto_id: string
+  preco: number | null
+  preco_pix: number | null
+  parcelas: number | null
+  valor_parcela: number | null
+  visto_em: string
+}
+
+/**
+ * O que `registrar_preco_lido` devolve, para a tela dizer "2.399 → 1.999" sem
+ * uma segunda consulta.
+ */
+export interface ResultadoRecheck {
+  atualizado: boolean
+  motivo?: 'sem_preco'
+  falhas_seguidas?: number
+  preco_antes?: number | null
+  preco_depois?: number | null
+  pix_antes?: number | null
+  pix_depois?: number | null
+}
+
+/**
+ * Quantas rechecagens seguidas falhando bastam para a tela parar de fingir que
+ * o preço é fresco e dizer que a loja não está deixando ler.
+ *
+ * Três, e não uma: uma falha isolada é rede instável ou a loja de mau humor, e
+ * avisar sobre isso seria ruído. Três seguidas é padrão.
+ */
+export const FALHAS_ATE_AVISAR = 3
 
 export interface Interesse {
   id: string

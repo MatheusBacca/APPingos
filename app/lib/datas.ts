@@ -98,3 +98,34 @@ export function formatarDiaCurto(iso: string): string {
     .toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' })
     .replace(/\./g, '')
 }
+
+/**
+ * "agora há pouco", "há 3 horas", "há 2 dias" — a partir de um timestamptz.
+ *
+ * Recebe `agora` como parâmetro em vez de chamar `Date.now()` dentro: sem isso a
+ * função não é testável sem congelar o relógio, e o teste vira o tipo que falha
+ * sozinho às vezes.
+ *
+ * Acima de uma semana devolve `null`, e quem chama mostra a data em vez do
+ * relativo: "há 43 dias" é pior que "12 de agosto" para saber se um preço ainda
+ * vale — a pessoa pensa em datas, não em contagem regressiva.
+ */
+export function tempoRelativo(iso: string, agora: number = Date.now()): string | null {
+  const segundos = Math.floor((agora - new Date(iso).getTime()) / 1000)
+
+  // Relógio da máquina atrasado faz o passado virar futuro. "agora há pouco" é
+  // menos errado que "há -2 horas".
+  if (segundos < 60) return 'agora há pouco'
+
+  const minutos = Math.floor(segundos / 60)
+  if (minutos < 60) return minutos === 1 ? 'há 1 minuto' : `há ${minutos} minutos`
+
+  const horas = Math.floor(minutos / 60)
+  if (horas < 24) return horas === 1 ? 'há 1 hora' : `há ${horas} horas`
+
+  const dias = Math.floor(horas / 24)
+  if (dias === 1) return 'ontem'
+  if (dias <= 7) return `há ${dias} dias`
+
+  return null
+}

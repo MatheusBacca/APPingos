@@ -49,7 +49,12 @@
         <h1>Novo interesse</h1>
         <p id="rotulo-fonte" class="dica"></p>
       </div>
-      <button id="botao-sair" type="button" class="botao discreto" title="Sair da conta">Sair</button>
+      <div class="acoes">
+        <button id="botao-recheck" type="button" class="botao discreto" title="Reler o preço dos produtos já salvos">
+          Atualizar preços
+        </button>
+        <button id="botao-sair" type="button" class="botao discreto" title="Sair da conta">Sair</button>
+      </div>
     </header>
 
     <form id="form-captura" class="pilha">
@@ -125,6 +130,23 @@
 
       <button id="botao-salvar" type="submit" class="botao primario">Salvar interesse</button>
     </form>
+  </section>
+
+  <!-- ---- Rechecagem de preço ------------------------------------------ -->
+  <section id="tela-recheck" class="tela pilha" hidden>
+    <header class="cabecalho linha">
+      <div>
+        <h1>Atualizar preços</h1>
+        <p id="recheck-dica" class="dica"></p>
+      </div>
+      <button id="botao-voltar-captura" type="button" class="botao discreto">Voltar</button>
+    </header>
+
+    <p id="erro-recheck" class="erro" hidden></p>
+
+    <button id="botao-rodar-recheck" type="button" class="botao primario">Reler os preços agora</button>
+
+    <ul id="recheck-lista" class="lista-recheck"></ul>
   </section>
 
   <!-- ---- Pronto ------------------------------------------------------- -->

@@ -1006,3 +1006,62 @@ motivo.
 
 **Fora desta migration, de propósito:** as RPCs de preço (ler URLs para rechecar, gravar o que
 leu) e o schema de histórico. Elas entram com a feature, quando a medição disser que ela vale.
+
+---
+
+## 2026-08-13 — "Atualizar preços": o botão em vez do cron
+
+**Contexto:** a pergunta era se dava para a rotina usar a conta de quem criou o interesse, para
+não precisar de bot nem de conta no CI. Não dá — `criado_por` guarda um UUID, que identifica mas
+não autentica, e não existe caminho de id para token. A alternativa proposta foi um botão que o
+usuário logado aperta.
+
+**E o botão é melhor que o cron, não um plano B.** Ele resolve o muro que o cron ia perder: a
+requisição sai do navegador de quem usa, com IP residencial, Chrome de verdade e os cookies que a
+pessoa já tem — o tráfego que a loja não tem motivo para barrar. Some-se zero credencial em
+qualquer lugar, e feedback imediato de quais falharam.
+
+**Correção de onde ele pode ficar:** não na tela do app. Uma página web não lê o HTML de outro
+domínio — o CORS barra —, e via servidor voltaríamos ao HTML cru sem preço Pix e ao IP de
+datacenter. O lugar que funciona é a extensão, que já tem a sessão, o IP e a `raspar()`.
+
+**Decisão: a permissão ampla é opcional, pedida no clique.** Rodar `raspar()` numa aba que a
+pessoa não abriu exige permissão de host, e `activeTab` só cobre a aba de onde o ícone foi
+acionado. `optional_host_permissions` + `chrome.permissions.request()` no clique preserva o que foi
+protegido desde o início: quem só captura produtos nunca concede nada, e a instalação segue sem o
+"ler e alterar seus dados em todos os sites". Um teste novo trava isso — se o padrão migrar para
+`host_permissions`, a suíte quebra.
+
+**Decisão: "não sobrescrever" vale POR CAMPO.** Um campo que voltou `null` significa "não achei",
+não "a loja tirou" — então reler uma página onde o parcelamento não carregou não pode apagar o
+parcelamento salvo. O custo consciente: um desconto de Pix que a loja de fato removeu fica
+registrado, porque some da página igual a um campo que falhou. Distinguir os dois exigiria confiar
+na raspagem mais do que ela merece, e errar nessa direção apagaria dado bom.
+
+**Decisão: o histórico começa na captura, por trigger.** Sem isso a linha mais antiga seria a
+primeira rechecagem, e o preço de quando a pessoa decidiu salvar sumiria na primeira mudança.
+Trigger, e não insert dentro de `adicionar_produto`, para valer também para produto criado à mão.
+
+**Decisão: gravar produto a produto, não tudo no fim.** O popup é quem executa, e ele fecha se a
+pessoa clicar fora. Gravando na hora, uma rodada interrompida deixa metade do trabalho FEITO em vez
+de perdido — e como a lista vem ordenada por `verificado_em.asc.nullsfirst`, a rodada seguinte
+ataca o mais desatualizado em vez de repetir os mesmos dois.
+
+**Verificado** num Postgres 16 com as 23 migrations: a captura semeia o histórico; rechecagem sem
+preço não mexe em valor e conta a falha; preço igual não duplica linha e zera o contador; queda
+grava histórico e devolve antes/depois; **ler só o preço cheio não apagou o Pix nem o
+parcelamento**; produto de outro espaço é recusado pela RLS; apagar o produto leva o histórico.
+`npm run verificar` limpo (262 testes, 9 novos).
+
+**Um erro no caminho:** a primeira rodada do teste falhou inteira por falta de
+`grant usage on schema auth` no harness — bug do teste, não da migration.
+
+**Um teste sobre-especificado corrigido:** `extensao-popup` travava a lista exata de ids de erro, e
+quebrou ao ganhar uma tela nova sem apontar defeito nenhum. Passou a afirmar o que importa — todo
+destino de `mostrarErro` existe no HTML.
+
+**Pendências que dependem de decisão:** a migration do papel `robo` (commit anterior) segue no
+repositório **sem ter sido aplicada** — e uma migration não aplicada não está parada, está na fila:
+o próximo `db push` a aplica junto. Se o caminho do bot não voltar, ela deveria sair. O mesmo vale
+para o workflow de medição, que existia para decidir se o cron em CI era viável — pergunta que o
+botão tornou sem efeito.

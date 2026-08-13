@@ -50,6 +50,26 @@ Fixe o ícone na barra pelo botão de peça de quebra-cabeça. Um `git pull` já
 > O `.zip` de `dist/` é para levar de uma máquina à outra: lá, descompacte e use o mesmo
 > "Carregar sem compactação" apontando para a pasta descompactada.
 
+## Atualizar os preços do que já está salvo
+
+O botão **Atualizar preços**, no topo do popup, reabre cada produto salvo numa aba
+escondida, relê o preço e grava o que conseguiu ler.
+
+Roda no seu navegador de propósito, e não num servidor: o HTML cru não traz preço Pix nem
+parcelamento (são montados por JS), e loja grande bloqueia IP de datacenter. Aqui a requisição sai
+com o seu IP residencial e o seu Chrome — o tráfego que a loja não tem motivo para barrar.
+
+Na primeira vez o Chrome pede permissão para abrir páginas de lojas. Ela é **opcional** e pedida
+no clique: quem nunca usar o botão nunca concede nada, e a instalação segue sem o aviso de "ler
+seus dados em todos os sites".
+
+O que não conseguir ler **não sobrescreve** o que já estava guardado — vale por campo, então
+reler uma página onde o parcelamento não carregou não apaga o parcelamento salvo. O app mostra
+"preço verificado há X" em cada produto, e avisa quando uma loja para de deixar ler.
+
+Fechar o popup interrompe a rodada. Não é problema: cada produto é gravado assim que é lido, e a
+lista vem ordenada do mais desatualizado — a rodada seguinte pega de onde parou.
+
 ## Usar
 
 1. Abra a página do produto
@@ -122,9 +142,10 @@ aviso no resumo da execução, em vez de criar release duplicada ou falhar em ve
 
 ```
 manifest.json          MV3: action, permissões, ícones
-popup.html/.css/.js    as quatro telas (carregando, login, captura, pronto)
+popup.html/.css/.js    as cinco telas (carregando, login, captura, recheck, pronto)
 lib/api.js             Auth + PostgREST sobre fetch, com renovação de token
 lib/raspagem.js        raspar() — uma função autocontida, injetada na aba
+lib/recheck.js         reabre os produtos salvos em abas escondidas e relê o preço
 lib/precos.js          puros: dinheiroBr, acharPrecoPix, acharParcelado
 lib/config.gerado.js   GERADO por npm run extensao; fora do git
 icones/                16/32/48/128, gerados por npm run icones

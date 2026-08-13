@@ -377,6 +377,7 @@ export type Database = {
           capturado_em: string
           created_at: string
           escolhido: boolean
+          falhas_seguidas: number
           id: string
           imagem_url: string | null
           interesse_id: string
@@ -388,11 +389,13 @@ export type Database = {
           preco_pix: number | null
           url: string
           valor_parcela: number | null
+          verificado_em: string | null
         }
         Insert: {
           capturado_em?: string
           created_at?: string
           escolhido?: boolean
+          falhas_seguidas?: number
           id?: string
           imagem_url?: string | null
           interesse_id: string
@@ -404,11 +407,13 @@ export type Database = {
           preco_pix?: number | null
           url: string
           valor_parcela?: number | null
+          verificado_em?: string | null
         }
         Update: {
           capturado_em?: string
           created_at?: string
           escolhido?: boolean
+          falhas_seguidas?: number
           id?: string
           imagem_url?: string | null
           interesse_id?: string
@@ -420,6 +425,7 @@ export type Database = {
           preco_pix?: number | null
           url?: string
           valor_parcela?: number | null
+          verificado_em?: string | null
         }
         Relationships: [
           {
@@ -427,6 +433,44 @@ export type Database = {
             columns: ["interesse_id"]
             isOneToOne: false
             referencedRelation: "interesse"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interesse_produto_preco: {
+        Row: {
+          id: string
+          parcelas: number | null
+          preco: number | null
+          preco_pix: number | null
+          produto_id: string
+          valor_parcela: number | null
+          visto_em: string
+        }
+        Insert: {
+          id?: string
+          parcelas?: number | null
+          preco?: number | null
+          preco_pix?: number | null
+          produto_id: string
+          valor_parcela?: number | null
+          visto_em?: string
+        }
+        Update: {
+          id?: string
+          parcelas?: number | null
+          preco?: number | null
+          preco_pix?: number | null
+          produto_id?: string
+          valor_parcela?: number | null
+          visto_em?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interesse_produto_preco_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "interesse_produto"
             referencedColumns: ["id"]
           },
         ]
@@ -1107,6 +1151,16 @@ export type Database = {
           p_titulo: string
         }
         Returns: string
+      }
+      registrar_preco_lido: {
+        Args: {
+          p_parcelas?: number
+          p_preco?: number
+          p_preco_pix?: number
+          p_produto: string
+          p_valor_parcela?: number
+        }
+        Returns: Json
       }
       resgatar_convite: { Args: { p_codigo: string }; Returns: string }
       responder_convite: {

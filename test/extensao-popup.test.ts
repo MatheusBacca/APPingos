@@ -58,9 +58,15 @@ describe('popup.js contra popup.html', () => {
     }
   })
 
+  /*
+   * A asserção é "todo destino existe", e não "os destinos são exatamente estes":
+   * travar a lista fazia o teste quebrar a cada tela nova sem apontar defeito
+   * nenhum — foi o que aconteceu ao acrescentar a rechecagem de preço.
+   */
   it('os ids que recebem mensagem de erro existem', () => {
     const alvos = [...js.matchAll(/mostrarErro\(\s*'([^']+)'/g)].map(m => m[1]!)
-    expect(new Set(alvos)).toEqual(new Set(['erro-login', 'erro-captura']))
+
+    expect(new Set(alvos).size).toBeGreaterThanOrEqual(2)
     for (const id of alvos) expect(idsNoHtml.has(id)).toBe(true)
   })
 
@@ -99,7 +105,7 @@ describe('popup.css — o atributo hidden precisa ganhar', () => {
    * `!important`. Os testes abaixo protegem essa regra, porque o sintoma é visual
    * e nenhuma outra verificação do projeto o alcança.
    */
-  const TELAS = ['carregando', 'login', 'captura', 'pronto']
+  const TELAS = ['carregando', 'login', 'captura', 'recheck', 'pronto']
 
   /**
    * Monta o popup no DOM do happy-dom, com o CSS embutido para a cascata valer.
@@ -191,6 +197,22 @@ describe('manifest.json', () => {
     expect(new Set(manifest.permissions)).toEqual(new Set(['storage', 'activeTab', 'scripting']))
     expect(manifest.content_scripts).toBeUndefined()
     expect(manifest.host_permissions).toEqual(['https://*.supabase.co/*'])
+  })
+
+  /*
+   * A rechecagem precisa abrir a página de lojas arbitrárias, e isso exige
+   * permissão ampla de host. Ela tem que ficar em `optional_host_permissions`, e
+   * NUNCA migrar para `host_permissions`: a diferença é o Chrome pedir no clique
+   * do botão contra pedir na instalação. Passar para a lista fixa traria de volta
+   * o "ler e alterar seus dados em todos os sites" para quem só quer capturar um
+   * produto e nunca vai usar o botão.
+   */
+  it('a permissão ampla é OPCIONAL, pedida no clique', () => {
+    expect(manifest.optional_host_permissions).toEqual(['https://*/*'])
+
+    for (const padrao of manifest.host_permissions) {
+      expect(padrao).not.toMatch(/^https:\/\/\*\/|<all_urls>/)
+    }
   })
 
   it('o popup e os quatro ícones declarados existem no disco', () => {

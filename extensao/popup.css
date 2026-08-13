@@ -211,3 +211,56 @@ select:focus {
   flex-direction: column;
   gap: 8px;
 }
+
+/* ---- Rechecagem de preço --------------------------------------------- */
+
+.acoes {
+  display: flex;
+  gap: 6px;
+}
+
+.lista-recheck {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.lista-recheck li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.lista-recheck .loja {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--suave);
+}
+
+.lista-recheck .valor {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Baixou: a única cor da lista, porque é a única linha que pede ação. */
+.lista-recheck .baixou {
+  color: var(--sucesso);
+  font-weight: 500;
+}
+
+.lista-recheck .falhou {
+  color: var(--suave);
+  font-style: italic;
+}

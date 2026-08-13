@@ -18,7 +18,7 @@ const CAMPOS = `
 const CAMPOS_PRODUTO = `
   id, interesse_id, nome, url, loja, imagem_url,
   preco, preco_pix, parcelas, valor_parcela,
-  escolhido, origem, capturado_em, created_at
+  escolhido, origem, capturado_em, verificado_em, falhas_seguidas, created_at
 `
 
 /**
