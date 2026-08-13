@@ -10,7 +10,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { LANCAMENTOS, VERSAO_ATUAL, VERSAO_ATUAL_EXIBICAO, compararVersoes } from '~/changelog'
+import { LANCAMENTOS, VERSAO_ATUAL, VERSAO_ATUAL_EXIBICAO, compararVersoes, textoDeNovaVersao } from '~/changelog'
 import { formatarVersao, textoDaNotificacao, TIPOS_DA_CATEGORIA, categoriasDePreferencia } from '~/lib/notificacoes'
 import type { Notificacao } from '~/lib/notificacoes'
 
@@ -130,6 +130,30 @@ describe('textoDaNotificacao — app_atualizado', () => {
     const vazio = textoDaNotificacao(aviso({}))
     expect(vazio.titulo).toBe('Atualização do APPingos: Melhorias e correções')
     expect(vazio.rota).toBe('/novidades')
+  })
+})
+
+describe('textoDeNovaVersao — o toast do service worker', () => {
+  it('anuncia a versão que está chegando, formatada', () => {
+    expect(textoDeNovaVersao('1.1.0')).toEqual({
+      titulo: 'Uma nova versão do APPingos chegou!',
+      descricao: 'A versão v1.001.0 está pronta para ser utilizada!',
+    })
+  })
+
+  /*
+   * O caso que justifica a função existir: sem o número, a frase tem que
+   * continuar de pé. É o que acontece offline, no dev server (onde
+   * `/versao.json` não é gerado) e quando o app.vue recusa o valor por ser igual
+   * ao que já está rodando.
+   */
+  it('sem versão, mantém a frase sem inventar número', () => {
+    for (const entrada of [undefined, null, '', 'proxima']) {
+      const t = textoDeNovaVersao(entrada)
+      expect(t.titulo).toBe('Uma nova versão do APPingos chegou!')
+      expect(t.descricao).toBe('A nova versão está pronta para ser utilizada!')
+      expect(t.descricao).not.toContain('undefined')
+    }
   })
 })
 

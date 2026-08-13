@@ -1,7 +1,35 @@
 import fs from 'node:fs'
+import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 
+const { version } = JSON.parse(fs.readFileSync(new URL('./package.json', import.meta.url), 'utf-8'))
+
 export default defineNuxtConfig({
+  /*
+   * `/versao.json` — a única forma de o build VELHO saber o número do novo.
+   *
+   * O toast de "chegou versão nova" roda no código que já está aberto no
+   * navegador da pessoa, e para ele `VERSAO_ATUAL` é a versão que ela está
+   * deixando. Quem conhece a versão nova é o servidor, então ela vai para um
+   * arquivo que o app busca na hora do aviso (ver `versaoQueChegou` em app.vue).
+   *
+   * Escrito no `nitro:build:public-assets`, e não em `public/`: é valor derivado
+   * do `package.json`, e um arquivo versionado no git seria mais uma ponta para
+   * `npm run release` manter em dia — ou para alguém esquecer.
+   *
+   * Fora dos `globPatterns` do Workbox (que só pega js/css/html/svg/png/ico/woff2):
+   * precacheado, ele responderia com a versão velha, que é justamente o valor que
+   * não serve. No `nuxt dev` ele não existe, e o toast cai no texto sem número.
+   */
+  hooks: {
+    'nitro:build:public-assets': (nitro) => {
+      fs.writeFileSync(
+        path.join(nitro.options.output.publicDir, 'versao.json'),
+        `${JSON.stringify({ versao: version })}\n`,
+      )
+    },
+  },
+
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 

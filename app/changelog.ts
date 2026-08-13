@@ -130,6 +130,28 @@ export const VERSAO_ATUAL = LANCAMENTOS[0]!.versao
 export const VERSAO_ATUAL_EXIBICAO = formatarVersao(VERSAO_ATUAL)
 
 /**
+ * O texto do toast de "chegou versão nova" — o do service worker, não o da caixa.
+ *
+ * Recebe a versão que está ESPERANDO para assumir, que não é a deste build (ver
+ * `app.vue`). Sem ela — offline, dev server, `versao.json` fora do ar — a frase
+ * perde o número e continua de pé: dizer "a nova versão está pronta" sem o
+ * número é honesto; dizer o número da versão errada não é.
+ */
+export function textoDeNovaVersao(versaoNova?: string | null): {
+  titulo: string
+  descricao: string
+} {
+  const v = formatarVersao(versaoNova)
+
+  return {
+    titulo: 'Uma nova versão do APPingos chegou!',
+    descricao: v
+      ? `A versão ${v} está pronta para ser utilizada!`
+      : 'A nova versão está pronta para ser utilizada!',
+  }
+}
+
+/**
  * Compara duas versões como números, não como texto.
  *
  * `'0.10.0' > '0.9.0'` é falso em ordem alfabética, e é exatamente o erro que
