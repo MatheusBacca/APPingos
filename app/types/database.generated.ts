@@ -1187,6 +1187,10 @@ export type Database = {
       is_space_admin: { Args: { p_space: string }; Returns: boolean }
       is_space_member: { Args: { p_space: string }; Returns: boolean }
       is_space_owner: { Args: { p_space: string }; Returns: boolean }
+      juntar_produto_ao_agrupamento: {
+        Args: { p_agrupamento: string; p_produto: string }
+        Returns: Json
+      }
       lembrete_semanal_filmes: { Args: never; Returns: number }
       liberar_interesse: { Args: { p_interesse: string }; Returns: undefined }
       liberar_roteiro: { Args: { p_roteiro: string }; Returns: undefined }
@@ -1287,6 +1291,7 @@ export type Database = {
           id: string
         }[]
       }
+      separar_produto: { Args: { p_produto: string }; Returns: string }
       shares_space_with: { Args: { p_user: string }; Returns: boolean }
       sou_dono_do_interesse: {
         Args: { p_interesse: string }

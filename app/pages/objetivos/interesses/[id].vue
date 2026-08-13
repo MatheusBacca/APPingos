@@ -40,10 +40,12 @@ import {
   useAssumirInteresse,
   useEscolherAgrupamento,
   useInteresse,
+  useJuntarProduto,
   useLiberarInteresse,
   useRemoverAgrupamento,
   useRemoverProduto,
   useRenomearAgrupamento,
+  useSepararProduto,
   useVista,
 } from '~/composables/useInteresses'
 import { nomeDaPessoa, usePessoas } from '~/composables/useMembros'
@@ -64,6 +66,8 @@ const escolher = useEscolherAgrupamento()
 const renomear = useRenomearAgrupamento()
 const removerAgrupamento = useRemoverAgrupamento()
 const removerProduto = useRemoverProduto()
+const juntar = useJuntarProduto()
+const separar = useSepararProduto()
 const assumir = useAssumirInteresse()
 const liberar = useLiberarInteresse()
 
@@ -104,6 +108,17 @@ const ordenados = computed(() =>
 
 const valor = computed(() => valorDoInteresse(agrupamentos.value))
 const economia = computed(() => economiaPossivel(agrupamentos.value))
+
+/**
+ * Os destinos possíveis para os produtos deste conjunto: todos os outros.
+ *
+ * O cálculo é por conjunto, e não por produto, porque todo produto de um mesmo
+ * conjunto tem exatamente o mesmo leque de destinos — perguntar por produto daria a
+ * mesma lista N vezes.
+ */
+function outrosQue(agrupamento: Agrupamento): Agrupamento[] {
+  return ordenados.value.filter(a => a.id !== agrupamento.id)
+}
 
 const paraQuem = computed(() =>
   interesse.value ? paraQuemDoInteresse(interesse.value, pessoas.value) : null,
@@ -183,6 +198,35 @@ function onRemoverProduto(agrupamento: Agrupamento, produto: InteresseProduto) {
     }),
     'Produto removido.',
     'Não deu para remover o produto.',
+  )
+}
+
+/**
+ * Juntar um produto a outro conjunto.
+ *
+ * A mensagem diz o que de fato mudou. Juntar pode apagar o conjunto de origem e
+ * mover o favorito com ele, e mudar o favorito em silêncio é o tipo de coisa que a
+ * pessoa descobre depois olhando o total e não entendendo por quê.
+ */
+async function onJuntar(produtoId: string, agrupamentoId: string) {
+  try {
+    const r = await juntar.mutateAsync({ produtoId, agrupamentoId })
+
+    // Soltou em cima de onde já estava: gesto desistido, não falha.
+    if (!r.mudou) return
+
+    toast.success(r.favorito_movido ? 'Juntado — e este conjunto virou o favorito.' : 'Juntado.')
+  }
+  catch (e) {
+    toast.error(mensagemDeErro(e, 'Não deu para juntar.'))
+  }
+}
+
+function onSeparar(produto: InteresseProduto) {
+  return tentar(
+    () => separar.mutateAsync(produto.id),
+    'Separado num conjunto próprio.',
+    'Não deu para separar.',
   )
 }
 
@@ -352,18 +396,32 @@ async function onApagar() {
           </Button>
         </div>
 
+        <!--
+          A dica em texto existe porque arrastar não se descobre sozinho — a mesma
+          razão pela qual a barra do Maps em Viagens explica o "segurar para
+          selecionar". Só aparece havendo para onde arrastar.
+        -->
+        <p v-if="agrupamentos.length > 1" class="text-xs text-muted-foreground">
+          Arraste um produto para outro conjunto para dizer que eles vão juntos — ou
+          use o botão de juntar no card, que funciona no celular.
+        </p>
+
         <div v-if="agrupamentos.length" class="space-y-3">
           <AgrupamentoDoInteresse
             v-for="agrupamento in ordenados"
             :key="agrupamento.id"
             :agrupamento="agrupamento"
             :pode-escolher="agrupamentos.length > 1"
+            :outros-agrupamentos="outrosQue(agrupamento)"
             @escolher="onEscolher(agrupamento)"
             @renomear="nome => onRenomear(agrupamento, nome)"
             @remover="onRemoverAgrupamento(agrupamento)"
             @adicionar-produto="abrirAdicionarAoAgrupamento(agrupamento)"
             @editar-produto="abrirEdicaoDeProduto"
             @remover-produto="produto => onRemoverProduto(agrupamento, produto)"
+            @soltar-produto="produtoId => onJuntar(produtoId, agrupamento.id)"
+            @juntar-produto="({ produtoId, agrupamentoId }) => onJuntar(produtoId, agrupamentoId)"
+            @separar-produto="onSeparar"
           />
         </div>
 

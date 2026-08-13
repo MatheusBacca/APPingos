@@ -13,6 +13,15 @@
  * cabeçalho mostra o parcial com a ressalva em vez do número sozinho. Um "R$ 1.800"
  * limpo num conjunto que ainda vai custar mais faria este agrupamento parecer o
  * mais barato — exatamente a comparação que a tela existe para acertar.
+ *
+ * ## Soltar aqui
+ *
+ * O card aceita um produto arrastado de outro conjunto — é o "isto vai junto com
+ * aquilo" no gesto. O realce segue o padrão do repo (`app/pages/filmes/index.vue`):
+ * `border-primary bg-primary/5` enquanto o ponteiro está por cima.
+ *
+ * `dragover.prevent` não é enfeite: sem o `preventDefault` o navegador recusa a
+ * soltura e o `drop` nunca dispara — o card ficaria com cara de alvo e não seria um.
  */
 import {
   CheckIcon,
@@ -31,9 +40,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { saiuDaZona } from '@/lib/arraste'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import {
   nomeDoAgrupamento,
+  podeSeparar,
   produtosSemPreco,
   somaDoAgrupamento,
   somaParcial,
@@ -44,6 +55,8 @@ const props = defineProps<{
   agrupamento: Agrupamento
   /** Só faz sentido escolher favorito havendo mais de uma saída. */
   podeEscolher: boolean
+  /** Os outros conjuntos do interesse, para o menu "Juntar a…" de cada produto. */
+  outrosAgrupamentos: Agrupamento[]
 }>()
 
 const emit = defineEmits<{
@@ -53,7 +66,60 @@ const emit = defineEmits<{
   adicionarProduto: []
   editarProduto: [produto: InteresseProduto]
   removerProduto: [produto: InteresseProduto]
+  soltarProduto: [produtoId: string]
+  juntarProduto: [payload: { produtoId: string, agrupamentoId: string }]
+  separarProduto: [produto: InteresseProduto]
 }>()
+
+const alvoDoArraste = ref(false)
+const arrastandoDaqui = ref(false)
+
+/**
+ * O arraste começou dentro deste card?
+ *
+ * `dragstart` sobe do produto até esta `section`, e é assim que o conjunto descobre
+ * que o produto sendo arrastado é dele. Precisa ser descoberto agora porque no
+ * `dragover` já é tarde: o `dataTransfer` não deixa ler o conteúdo fora do `drop`
+ * (por segurança), então o id do produto não está disponível na hora de realçar.
+ */
+function aoComecarArraste() {
+  arrastandoDaqui.value = true
+}
+
+/**
+ * Só realça quando o que vem de fora não é daqui.
+ *
+ * Sem a checagem, arrastar um produto alguns pixels acenderia o próprio conjunto como
+ * se houvesse algo a fazer — e não há: soltar aqui cai no ramo que `aoSoltar` ignora.
+ */
+function aoArrastarSobre() {
+  alvoDoArraste.value = !arrastandoDaqui.value
+}
+
+/**
+ * `dragleave` não quer dizer "saiu daqui" — ver `app/lib/arraste.ts`.
+ *
+ * Este card é cheio de filhos (o cabeçalho, cada produto, o botão do fim), e o
+ * ponteiro atravessando entre eles dispara `dragleave` sem sair de nada.
+ */
+function aoSair(e: DragEvent) {
+  if (saiuDaZona(e.currentTarget as HTMLElement, e.relatedTarget as Node | null)) {
+    alvoDoArraste.value = false
+  }
+}
+
+function aoSoltar(e: DragEvent) {
+  alvoDoArraste.value = false
+
+  const produtoId = e.dataTransfer?.getData('text/plain')
+  if (!produtoId) return
+
+  // Soltar dentro do próprio conjunto não é erro, é o gesto desistido no meio — e a
+  // RPC também trata, mas nem vale a viagem até o banco.
+  if (props.agrupamento.produtos.some(p => p.id === produtoId)) return
+
+  emit('soltarProduto', produtoId)
+}
 
 const soma = computed(() => somaDoAgrupamento(props.agrupamento))
 const parcial = computed(() => somaParcial(props.agrupamento))
@@ -81,8 +147,15 @@ function confirmarRenomear() {
 
 <template>
   <section
-    class="space-y-3 rounded-xl border bg-card/50 p-3"
-    :class="agrupamento.escolhido ? 'border-primary/50' : ''"
+    class="space-y-3 rounded-xl border bg-card/50 p-3 transition-colors"
+    :class="alvoDoArraste
+      ? 'border-primary bg-primary/5'
+      : agrupamento.escolhido ? 'border-primary/50' : ''"
+    @dragstart="aoComecarArraste"
+    @dragend="arrastandoDaqui = false"
+    @dragover.prevent="aoArrastarSobre"
+    @dragleave="aoSair"
+    @drop.prevent="aoSoltar"
   >
     <header class="flex flex-wrap items-start gap-2">
       <div class="min-w-0 flex-1 space-y-1">
@@ -169,8 +242,12 @@ function confirmarRenomear() {
         v-for="produto in agrupamento.produtos"
         :key="produto.id"
         :produto="produto"
+        :outros-agrupamentos="outrosAgrupamentos"
+        :pode-separar="podeSeparar(agrupamento)"
         @editar="emit('editarProduto', produto)"
         @remover="emit('removerProduto', produto)"
+        @juntar="agrupamentoId => emit('juntarProduto', { produtoId: produto.id, agrupamentoId })"
+        @separar="emit('separarProduto', produto)"
       />
     </div>
 

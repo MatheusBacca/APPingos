@@ -9,6 +9,7 @@ import {
   lojaDaUrl,
   nomeDoAgrupamento,
   paraQuemDoInteresse,
+  podeSeparar,
   precoEfetivo,
   produtoDaCapa,
   produtosDoInteresse,
@@ -319,6 +320,22 @@ describe('economiaPossivel', () => {
       }),
     ]
     expect(economiaPossivel(grupos)).toBeNull()
+  })
+})
+
+describe('podeSeparar', () => {
+  it('só com companhia', () => {
+    const sozinho = agrupamento({ produtos: [produto({ id: 'a' })] })
+    const acompanhado = agrupamento({
+      produtos: [produto({ id: 'a' }), produto({ id: 'b' })],
+    })
+
+    expect(podeSeparar(sozinho)).toBe(false)
+    expect(podeSeparar(acompanhado)).toBe(true)
+  })
+
+  it('conjunto vazio não tem o que separar', () => {
+    expect(podeSeparar(agrupamento())).toBe(false)
   })
 })
 

@@ -22,6 +22,7 @@ import type {
   InteresseComAgrupamentos,
   NovoInteresse,
   ProdutoParaSalvar,
+  ResultadoJuntar,
 } from '~/types/interesse'
 import { interesseNaVista, interessesDaVista } from '~/types/interesse'
 import { useUsuarioId } from '~/composables/useUsuarioId'
@@ -436,19 +437,46 @@ export function useRemoverProduto() {
 }
 
 /**
- * Move um produto para outro agrupamento — o "na verdade este suporte vai com o
- * monitor de 24".
+ * Junta o produto a outro agrupamento — o "na verdade o suporte vai com o monitor".
+ *
+ * Via RPC, e não por um `update` no `agrupamento_id`, porque o gesto que parece uma
+ * escrita são três: o produto troca de agrupamento, o agrupamento que esvaziou é
+ * apagado, e se ele era o favorito o favorito passa para o destino. Um update solto
+ * daqui faria só a primeira e deixaria um agrupamento vazio — que não custa nada e
+ * por isso ganharia de todos na comparação de preço.
+ *
+ * `mudou: false` é soltar em cima de onde já estava: não é erro, é o gesto
+ * abandonado no meio, e a tela silencia em vez de dizer que falhou.
  */
-export function useMoverProduto() {
+export function useJuntarProduto() {
   const supabase = useSupabaseClient()
 
-  return useMutacaoDeInteresse<{ id: string, agrupamentoId: string }, void>(
-    async ({ id, agrupamentoId }) => {
-      const { error } = await supabase
-        .from('interesse_produto')
-        .update({ agrupamento_id: agrupamentoId })
-        .eq('id', id)
+  return useMutacaoDeInteresse<{ produtoId: string, agrupamentoId: string }, ResultadoJuntar>(
+    async ({ produtoId, agrupamentoId }) => {
+      const { data, error } = await supabase.rpc('juntar_produto_ao_agrupamento', {
+        p_produto: produtoId,
+        p_agrupamento: agrupamentoId,
+      })
+
       if (error) throw error
+      return data as unknown as ResultadoJuntar
     },
   )
+}
+
+/**
+ * Tira o produto do conjunto e o devolve a um agrupamento próprio.
+ *
+ * É o desfazer de `useJuntarProduto`, e existe por isso: sem ele, a única saída de um
+ * produto dentro de um conjunto seria apagá-lo — e apagar leva o histórico de preço
+ * junto. Um gesto de arrastar sem volta é uma armadilha, não uma facilidade.
+ */
+export function useSepararProduto() {
+  const supabase = useSupabaseClient()
+
+  return useMutacaoDeInteresse<string, string>(async (produtoId) => {
+    const { data, error } = await supabase.rpc('separar_produto', { p_produto: produtoId })
+    if (error) throw error
+    return data as unknown as string
+  })
 }

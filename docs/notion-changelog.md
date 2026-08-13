@@ -1235,3 +1235,64 @@ de agrupamentos, então não bloquearam a aplicação — mas enquanto os arquiv
 `supabase db reset` local produz um schema DIFERENTE do da nuvem, e `database.generated.ts` aqui não
 tem `anunciar_versao`. Não foi "consertado" de propósito: inventar o arquivo a partir do que o banco
 guarda seria fabricar história de migration.
+
+---
+
+## 2026-08-13 — Juntar e separar produtos: o gesto que faltava no agrupamento
+
+**Contexto:** a sessão anterior deu ao interesse a ideia de agrupamento, mas não deu como **mexer**
+nela. Um produto nascia num agrupamento e ficava lá: montar "monitor + braço" a partir de dois
+produtos que a extensão capturou soltos era impossível pela tela. O conceito existia sem o gesto.
+
+**Três escritas escondidas num arrastar.** Soltar o braço em cima do monitor parece um `update` de
+uma coluna, e são três: o produto troca de `agrupamento_id`, o agrupamento que esvaziou é apagado, e
+se ele era o favorito o favorito passa para o destino. Parar no meio de qualquer ponto deixa um
+estado que a tela não sabe explicar — um agrupamento vazio custa zero, e por isso **ganharia de
+todos** na comparação de preço; ou o interesse fica sem favorito nenhum depois de uma ação que não
+era sobre favorito. Por isso `juntar_produto_ao_agrupamento` é RPC e não um update da tela: numa
+transação, ou os três acontecem ou nenhum.
+
+**A ordem dos passos não é livre.** `interesse_agrupamento_escolhido_idx` é único parcial
+`where escolhido` — dois favoritos no mesmo interesse é erro de chave duplicada. Então o destino só
+pode ser marcado **depois** de a origem sair: apagar vem antes de escolher, e quem escolhe é
+`escolher_agrupamento`, que já sabe desmarcar o anterior. Descobrir isso na ordem errada seria um erro
+de constraint numa ação que o usuário leria como "arrastei e deu erro".
+
+**`separar_produto` existe para juntar não ser irreversível.** Sem ele, a única saída de um produto de
+dentro de um conjunto seria apagá-lo — e apagar leva o histórico de preço junto
+(`interesse_produto_preco` é `on delete cascade`). Um gesto de arrastar sem volta é uma armadilha, não
+uma facilidade. O agrupamento novo **não** nasce favorito, mesmo que o de origem seja: separar diz
+"na verdade isto é uma alternativa", não "e é esta que eu quero".
+
+**Arrastar é cortesia; o menu é o mecanismo.** Drag-and-drop HTML5 não existe no dedo, e este app é
+mobile-first. O repo já bateu nisso duas vezes — `CartazDoEspaco.vue` teve que ganhar um "mover
+para…" depois do fato, e `ListaDeParadas.vue` nasceu com as setas como mecanismo de verdade. Então o
+menu "Juntar a… / Tirar deste conjunto" é o caminho que funciona em toque e teclado, e o arraste do
+card é atalho para quem está no mouse e tenta por instinto. A dica em texto só aparece havendo mais de
+um conjunto, porque antes disso não há para onde arrastar.
+
+**Um bug de navegador que virou função pura.** `dragleave` não quer dizer "o ponteiro saiu desta
+zona": ele dispara também quando o ponteiro atravessa de um **filho** para outro dentro da mesma zona
+— e uma zona de soltura útil é cheia de filhos. Medido no Chromium, arrastando um produto para dentro
+de um conjunto, entre dois `dragover` aparece um `dragleave` cujo `relatedTarget` está DENTRO da
+própria zona, e o realce apagava exatamente onde precisava ficar aceso. A regra virou `saiuDaZona` em
+`app/lib/arraste.ts`, tipada por estrutura (`{ contains }`) para ser testável sem DOM, com o caso do
+bug fixado em teste. Junto veio a outra metade: o card não se acende como destino quando o arraste
+começou dentro dele — `dragstart` sobe do produto até a `section`, e é assim que o conjunto descobre
+que o produto é seu, já que o `dataTransfer` não deixa ler o conteúdo fora do `drop`.
+
+**Aplicado na nuvem antes do deploy, e desta vez sem escolher qual lado quebra.** Ao contrário da
+migration anterior, `20260813180000` é **aditiva**: só cria duas funções, não mexe em tabela nem em
+policy. O app publicado simplesmente não as chama. Verificação pelo mesmo digest da sessão passada —
+`md5` do corpo lido de `pg_proc` contra o calculado do arquivo do repositório: os dois deram
+`d87667cbe8edf8134584b1a716446f5a`, 2 funções, 3261 caracteres, `execute` para `authenticated`, nenhuma
+delas `SECURITY DEFINER` (as duas rodam sob a RLS de quem chama, que é o que faz "produto de outro
+espaço" chegar como "não encontrado").
+
+**Uma coisa apagada em vez de mantida:** `destinosPossiveis` foi escrita, testada, e removida na
+revisão — a tela responde a mesma pergunta por conjunto (`outrosQue`), não por produto, e todo produto
+de um mesmo conjunto tem o mesmo leque de destinos. Duas funções para um trabalho, uma delas sem
+chamador, com testes dando a impressão de que estava em uso.
+
+**Verificação:** `npm run verificar` limpo — 97 arquivos sem depender de auto-import, typecheck sem
+erro, 319 testes em 18 arquivos.

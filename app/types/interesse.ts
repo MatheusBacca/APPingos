@@ -117,6 +117,21 @@ export interface PrecoObservado {
 }
 
 /**
+ * O que `juntar_produto_ao_agrupamento` devolve.
+ *
+ * Existe para a tela poder dizer o que de fato aconteceu: juntar dois produtos pode
+ * apagar um agrupamento e mover o favorito, e mudar o favorito em silêncio é o tipo
+ * de coisa que a pessoa descobre depois, olhando o total e não entendendo.
+ *
+ * `mudou: false` é soltar em cima de onde já estava — gesto abandonado, não falha.
+ */
+export interface ResultadoJuntar {
+  mudou: boolean
+  origem_apagada?: boolean
+  favorito_movido?: boolean
+}
+
+/**
  * O que `registrar_preco_lido` devolve, para a tela dizer "2.399 → 1.999" sem
  * uma segunda consulta.
  */
@@ -327,6 +342,17 @@ export function economiaPossivel(agrupamentos: Agrupamento[]): number | null {
   const diferenca = somaDoAgrupamento(atual)! - menor
 
   return diferenca > 0 ? diferenca : null
+}
+
+/**
+ * Separar faz sentido? Só quando o produto tem companhia.
+ *
+ * Um produto sozinho já É o conjunto dele: "separar" criaria um agrupamento novo e
+ * apagaria o antigo para chegar exatamente onde já se está — e trocaria um id que a
+ * tela tem em mão, o que é pior que não fazer nada. O banco também recusa.
+ */
+export function podeSeparar(agrupamento: Agrupamento): boolean {
+  return agrupamento.produtos.length > 1
 }
 
 /** Todos os produtos do interesse, achatados — para contar e para rechecar preço. */

@@ -16,17 +16,72 @@
  * A imagem é `imagem_url` da loja, carregada de fora. Ela falha com o tempo — link
  * de CDN de e-commerce não é estável — então o `@error` troca por um placeholder
  * em vez de deixar o ícone de imagem quebrada.
+ *
+ * ## Arrastar existe por cima, não no lugar
+ *
+ * Dá para arrastar o card para dentro de outro conjunto, e isso funciona no mouse.
+ * No toque não funciona — drag-and-drop HTML5 não existe no dedo, e este app é
+ * mobile-first. O repo já bateu nisso duas vezes (`CartazDoEspaco.vue` teve que
+ * ganhar um "mover para…" depois do fato; `ListaDeParadas.vue` nasceu com as setas
+ * como mecanismo de verdade). Então o menu "Juntar a…" é o caminho, e o arraste é
+ * cortesia para quem está no desktop e tenta por instinto.
  */
-import { ExternalLinkIcon, ImageIcon, Trash2Icon } from '@lucide/vue'
+import {
+  ExternalLinkIcon,
+  GroupIcon,
+  ImageIcon,
+  Trash2Icon,
+  UngroupIcon,
+} from '@lucide/vue'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { formatarDia, tempoRelativo } from '@/lib/datas'
 import { formatarDinheiro } from '@/lib/dinheiro'
-import { FALHAS_ATE_AVISAR, precoEfetivo, totalParcelado } from '~/types/interesse'
-import type { InteresseProduto } from '~/types/interesse'
+import {
+  FALHAS_ATE_AVISAR,
+  nomeDoAgrupamento,
+  precoEfetivo,
+  totalParcelado,
+} from '~/types/interesse'
+import type { Agrupamento, InteresseProduto } from '~/types/interesse'
 
-const props = defineProps<{ produto: InteresseProduto }>()
+const props = defineProps<{
+  produto: InteresseProduto
+  /** Os outros conjuntos do mesmo interesse — os destinos possíveis. */
+  outrosAgrupamentos: Agrupamento[]
+  /** Falso quando ele é o único do conjunto: separar não teria o que fazer. */
+  podeSeparar: boolean
+}>()
 
-const emit = defineEmits<{ editar: [], remover: [] }>()
+const emit = defineEmits<{
+  editar: []
+  remover: []
+  juntar: [agrupamentoId: string]
+  separar: []
+}>()
+
+const arrastando = ref(false)
+
+/**
+ * Mover é possível quando há para onde ir: outro conjunto, ou sair de um conjunto.
+ * Sem nenhum dos dois — o caso de um interesse com um produto só — o menu não
+ * aparece, em vez de abrir vazio.
+ */
+const podeMover = computed(() => props.outrosAgrupamentos.length > 0 || props.podeSeparar)
+
+function onDragStart(e: DragEvent) {
+  arrastando.value = true
+  // O id do produto é o que o conjunto de destino precisa para saber o que caiu.
+  e.dataTransfer?.setData('text/plain', props.produto.id)
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
+}
 
 const imagemQuebrada = ref(false)
 
@@ -75,13 +130,20 @@ const lojaBloqueando = computed(() => props.produto.falhas_seguidas >= FALHAS_AT
     botão não pode conter link nem outro botão, e aqui há os dois dentro.
   -->
   <article
-    class="flex cursor-pointer gap-3 rounded-lg border bg-card p-3 text-left hover:border-primary/40"
+    class="flex gap-3 rounded-lg border bg-card p-3 text-left transition-opacity hover:border-primary/40"
+    :class="[
+      podeMover ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
+      arrastando ? 'opacity-40' : '',
+    ]"
     role="button"
     tabindex="0"
+    :draggable="podeMover"
     :aria-label="`Editar ${produto.nome}`"
     @click="emit('editar')"
     @keydown.enter.prevent="emit('editar')"
     @keydown.space.prevent="emit('editar')"
+    @dragstart="onDragStart"
+    @dragend="arrastando = false"
   >
     <div class="grid size-16 shrink-0 place-items-center overflow-hidden rounded-md bg-muted">
       <img
@@ -149,6 +211,42 @@ const lojaBloqueando = computed(() => props.produto.falhas_seguidas >= FALHAS_AT
           <span class="sr-only">Abrir na loja</span>
         </a>
       </Button>
+
+      <!--
+        O caminho de mover que funciona no dedo e no teclado. Ele é o mecanismo; o
+        arraste do card é o atalho de quem está no mouse.
+      -->
+      <DropdownMenu v-if="podeMover">
+        <DropdownMenuTrigger as-child>
+          <Button variant="ghost" size="icon" title="Juntar ou separar" @click.stop>
+            <GroupIcon class="size-4" />
+            <span class="sr-only">Juntar ou separar {{ produto.nome }}</span>
+          </Button>
+        </DropdownMenuTrigger>
+
+        <DropdownMenuContent align="end" class="w-60">
+          <DropdownMenuItem v-if="podeSeparar" class="gap-2" @select="emit('separar')">
+            <UngroupIcon class="size-4 shrink-0" />
+            Tirar deste conjunto
+          </DropdownMenuItem>
+
+          <template v-if="outrosAgrupamentos.length">
+            <DropdownMenuSeparator v-if="podeSeparar" />
+            <DropdownMenuLabel class="text-xs text-muted-foreground">
+              Juntar a
+            </DropdownMenuLabel>
+            <DropdownMenuItem
+              v-for="destino in outrosAgrupamentos"
+              :key="destino.id"
+              class="gap-2"
+              @select="emit('juntar', destino.id)"
+            >
+              <GroupIcon class="size-4 shrink-0" />
+              <span class="truncate">{{ nomeDoAgrupamento(destino) }}</span>
+            </DropdownMenuItem>
+          </template>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <Button
         variant="ghost"
