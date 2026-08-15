@@ -1,21 +1,31 @@
 <script setup lang="ts">
 import { ImageIcon } from '@lucide/vue'
 
-const props = defineProps<{
+/**
+ * `proporcao` porque cartaz de filme é 2:3 e capa de disco é quadrada —
+ * forçar a capa do álbum no formato retrato a cortaria pelas beiradas.
+ */
+const props = withDefaults(defineProps<{
   titulo: string
   ano?: number | null
   capaUrl?: string | null
   legenda?: string | null
-}>()
+  proporcao?: 'cartaz' | 'quadrada'
+}>(), {
+  proporcao: 'cartaz',
+})
 </script>
 
 <template>
   <div class="group">
-    <div class="relative aspect-[2/3] overflow-hidden rounded-lg border bg-muted">
+    <div
+      class="relative overflow-hidden rounded-lg border bg-muted"
+      :class="props.proporcao === 'quadrada' ? 'aspect-square' : 'aspect-[2/3]'"
+    >
       <img
         v-if="props.capaUrl"
         :src="props.capaUrl"
-        :alt="`Pôster de ${props.titulo}`"
+        :alt="`Capa de ${props.titulo}`"
         loading="lazy"
         class="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
       >

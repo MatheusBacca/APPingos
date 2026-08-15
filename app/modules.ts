@@ -69,8 +69,11 @@ export const MODULOS: AppModule[] = [
     descricao: 'Álbuns e faixas que valem repetir',
     icone: 'MusicIcon',
     rota: '/musicas',
-    ativo: false,
+    ativo: true,
+    // Fora da barra pelo mesmo motivo de Fotos e Objetivos: os três slots são
+    // de Orçamentos, Filmes e Viagens. Vive no "Mais".
     naBarra: false,
+    resumo: useResumoMusicas,
   },
   {
     slug: 'livros',

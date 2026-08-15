@@ -10,9 +10,37 @@ export const STATUS_ROTULO: Record<StatusItem, string> = {
   abandonei: 'Abandonei',
 }
 
+/**
+ * O mesmo estado, com o verbo de quem ouve.
+ *
+ * Os quatro valores do banco (`quero`/`vendo`/`visto`/`abandonei`) são um
+ * check constraint em `rating` e continuam valendo para tudo — mudar só o
+ * rótulo é o que permite música e filme dividirem o motor sem a tela de
+ * Músicas dizer "Assistido" para um disco.
+ *
+ * `abandonei` vira "Não curti": largar no meio é uma coisa que acontece com
+ * uma série de oito horas, não com uma faixa de três minutos. O que a pessoa
+ * quer registrar ali é que não colou.
+ */
+export const STATUS_ROTULO_MUSICA: Record<StatusItem, string> = {
+  quero: 'Quero ouvir',
+  vendo: 'Ouvindo',
+  visto: 'Já ouvi',
+  abandonei: 'Não curti',
+}
+
 export interface MediaItem {
   id: string
   tipo: TipoMidia
+  /**
+   * De onde o item veio e o id dele lá — `('spotify', '4LRPiXqCik...')`.
+   *
+   * Vem junto na leitura porque é a única chave estável para a tela saber "isto
+   * que apareceu na busca já está na nossa lista". Título + ano não serve para
+   * música: um álbum e a faixa que dá nome a ele têm os dois iguais.
+   */
+  fonte: string
+  fonte_id: string
   titulo: string
   titulo_original: string | null
   ano: number | null

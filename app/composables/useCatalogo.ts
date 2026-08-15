@@ -9,7 +9,7 @@ import { useSpaceStore } from '~/stores/space'
 const SELECT = `
   id,
   created_at,
-  media:media_item!inner(id, tipo, titulo, titulo_original, ano, capa_url, sinopse, metadados),
+  media:media_item!inner(id, tipo, fonte, fonte_id, titulo, titulo_original, ano, capa_url, sinopse, metadados),
   avaliacoes:rating(user_id, status, nota, resenha, planejado_para, visto_em, enviado_em)
 `
 

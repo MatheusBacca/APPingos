@@ -28,6 +28,8 @@ function item(id: string, titulo: string, datas: Array<[string, string | null]>)
     media: {
       id: `m-${id}`,
       tipo: 'filme',
+      fonte: 'tmdb',
+      fonte_id: `tmdb-${id}`,
       titulo,
       titulo_original: null,
       ano: 2026,

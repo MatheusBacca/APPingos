@@ -187,6 +187,10 @@ export default defineNuxtConfig({
     // servidor apenas — a chave do TMDB nunca vai para o client
     tmdbApiKey: '',
     googlePlacesApiKey: '',
+    // Idem: o secret do Spotify é trocado por um token dentro do servidor, em
+    // `server/utils/spotify.ts`, e nem ele nem o token chegam ao navegador.
+    spotifyClientId: '',
+    spotifyClientSecret: '',
     public: {
       googleMapsEmbedKey: '',
     },
