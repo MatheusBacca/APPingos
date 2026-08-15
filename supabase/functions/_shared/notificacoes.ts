@@ -35,6 +35,8 @@ export type TipoNotificacao =
   | 'interesse_novo'
   | 'marcado_assistiu'
   | 'lembrete_filmes'
+  | 'foto_nova'
+  | 'foto_aprovada'
   | 'app_atualizado'
 
 export interface Notificacao {
@@ -244,6 +246,35 @@ export function textoDaNotificacao(n: Notificacao): TextoNotificacao {
       }
 
     /*
+      Fotos chegam em rajada e a notificação vem agrupada (`p_janela` no gatilho),
+      então o título fala em quantidade, não em legenda: "3 fotos novas" é o que a
+      pessoa consegue usar; o nome de uma das três não é.
+
+      A legenda entra no corpo só quando é uma foto só — aí ela é o assunto.
+    */
+    case 'foto_nova':
+      return {
+        titulo: vezes > 1
+          ? `${quem} mandou ${vezes} fotos`
+          : `${quem} mandou ${umaMidia(d.tipo)}`,
+        corpo: vezes > 1 ? 'Curta as que puderem ser postadas.' : texto(d, 'legenda'),
+        rota: n.rota ?? '/fotos',
+        icone: 'ImageIcon',
+      }
+
+    /*
+      O par fechado. É o aviso que o módulo inteiro existe para dar — o "pode
+      postar" que antes se perdia no meio da conversa.
+    */
+    case 'foto_aprovada':
+      return {
+        titulo: `Vocês dois curtiram ${umaMidia(d.tipo)}`,
+        corpo: texto(d, 'legenda', 'Pode postar.'),
+        rota: n.rota ?? '/fotos',
+        icone: 'HeartIcon',
+      }
+
+    /*
       A versão nova do app.
 
       Único tipo em que o texto vem INTEIRO do `dados`, e não montado a partir de
@@ -274,6 +305,17 @@ export function textoDaNotificacao(n: Notificacao): TextoNotificacao {
         icone: 'BellIcon',
       }
   }
+}
+
+/**
+ * "uma foto" ou "um vídeo".
+ *
+ * Existe para o texto não precisar concordar em gênero no meio de um template
+ * literal — a alternativa era um ternário escolhendo a letra final de "liberada",
+ * que é o tipo de linha que ninguém consegue reler.
+ */
+function umaMidia(tipo: unknown): string {
+  return tipo === 'video' ? 'um vídeo' : 'uma foto'
 }
 
 function parcelasEmTexto(parcelas: unknown): string {
@@ -398,14 +440,15 @@ export type CategoriaNotificacao =
   | 'orcamentos'
   | 'viagens'
   | 'filmes'
+  | 'fotos'
   | 'edicoes'
   | 'lembretes'
   | 'app'
 
 /**
- * Doze tipos em seis interruptores.
+ * Catorze tipos em sete interruptores.
  *
- * A tabela do banco é por TIPO, e a tela é por CATEGORIA: uma caixa com doze
+ * A tabela do banco é por TIPO, e a tela é por CATEGORIA: uma caixa com catorze
  * chaves é uma caixa que ninguém configura. O agrupamento vive aqui, e não numa
  * coluna, para poder mudar sem migration no dia em que "Edições" precisar ser
  * partida ao meio.
@@ -418,6 +461,7 @@ export const TIPOS_DA_CATEGORIA: Record<CategoriaNotificacao, TipoNotificacao[]>
   orcamentos: ['gasto_novo', 'mes_fechado'],
   viagens: ['roteiro_novo', 'roteiro_liberado'],
   filmes: ['interesse_novo', 'marcado_assistiu'],
+  fotos: ['foto_nova', 'foto_aprovada'],
   edicoes: ['gasto_editado', 'gasto_removido', 'roteiro_editado'],
   lembretes: ['lembrete_filmes', 'viagem_perto'],
   app: ['app_atualizado'],
@@ -429,6 +473,7 @@ export const CATEGORIA_ROTULO: Record<CategoriaNotificacao, string> = {
   orcamentos: 'Orçamentos',
   viagens: 'Viagens',
   filmes: 'Filmes & Séries',
+  fotos: 'Fotos',
   edicoes: 'Edições e remoções',
   lembretes: 'Lembretes',
   app: 'Novidades do app',
@@ -438,6 +483,7 @@ export const CATEGORIA_DESCRICAO: Record<CategoriaNotificacao, string> = {
   orcamentos: 'Gastos novos e o mês acertado.',
   viagens: 'Roteiro novo e surpresa revelada.',
   filmes: 'Interesse novo e quando marcam que você assistiu.',
+  fotos: 'Foto nova esperando o seu coração, e quando os dois curtiram.',
   edicoes: 'Quando o outro mexe ou apaga algo que já existia.',
   lembretes: 'Domingo de filmes e a viagem que se aproxima.',
   app: 'Quando uma versão nova entra no ar, com o que ela trouxe.',

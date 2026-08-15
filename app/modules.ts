@@ -51,6 +51,19 @@ export const MODULOS: AppModule[] = [
     resumo: useResumoFilmes,
   },
   {
+    slug: 'fotos',
+    rotulo: 'Fotos',
+    descricao: 'O que os dois curtiram e já pode ser postado',
+    icone: 'ImageIcon',
+    rota: '/fotos',
+    ativo: true,
+    // Fora da barra pelo mesmo motivo de Objetivos: os três slots são de
+    // Orçamentos, Filmes e Viagens, e a grade não comporta um quarto sem virar
+    // alvo de toque pequeno demais. Vive no "Mais".
+    naBarra: false,
+    resumo: useResumoFotos,
+  },
+  {
     slug: 'musicas',
     rotulo: 'Músicas',
     descricao: 'Álbuns e faixas que valem repetir',

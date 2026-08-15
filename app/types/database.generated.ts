@@ -316,6 +316,91 @@ export type Database = {
           },
         ]
       }
+      foto: {
+        Row: {
+          aprovada_em: string | null
+          caminho: string
+          created_at: string
+          enviada_por: string
+          id: string
+          legenda: string | null
+          lote_id: string
+          mime: string
+          nome_original: string | null
+          postada_em: string | null
+          space_id: string
+          tamanho: number | null
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          aprovada_em?: string | null
+          caminho: string
+          created_at?: string
+          enviada_por: string
+          id?: string
+          legenda?: string | null
+          lote_id?: string
+          mime: string
+          nome_original?: string | null
+          postada_em?: string | null
+          space_id: string
+          tamanho?: number | null
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          aprovada_em?: string | null
+          caminho?: string
+          created_at?: string
+          enviada_por?: string
+          id?: string
+          legenda?: string | null
+          lote_id?: string
+          mime?: string
+          nome_original?: string | null
+          postada_em?: string | null
+          space_id?: string
+          tamanho?: number | null
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "foto_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      foto_curtida: {
+        Row: {
+          created_at: string
+          foto_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          foto_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          foto_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "foto_curtida_foto_id_fkey"
+            columns: ["foto_id"]
+            isOneToOne: false
+            referencedRelation: "foto"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interesse: {
         Row: {
           assumido_em: string | null
@@ -1132,6 +1217,11 @@ export type Database = {
         Args: { p_agrupamento: string; p_produto: Json }
         Returns: string
       }
+      alternar_curtida: { Args: { p_foto: string }; Returns: boolean }
+      anunciar_versao: {
+        Args: { p_descricao: string; p_titulo: string; p_versao: string }
+        Returns: number
+      }
       assumir_interesse: { Args: { p_interesse: string }; Returns: undefined }
       atualizar_compra: {
         Args: {
@@ -1182,6 +1272,7 @@ export type Database = {
         Returns: undefined
       }
       escolher_produto: { Args: { p_produto: string }; Returns: undefined }
+      espaco_do_caminho: { Args: { p_nome: string }; Returns: string }
       faxina_notificacoes: { Args: never; Returns: number }
       gerar_codigo_convite: { Args: never; Returns: string }
       is_space_admin: { Args: { p_space: string }; Returns: boolean }
@@ -1235,6 +1326,7 @@ export type Database = {
         Args: { p_data: string; p_entry: string }
         Returns: number
       }
+      pode_ver_foto: { Args: { p_foto: string }; Returns: boolean }
       pode_ver_interesse: { Args: { p_interesse: string }; Returns: boolean }
       pode_ver_roteiro: { Args: { p_roteiro: string }; Returns: boolean }
       registrar_compra: {

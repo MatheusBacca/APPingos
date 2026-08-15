@@ -91,6 +91,22 @@ export function formatarDiaCompleto(iso: string): string {
   })
 }
 
+/**
+ * "12 de agosto" a partir de um TIMESTAMP, e não de uma data.
+ *
+ * Existe separada de `formatarDia` por causa do fuso, que é onde as duas deixam
+ * de ser a mesma função. `formatarDia` recebe `YYYY-MM-DD` e lê o dia da própria
+ * string; um `timestamptz` chega como `2026-08-15T23:30:00+00:00`, e cortar os
+ * dez primeiros caracteres leria o dia em UTC — no Brasil, toda foto mandada
+ * depois das 21h apareceria com a data do dia seguinte.
+ *
+ * Aqui o `Date` faz a conversão para o fuso de quem está olhando, que é o único
+ * dia que a pessoa reconhece como "o dia em que isso aconteceu".
+ */
+export function formatarInstante(iso: string): string {
+  return new Date(iso).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
+}
+
 /** Só o nome do mês — "Julho". Para rótulo curto, onde o ano é óbvio. */
 export function nomeDoMes(mesIso: string): string {
   const { ano, mes } = partesDaData(mesIso)
