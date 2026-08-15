@@ -401,6 +401,33 @@ export type Database = {
           },
         ]
       }
+      integracao_spotify: {
+        Row: {
+          atualizado_em: string
+          conectado_em: string
+          escopos: string
+          refresh_cifrado: string
+          spotify_user_id: string | null
+          user_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          conectado_em?: string
+          escopos?: string
+          refresh_cifrado: string
+          spotify_user_id?: string | null
+          user_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          conectado_em?: string
+          escopos?: string
+          refresh_cifrado?: string
+          spotify_user_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       interesse: {
         Row: {
           assumido_em: string | null
@@ -935,6 +962,92 @@ export type Database = {
           },
         ]
       }
+      playlist_faixa: {
+        Row: {
+          album: string | null
+          artistas: string
+          duracao_ms: number | null
+          playlist_id: string
+          posicao: number
+          spotify_track_id: string
+          titulo: string
+          url_spotify: string | null
+        }
+        Insert: {
+          album?: string | null
+          artistas?: string
+          duracao_ms?: number | null
+          playlist_id: string
+          posicao: number
+          spotify_track_id: string
+          titulo: string
+          url_spotify?: string | null
+        }
+        Update: {
+          album?: string | null
+          artistas?: string
+          duracao_ms?: number | null
+          playlist_id?: string
+          posicao?: number
+          spotify_track_id?: string
+          titulo?: string
+          url_spotify?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playlist_faixa_playlist_id_fkey"
+            columns: ["playlist_id"]
+            isOneToOne: false
+            referencedRelation: "playlist_spotify"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      playlist_spotify: {
+        Row: {
+          capa_url: string | null
+          colaborativa: boolean
+          descricao: string | null
+          faixas_sincronizadas_em: string | null
+          id: string
+          nome: string
+          publica: boolean
+          sincronizado_em: string
+          spotify_id: string
+          total_faixas: number
+          url_spotify: string | null
+          user_id: string
+        }
+        Insert: {
+          capa_url?: string | null
+          colaborativa?: boolean
+          descricao?: string | null
+          faixas_sincronizadas_em?: string | null
+          id?: string
+          nome: string
+          publica?: boolean
+          sincronizado_em?: string
+          spotify_id: string
+          total_faixas?: number
+          url_spotify?: string | null
+          user_id: string
+        }
+        Update: {
+          capa_url?: string | null
+          colaborativa?: boolean
+          descricao?: string | null
+          faixas_sincronizadas_em?: string | null
+          id?: string
+          nome?: string
+          publica?: boolean
+          sincronizado_em?: string
+          spotify_id?: string
+          total_faixas?: number
+          url_spotify?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       profile: {
         Row: {
           apelido: string | null
@@ -1240,6 +1353,7 @@ export type Database = {
       }
       avisar_viagens_proximas: { Args: never; Returns: number }
       can_access_entry: { Args: { p_entry: string }; Returns: boolean }
+      can_access_playlist: { Args: { p_playlist: string }; Returns: boolean }
       compartilhar_interesse: {
         Args: { p_interesse: string; p_space: string }
         Returns: undefined
@@ -1326,6 +1440,7 @@ export type Database = {
         Args: { p_data: string; p_entry: string }
         Returns: number
       }
+      playlist_e_minha: { Args: { p_playlist: string }; Returns: boolean }
       pode_ver_foto: { Args: { p_foto: string }; Returns: boolean }
       pode_ver_interesse: { Args: { p_interesse: string }; Returns: boolean }
       pode_ver_roteiro: { Args: { p_roteiro: string }; Returns: boolean }

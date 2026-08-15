@@ -246,6 +246,8 @@ function onRemover(item: ItemDoEspaco) {
       </template>
     </section>
 
+    <PlaylistsDoEspaco v-if="!buscando" :membros="membros ?? []" />
+
     <!-- A lista do espaço -->
     <section v-if="!buscando" class="space-y-6">
       <div v-if="isPending" class="space-y-3">

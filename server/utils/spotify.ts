@@ -93,7 +93,7 @@ interface RespostaToken {
  * dois mantém a rota legível tanto para o app quanto para quem estiver olhando
  * o tráfego cru.
  */
-function erroSpotify(statusCode: number, texto: string) {
+export function erroSpotify(statusCode: number, texto: string) {
   return createError({ statusCode, statusMessage: texto, message: texto })
 }
 
@@ -119,7 +119,7 @@ let tokenEmCache: { valor: string, expiraEm: number } | null = null
 /** Margem para o token não expirar no voo entre o nosso servidor e o Spotify. */
 const FOLGA_MS = 60_000
 
-function credenciais(event: H3Event): { id: string, secret: string } {
+export function credenciaisSpotify(event: H3Event): { id: string, secret: string } {
   const { spotifyClientId, spotifyClientSecret } = useRuntimeConfig(event)
 
   if (!spotifyClientId || !spotifyClientSecret) {
@@ -127,6 +127,68 @@ function credenciais(event: H3Event): { id: string, secret: string } {
   }
 
   return { id: spotifyClientId, secret: spotifyClientSecret }
+}
+
+/**
+ * Uma ida ao endpoint de token do Spotify, seja qual for o `grant_type`.
+ *
+ * Os três fluxos do módulo passam por aqui: `client_credentials` (busca do
+ * catálogo), `authorization_code` (a hora em que a pessoa conecta a conta) e
+ * `refresh_token` (toda vez depois disso). O que muda entre eles é só o corpo.
+ */
+export async function pedirTokenSpotify<T>(
+  event: H3Event,
+  corpo: Record<string, string>,
+): Promise<T> {
+  const { id, secret } = credenciaisSpotify(event)
+
+  return await $fetch<T>(TOKEN_URL, {
+    method: 'POST',
+    headers: {
+      // Basic com id:secret é o que o Spotify espera; mandar os dois no corpo
+      // também funciona, mas deixa o secret no log de qualquer proxy que
+      // registre payload.
+      Authorization: `Basic ${Buffer.from(`${id}:${secret}`).toString('base64')}`,
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams(corpo).toString(),
+  }) as T
+}
+
+/**
+ * Uma chamada à API com um token já pronto — o de aplicativo ou o de uma pessoa.
+ *
+ * Concentra a tradução dos erros do Spotify para erros nossos, para as duas
+ * origens de token contarem a mesma história quando algo falha. `market` fica
+ * de fora: ele vale para o catálogo público, e as rotas de conta (playlists,
+ * player) trazem o mercado da própria conta.
+ */
+export async function chamarSpotify<T>(
+  caminho: string,
+  acesso: string,
+  params: Record<string, string> = {},
+  aoReceber401?: () => void,
+): Promise<T> {
+  try {
+    return await $fetch<T>(caminho.startsWith('http') ? caminho : `${BASE}${caminho}`, {
+      query: params,
+      headers: {
+        Authorization: `Bearer ${acesso}`,
+        accept: 'application/json',
+      },
+    }) as T
+  }
+  catch (e: unknown) {
+    const status = (e as { status?: number }).status ?? 502
+
+    if (status === 401) aoReceber401?.()
+
+    if (status === 429) {
+      throw erroSpotify(429, 'O Spotify pediu uma pausa — tente de novo em alguns segundos.')
+    }
+
+    throw erroSpotify(status === 401 ? 502 : status, 'Falha ao consultar o Spotify')
+  }
 }
 
 /** Exportado só para o teste conseguir partir de um estado limpo. */
@@ -139,20 +201,13 @@ async function token(event: H3Event): Promise<string> {
     return tokenEmCache.valor
   }
 
-  const { id, secret } = credenciais(event)
+  // Fora do try: `pedirTokenSpotify` começa conferindo o .env, e esse 503 seria
+  // pego pelo catch abaixo e viraria "credencial rejeitada" — mandando procurar
+  // no dashboard do Spotify um problema que está no .env.
+  credenciaisSpotify(event)
 
   try {
-    const resposta = await $fetch<RespostaToken>(TOKEN_URL, {
-      method: 'POST',
-      headers: {
-        // Basic com id:secret é o que o Spotify espera neste fluxo; mandar os
-        // dois no corpo também funciona, mas deixa o secret no log de qualquer
-        // proxy que registre payload.
-        Authorization: `Basic ${Buffer.from(`${id}:${secret}`).toString('base64')}`,
-        'content-type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({ grant_type: 'client_credentials' }).toString(),
-    })
+    const resposta = await pedirTokenSpotify<RespostaToken>(event, { grant_type: 'client_credentials' })
 
     tokenEmCache = {
       valor: resposta.access_token,
@@ -173,29 +228,10 @@ async function spotify<T>(event: H3Event, caminho: string, params: Record<string
   // reembrulhados no catch genérico abaixo.
   const acesso = await token(event)
 
-  try {
-    return await $fetch<T>(`${BASE}${caminho}`, {
-      query: { market: MERCADO, ...params },
-      headers: {
-        Authorization: `Bearer ${acesso}`,
-        accept: 'application/json',
-      },
-    }) as T
-  }
-  catch (e: unknown) {
-    const status = (e as { status?: number }).status ?? 502
-
-    // 401 aqui é token vencido antes da folga (relógio fora de sincronia, ou o
-    // Spotify revogou). Descartar o cache faz a próxima tentativa pedir um novo
-    // em vez de repetir o token morto até alguém reiniciar o servidor.
-    if (status === 401) tokenEmCache = null
-
-    if (status === 429) {
-      throw erroSpotify(429, 'O Spotify pediu uma pausa — tente de novo em alguns segundos.')
-    }
-
-    throw erroSpotify(status === 401 ? 502 : status, 'Falha ao consultar o Spotify')
-  }
+  // 401 aqui é token vencido antes da folga (relógio fora de sincronia, ou o
+  // Spotify revogou). Descartar o cache faz a próxima tentativa pedir um novo
+  // em vez de repetir o token morto até alguém reiniciar o servidor.
+  return chamarSpotify<T>(caminho, acesso, { market: MERCADO, ...params }, limparTokenEmCache)
 }
 
 // ---- Normalização -----------------------------------------------------------
