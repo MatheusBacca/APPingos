@@ -5,19 +5,9 @@
  * V1 é LEITURA: mostra o que já existe no Spotify de cada um e não escreve nada
  * lá. E é uma ESCOLHA, não um espelho — "Listar as minhas" abre o que a conta
  * tem, e só o que for marcado entra no espaço. Uma conta comum passa de cem
- * playlists, quase todas seguidas e não criadas pela pessoa; despejar tudo
- * encheria a tela do par com o que ninguém pediu.
+ * playlists, quase todas seguidas e não criadas pela pessoa.
  */
-import {
-  ChevronDownIcon,
-  ExternalLinkIcon,
-  ListMusicIcon,
-  MusicIcon,
-  RefreshCwIcon,
-  SearchIcon,
-  Trash2Icon,
-  UsersIcon,
-} from '@lucide/vue'
+import { ListMusicIcon, MusicIcon, RefreshCwIcon, SearchIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,7 +19,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { formatarDia } from '@/lib/datas'
 import { mensagemDeErro } from '@/lib/utils'
 import type { Membro } from '~/composables/useMembros'
 import type { PlaylistDoSpotify, PlaylistSpotify } from '~/composables/useSpotify'
@@ -58,7 +47,7 @@ const remover = useRemoverPlaylist()
 const sincronizarFaixas = useSincronizarFaixas()
 
 /**
- * Uma faixa por pessoa DO ESPAÇO ATIVO.
+ * Um grupo por pessoa DO ESPAÇO ATIVO.
  *
  * A RLS libera quem divide qualquer espaço com você, que é mais gente do que
  * esta tela quer mostrar. Partir dos membros (e não das playlists) também dá o
@@ -79,7 +68,6 @@ const disponiveis = ref<PlaylistDoSpotify[]>([])
 const marcadas = ref(new Set<string>())
 const filtro = ref('')
 
-/** Já salvas: entram marcadas e o texto do botão não promete novidade. */
 const jaSalvas = computed(() =>
   new Set((playlists.value ?? [])
     .filter(p => p.user_id === euId.value)
@@ -115,7 +103,7 @@ function alternarMarca(id: string) {
   marcadas.value = copia
 }
 
-/** Marca/desmarca tudo que o filtro está mostrando, não a lista inteira. */
+/** Marca/desmarca o que o filtro está mostrando, não a lista inteira. */
 function marcarVisiveis(marcar: boolean) {
   const copia = new Set(marcadas.value)
   for (const p of visiveis.value) {
@@ -138,7 +126,7 @@ async function onSalvar() {
   }
 }
 
-// ---- Recarregar o que já está salvo -----------------------------------------
+// ---- Recarregar e remover ---------------------------------------------------
 
 async function onAtualizar() {
   try {
@@ -155,7 +143,7 @@ async function onAtualizar() {
 async function onRemover(playlist: PlaylistSpotify) {
   try {
     await remover.mutateAsync(playlist.id)
-    if (aberta.value === playlist.id) aberta.value = null
+    if (aberta.value?.id === playlist.id) aberta.value = null
     toast.success(`"${playlist.nome}" saiu do espaço.`)
   }
   catch (e) {
@@ -163,19 +151,22 @@ async function onRemover(playlist: PlaylistSpotify) {
   }
 }
 
-// ---- Abrir uma playlist e ver as faixas -------------------------------------
+// ---- As faixas, em diálogo --------------------------------------------------
 
-const aberta = ref<string | null>(null)
-const { data: faixas, isPending: faixasCarregando } = useFaixasDaPlaylist(aberta)
+/*
+ * Diálogo, e não expansão no lugar: numa grade de cards, abrir um empurraria a
+ * linha inteira e desalinharia tudo o que vem depois.
+ */
+const aberta = ref<PlaylistSpotify | null>(null)
+const idAberta = computed(() => aberta.value?.id ?? null)
+const { data: faixas, isPending: faixasCarregando } = useFaixasDaPlaylist(idAberta)
 
-async function alternar(playlist: PlaylistSpotify) {
-  if (aberta.value === playlist.id) {
-    aberta.value = null
-    return
-  }
+const souDonoDaAberta = computed(() => aberta.value?.user_id === euId.value)
 
-  aberta.value = playlist.id
+async function verFaixas(playlist: PlaylistSpotify) {
+  aberta.value = playlist
 
+  // Primeira abertura: as faixas ainda não foram buscadas no Spotify.
   if (!playlist.faixas_sincronizadas_em && playlist.user_id === euId.value) {
     await puxarFaixas(playlist)
   }
@@ -200,10 +191,10 @@ function duracao(ms: number | null): string {
 <template>
   <section class="space-y-4">
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <h2 class="flex items-center gap-2 text-sm font-medium">
+      <h3 class="flex items-center gap-2 text-sm font-medium">
         <ListMusicIcon class="size-4 text-muted-foreground" />
-        Playlists do espaço
-      </h2>
+        Playlists
+      </h3>
 
       <div v-if="integracao" class="flex flex-wrap gap-2">
         <Button
@@ -224,19 +215,18 @@ function duracao(ms: number | null): string {
       </div>
     </div>
 
-    <div v-if="isPending" class="space-y-3">
-      <div v-for="i in 2" :key="i" class="h-20 animate-pulse rounded-lg bg-muted" />
+    <div v-if="isPending" class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+      <Skeleton v-for="i in 4" :key="i" class="aspect-square w-full rounded-lg" />
     </div>
 
     <div v-else class="space-y-5">
       <div v-for="grupo in porPessoa" :key="grupo.membro.user_id" class="space-y-2">
-        <h3 class="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          <UsersIcon class="size-3.5" />
+        <h4 class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {{ grupo.souEu ? 'Suas playlists' : `Playlists de ${grupo.membro.exibicao}` }}
           <span v-if="grupo.lista.length" class="rounded-full bg-muted px-1.5 text-[10px]">
             {{ grupo.lista.length }}
           </span>
-        </h3>
+        </h4>
 
         <p v-if="!grupo.lista.length" class="text-sm text-muted-foreground">
           <template v-if="grupo.souEu && !integracao">
@@ -252,143 +242,93 @@ function duracao(ms: number | null): string {
           </template>
         </p>
 
-        <ul v-else class="space-y-2">
-          <li v-for="playlist in grupo.lista" :key="playlist.id" class="rounded-lg border bg-card">
-            <div class="flex items-center gap-3 p-3">
-              <!--
-                O card inteiro leva ao Spotify; ver as faixas é o botão de seta
-                ao lado. Antes era o contrário, e o link ficava num ícone
-                pequeno no canto — o gesto grande deve ser o destino óbvio.
-              -->
-              <component
-                :is="playlist.url_spotify ? 'a' : 'div'"
-                :href="playlist.url_spotify ?? undefined"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="flex min-w-0 flex-1 items-center gap-3 rounded-md"
-                :class="playlist.url_spotify ? 'group cursor-pointer' : ''"
-              >
-                <span class="size-12 shrink-0 overflow-hidden rounded-md border bg-muted">
-                  <img
-                    v-if="playlist.capa_url"
-                    :src="playlist.capa_url"
-                    :alt="`Capa de ${playlist.nome}`"
-                    loading="lazy"
-                    class="size-full object-cover"
-                  >
-                  <span v-else class="grid size-full place-items-center text-muted-foreground">
-                    <MusicIcon class="size-4" />
-                  </span>
-                </span>
-
-                <span class="min-w-0 flex-1">
-                  <span class="flex items-center gap-1.5 text-sm font-medium">
-                    <span class="truncate group-hover:underline">{{ playlist.nome }}</span>
-                    <ExternalLinkIcon
-                      v-if="playlist.url_spotify"
-                      class="size-3 shrink-0 text-muted-foreground"
-                    />
-                  </span>
-                  <span class="block truncate text-xs text-muted-foreground">
-                    {{ playlist.total_faixas }} faixa(s)
-                    <template v-if="playlist.colaborativa"> · colaborativa</template>
-                    · atualizada em {{ formatarDia(playlist.sincronizado_em.slice(0, 10)) }}
-                  </span>
-                </span>
-              </component>
-
-              <Button
-                v-if="grupo.souEu"
-                variant="ghost"
-                size="icon"
-                class="size-8 shrink-0 text-muted-foreground hover:text-destructive"
-                :aria-label="`Tirar ${playlist.nome} do espaço`"
-                :disabled="remover.isPending.value"
-                @click="onRemover(playlist)"
-              >
-                <Trash2Icon class="size-4" />
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                class="size-8 shrink-0 text-muted-foreground"
-                :aria-label="`Ver as faixas de ${playlist.nome}`"
-                :aria-expanded="aberta === playlist.id"
-                @click="alternar(playlist)"
-              >
-                <ChevronDownIcon
-                  class="size-4 transition-transform"
-                  :class="aberta === playlist.id ? 'rotate-180' : ''"
-                />
-              </Button>
-            </div>
-
-            <div v-if="aberta === playlist.id" class="border-t px-3 py-2">
-              <p v-if="faixasCarregando || sincronizarFaixas.isPending.value" class="py-2 text-sm text-muted-foreground">
-                Carregando as faixas…
-              </p>
-
-              <template v-else-if="faixas?.length">
-                <ol class="divide-y">
-                  <li
-                    v-for="faixa in faixas"
-                    :key="faixa.posicao"
-                    class="flex items-baseline gap-3 py-1.5 text-sm"
-                  >
-                    <span class="w-6 shrink-0 text-right text-xs text-muted-foreground">
-                      {{ faixa.posicao + 1 }}
-                    </span>
-                    <component
-                      :is="faixa.url_spotify ? 'a' : 'span'"
-                      :href="faixa.url_spotify ?? undefined"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="min-w-0 flex-1"
-                      :class="faixa.url_spotify ? 'hover:underline' : ''"
-                    >
-                      <span class="block truncate">{{ faixa.titulo }}</span>
-                      <span class="block truncate text-xs text-muted-foreground">{{ faixa.artistas }}</span>
-                    </component>
-                    <span class="shrink-0 text-xs tabular-nums text-muted-foreground">
-                      {{ duracao(faixa.duracao_ms) }}
-                    </span>
-                  </li>
-                </ol>
-
-                <Button
-                  v-if="grupo.souEu"
-                  variant="ghost"
-                  size="sm"
-                  class="mt-2 gap-1.5"
-                  :disabled="sincronizarFaixas.isPending.value"
-                  @click="puxarFaixas(playlist)"
-                >
-                  <RefreshCwIcon class="size-3.5" />
-                  Recarregar as faixas
-                </Button>
-              </template>
-
-              <!--
-                As duas ausências são diferentes e a frase precisa distinguir:
-                "nunca buscamos" pede uma ação, "buscamos e não veio nada" é o
-                fato de a playlist estar vazia.
-              -->
-              <p v-else-if="!playlist.faixas_sincronizadas_em" class="py-2 text-sm text-muted-foreground">
-                <template v-if="grupo.souEu">
-                  As faixas ainda não foram buscadas.
-                </template>
-                <template v-else>
-                  {{ grupo.membro.exibicao }} ainda não abriu esta playlist aqui — as faixas só
-                  são buscadas por quem é dono dela.
-                </template>
-              </p>
-              <p v-else class="py-2 text-sm text-muted-foreground">Esta playlist está vazia.</p>
-            </div>
-          </li>
-        </ul>
+        <div v-else class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+          <PlaylistCard
+            v-for="playlist in grupo.lista"
+            :key="playlist.id"
+            :playlist="playlist"
+            :sou-dono="grupo.souEu"
+            :removendo="remover.isPending.value"
+            @faixas="verFaixas(playlist)"
+            @remover="onRemover(playlist)"
+          />
+        </div>
       </div>
     </div>
+
+    <!-- As faixas de uma playlist -->
+    <Dialog :open="!!aberta" @update:open="aberta = $event ? aberta : null">
+      <DialogContent class="max-h-[85vh] gap-3 sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle class="truncate">{{ aberta?.nome }}</DialogTitle>
+          <DialogDescription>
+            {{ aberta?.total_faixas }} música(s) nesta playlist.
+          </DialogDescription>
+        </DialogHeader>
+
+        <p v-if="faixasCarregando || sincronizarFaixas.isPending.value" class="py-4 text-sm text-muted-foreground">
+          Carregando as faixas…
+        </p>
+
+        <template v-else-if="faixas?.length">
+          <ol class="min-h-0 flex-1 divide-y overflow-y-auto">
+            <li
+              v-for="faixa in faixas"
+              :key="faixa.posicao"
+              class="flex items-baseline gap-3 py-1.5 text-sm"
+            >
+              <span class="w-6 shrink-0 text-right text-xs text-muted-foreground">
+                {{ faixa.posicao + 1 }}
+              </span>
+              <component
+                :is="faixa.url_spotify ? 'a' : 'span'"
+                :href="faixa.url_spotify ?? undefined"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="min-w-0 flex-1"
+                :class="faixa.url_spotify ? 'hover:underline' : ''"
+              >
+                <span class="block truncate">{{ faixa.titulo }}</span>
+                <span class="block truncate text-xs text-muted-foreground">{{ faixa.artistas }}</span>
+              </component>
+              <span class="shrink-0 text-xs tabular-nums text-muted-foreground">
+                {{ duracao(faixa.duracao_ms) }}
+              </span>
+            </li>
+          </ol>
+        </template>
+
+        <!--
+          As duas ausências são diferentes e a frase precisa distinguir: "nunca
+          buscamos" pede uma ação, "buscamos e não veio nada" é o fato de a
+          playlist estar vazia.
+        -->
+        <p v-else-if="aberta && !aberta.faixas_sincronizadas_em" class="py-4 text-sm text-muted-foreground">
+          <template v-if="souDonoDaAberta">As faixas ainda não foram buscadas.</template>
+          <template v-else>
+            As faixas só são buscadas por quem é dono da playlist.
+          </template>
+        </p>
+        <p v-else class="py-4 text-sm text-muted-foreground">Esta playlist está vazia.</p>
+
+        <DialogFooter class="sm:justify-between">
+          <Button
+            v-if="souDonoDaAberta && aberta"
+            variant="ghost"
+            size="sm"
+            class="gap-1.5"
+            :disabled="sincronizarFaixas.isPending.value"
+            @click="puxarFaixas(aberta)"
+          >
+            <RefreshCwIcon class="size-3.5" />
+            Recarregar as faixas
+          </Button>
+          <span v-else />
+
+          <Button variant="ghost" @click="aberta = null">Fechar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <!-- Escolher quais entram no espaço -->
     <Dialog :open="escolhendo" @update:open="escolhendo = $event">
@@ -438,7 +378,7 @@ function duracao(ms: number | null): string {
               <span class="min-w-0 flex-1">
                 <span class="block truncate text-sm">{{ p.nome }}</span>
                 <span class="block truncate text-xs text-muted-foreground">
-                  {{ p.total_faixas }} faixa(s)
+                  {{ p.total_faixas }} música(s)
                   <template v-if="p.dono"> · de {{ p.dono }}</template>
                 </span>
               </span>

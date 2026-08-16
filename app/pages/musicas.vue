@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query'
 import { refDebounced } from '@vueuse/core'
-import { PlusIcon, RefreshCwIcon, SearchIcon } from '@lucide/vue'
+import { MusicIcon, PlusIcon, RefreshCwIcon, SearchIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -283,64 +283,77 @@ function onRemover(item: ItemDoEspaco) {
       </template>
     </section>
 
-    <PlaylistsDoEspaco v-if="!buscando" :membros="membros ?? []" />
+    <!--
+      "Nossas músicas" é o guarda-chuva do módulo: primeiro as playlists
+      (agrupadas por pessoa), depois o catálogo. É a ordem de quem chega
+      querendo ouvir algo — a playlist é o atalho, a faixa avulsa é o detalhe.
+    -->
+    <section v-if="!buscando" class="space-y-8">
+      <h2 class="text-lg font-semibold tracking-tight">Nossas músicas</h2>
 
-    <!-- A lista do espaço -->
-    <section v-if="!buscando" class="space-y-6">
-      <div v-if="isPending" class="space-y-3">
-        <Skeleton v-for="i in 3" :key="i" class="h-24 w-full rounded-lg" />
-      </div>
+      <PlaylistsDoEspaco :membros="membros ?? []" />
 
-      <p v-else-if="listaVazia" class="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-        Ainda não há nada aqui — busque uma faixa ou um álbum acima para começar.
-      </p>
+      <section class="space-y-5">
+        <h3 class="flex items-center gap-2 text-sm font-medium">
+          <MusicIcon class="size-4 text-muted-foreground" />
+          Músicas
+        </h3>
 
-      <template v-else>
-        <section v-if="esperandoVoce.length" class="space-y-2">
-          <h2 class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Esperando você
-            <span class="rounded-full bg-muted px-1.5 text-[10px]">{{ esperandoVoce.length }}</span>
-          </h2>
-          <p class="text-xs text-muted-foreground">
-            Entrou pela mão de quem divide o espaço e ainda não passou pela sua.
-          </p>
-          <div class="grid gap-3 lg:grid-cols-2">
-            <MusicaCard
-              v-for="item in esperandoVoce"
-              :key="item.id"
-              :item="item"
-              :membros="membros ?? []"
-              :eu-id="euId"
-              :salvando="salvando.has(item.id)"
-              @status="onStatus(item, $event)"
-              @nota="onNota(item, $event)"
-              @remover="onRemover(item)"
-            />
-          </div>
-        </section>
+        <div v-if="isPending" class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+          <Skeleton v-for="i in 4" :key="i" class="aspect-square w-full rounded-lg" />
+        </div>
 
-        <section v-for="status in GRUPOS" :key="status" class="space-y-2">
-          <h2 class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            {{ STATUS_ROTULO_MUSICA[status] }}
-            <span class="rounded-full bg-muted px-1.5 text-[10px]">{{ porStatus[status].length }}</span>
-          </h2>
+        <p v-else-if="listaVazia" class="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+          Ainda não há nada aqui — busque uma faixa ou um álbum acima para começar.
+        </p>
 
-          <div v-if="porStatus[status].length" class="grid gap-3 lg:grid-cols-2">
-            <MusicaCard
-              v-for="item in porStatus[status]"
-              :key="item.id"
-              :item="item"
-              :membros="membros ?? []"
-              :eu-id="euId"
-              :salvando="salvando.has(item.id)"
-              @status="onStatus(item, $event)"
-              @nota="onNota(item, $event)"
-              @remover="onRemover(item)"
-            />
-          </div>
-          <p v-else class="text-sm text-muted-foreground">{{ VAZIO[status] }}</p>
-        </section>
-      </template>
+        <template v-else>
+          <section v-if="esperandoVoce.length" class="space-y-2">
+            <h4 class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Esperando você
+              <span class="rounded-full bg-muted px-1.5 text-[10px]">{{ esperandoVoce.length }}</span>
+            </h4>
+            <p class="text-xs text-muted-foreground">
+              Entrou pela mão de quem divide o espaço e ainda não passou pela sua.
+            </p>
+            <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+              <MusicaCard
+                v-for="item in esperandoVoce"
+                :key="item.id"
+                :item="item"
+                :membros="membros ?? []"
+                :eu-id="euId"
+                :salvando="salvando.has(item.id)"
+                @status="onStatus(item, $event)"
+                @nota="onNota(item, $event)"
+                @remover="onRemover(item)"
+              />
+            </div>
+          </section>
+
+          <section v-for="status in GRUPOS" :key="status" class="space-y-2">
+            <h4 class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {{ STATUS_ROTULO_MUSICA[status] }}
+              <span class="rounded-full bg-muted px-1.5 text-[10px]">{{ porStatus[status].length }}</span>
+            </h4>
+
+            <div v-if="porStatus[status].length" class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+              <MusicaCard
+                v-for="item in porStatus[status]"
+                :key="item.id"
+                :item="item"
+                :membros="membros ?? []"
+                :eu-id="euId"
+                :salvando="salvando.has(item.id)"
+                @status="onStatus(item, $event)"
+                @nota="onNota(item, $event)"
+                @remover="onRemover(item)"
+              />
+            </div>
+            <p v-else class="text-sm text-muted-foreground">{{ VAZIO[status] }}</p>
+          </section>
+        </template>
+      </section>
     </section>
   </div>
 </template>
