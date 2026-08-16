@@ -316,6 +316,48 @@ export type Database = {
           },
         ]
       }
+      escuta_agora: {
+        Row: {
+          album: string | null
+          artistas: string | null
+          atualizado_em: string
+          capa_url: string | null
+          duracao_ms: number | null
+          progresso_ms: number | null
+          spotify_track_id: string | null
+          titulo: string | null
+          tocando: boolean
+          url_spotify: string | null
+          user_id: string
+        }
+        Insert: {
+          album?: string | null
+          artistas?: string | null
+          atualizado_em?: string
+          capa_url?: string | null
+          duracao_ms?: number | null
+          progresso_ms?: number | null
+          spotify_track_id?: string | null
+          titulo?: string | null
+          tocando?: boolean
+          url_spotify?: string | null
+          user_id: string
+        }
+        Update: {
+          album?: string | null
+          artistas?: string | null
+          atualizado_em?: string
+          capa_url?: string | null
+          duracao_ms?: number | null
+          progresso_ms?: number | null
+          spotify_track_id?: string | null
+          titulo?: string | null
+          tocando?: boolean
+          url_spotify?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       foto: {
         Row: {
           aprovada_em: string | null
@@ -400,6 +442,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      integracao_spotify: {
+        Row: {
+          atualizado_em: string
+          conectado_em: string
+          escopos: string
+          mostrar_escuta: boolean
+          refresh_cifrado: string
+          spotify_user_id: string | null
+          user_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          conectado_em?: string
+          escopos?: string
+          mostrar_escuta?: boolean
+          refresh_cifrado: string
+          spotify_user_id?: string | null
+          user_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          conectado_em?: string
+          escopos?: string
+          mostrar_escuta?: boolean
+          refresh_cifrado?: string
+          spotify_user_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       interesse: {
         Row: {
@@ -935,6 +1007,128 @@ export type Database = {
           },
         ]
       }
+      playlist_faixa: {
+        Row: {
+          album: string | null
+          artistas: string
+          duracao_ms: number | null
+          playlist_id: string
+          posicao: number
+          spotify_track_id: string
+          titulo: string
+          url_spotify: string | null
+        }
+        Insert: {
+          album?: string | null
+          artistas?: string
+          duracao_ms?: number | null
+          playlist_id: string
+          posicao: number
+          spotify_track_id: string
+          titulo: string
+          url_spotify?: string | null
+        }
+        Update: {
+          album?: string | null
+          artistas?: string
+          duracao_ms?: number | null
+          playlist_id?: string
+          posicao?: number
+          spotify_track_id?: string
+          titulo?: string
+          url_spotify?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playlist_faixa_playlist_id_fkey"
+            columns: ["playlist_id"]
+            isOneToOne: false
+            referencedRelation: "playlist_spotify"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      playlist_favorita: {
+        Row: {
+          created_at: string
+          marcada_por: string
+          playlist_id: string
+          space_id: string
+        }
+        Insert: {
+          created_at?: string
+          marcada_por: string
+          playlist_id: string
+          space_id: string
+        }
+        Update: {
+          created_at?: string
+          marcada_por?: string
+          playlist_id?: string
+          space_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playlist_favorita_playlist_id_fkey"
+            columns: ["playlist_id"]
+            isOneToOne: false
+            referencedRelation: "playlist_spotify"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "playlist_favorita_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      playlist_spotify: {
+        Row: {
+          capa_url: string | null
+          colaborativa: boolean
+          descricao: string | null
+          faixas_sincronizadas_em: string | null
+          id: string
+          nome: string
+          publica: boolean
+          sincronizado_em: string
+          spotify_id: string
+          total_faixas: number
+          url_spotify: string | null
+          user_id: string
+        }
+        Insert: {
+          capa_url?: string | null
+          colaborativa?: boolean
+          descricao?: string | null
+          faixas_sincronizadas_em?: string | null
+          id?: string
+          nome: string
+          publica?: boolean
+          sincronizado_em?: string
+          spotify_id: string
+          total_faixas?: number
+          url_spotify?: string | null
+          user_id: string
+        }
+        Update: {
+          capa_url?: string | null
+          colaborativa?: boolean
+          descricao?: string | null
+          faixas_sincronizadas_em?: string | null
+          id?: string
+          nome?: string
+          publica?: boolean
+          sincronizado_em?: string
+          spotify_id?: string
+          total_faixas?: number
+          url_spotify?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       profile: {
         Row: {
           apelido: string | null
@@ -1238,8 +1432,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      atualizar_media_item: {
+        Args: { p_dados: Json; p_media: string }
+        Returns: undefined
+      }
       avisar_viagens_proximas: { Args: never; Returns: number }
       can_access_entry: { Args: { p_entry: string }; Returns: boolean }
+      can_access_playlist: { Args: { p_playlist: string }; Returns: boolean }
       compartilhar_interesse: {
         Args: { p_interesse: string; p_space: string }
         Returns: undefined
@@ -1326,6 +1525,7 @@ export type Database = {
         Args: { p_data: string; p_entry: string }
         Returns: number
       }
+      playlist_e_minha: { Args: { p_playlist: string }; Returns: boolean }
       pode_ver_foto: { Args: { p_foto: string }; Returns: boolean }
       pode_ver_interesse: { Args: { p_interesse: string }; Returns: boolean }
       pode_ver_roteiro: { Args: { p_roteiro: string }; Returns: boolean }
@@ -1343,6 +1543,10 @@ export type Database = {
           p_valor_total: number
         }
         Returns: string
+      }
+      registrar_escuta: {
+        Args: { p_dados: Json; p_user: string }
+        Returns: undefined
       }
       registrar_interesse: {
         Args: {
@@ -1390,6 +1594,7 @@ export type Database = {
         Returns: boolean
       }
       status_do_email: { Args: never; Returns: Json }
+      token_de_escuta: { Args: { p_user: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never

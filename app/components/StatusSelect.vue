@@ -10,17 +10,28 @@ import { Button } from '@/components/ui/button'
 import { STATUS_ROTULO } from '~/types/catalogo'
 import type { StatusItem } from '~/types/catalogo'
 
-const props = defineProps<{ status: StatusItem }>()
+/**
+ * `rotulos` existe porque o mesmo estado tem verbos diferentes por mídia —
+ * "Assistido" num filme, "Já ouvi" numa faixa. O padrão é o de Filmes, então
+ * quem já usava o componente não muda.
+ */
+const props = withDefaults(defineProps<{
+  status: StatusItem
+  rotulos?: Record<StatusItem, string>
+}>(), {
+  rotulos: () => STATUS_ROTULO,
+})
+
 const emit = defineEmits<{ 'update:status': [valor: StatusItem] }>()
 
-const opcoes = Object.entries(STATUS_ROTULO) as Array<[StatusItem, string]>
+const opcoes = computed(() => Object.entries(props.rotulos) as Array<[StatusItem, string]>)
 </script>
 
 <template>
   <DropdownMenu>
     <DropdownMenuTrigger as-child>
       <Button variant="outline" size="sm">
-        {{ STATUS_ROTULO[props.status] }}
+        {{ props.rotulos[props.status] }}
       </Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="start">

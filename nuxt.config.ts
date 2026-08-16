@@ -187,6 +187,19 @@ export default defineNuxtConfig({
     // servidor apenas — a chave do TMDB nunca vai para o client
     tmdbApiKey: '',
     googlePlacesApiKey: '',
+    // Idem: o secret do Spotify é trocado por um token dentro do servidor, em
+    // `server/utils/spotify.ts`, e nem ele nem o token chegam ao navegador.
+    spotifyClientId: '',
+    spotifyClientSecret: '',
+    /*
+     * A chave que cifra o refresh token guardado em `integracao_spotify`.
+     *
+     * A linha é legível pelo dono (é a RLS de sempre), mas o que está nela não
+     * serve para nada sem esta chave, que nunca sai do servidor. É o que
+     * permite guardar o token sem uma `service_role` no app — ver o comentário
+     * grande da migration 20260815180000_spotify_integracao.sql.
+     */
+    spotifyTokenSecret: '',
     public: {
       googleMapsEmbedKey: '',
     },

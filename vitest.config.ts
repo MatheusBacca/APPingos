@@ -4,6 +4,9 @@ import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vitest/config'
 
 const app = fileURLToPath(new URL('./app', import.meta.url))
+// Sem a barra final: o apelido é substituído cru, e `raiz` com barra deixaria
+// um separador dobrado no meio do caminho resolvido.
+const raiz = fileURLToPath(new URL('.', import.meta.url)).replace(/[\\/]+$/, '')
 
 export default defineConfig({
   plugins: [
@@ -30,6 +33,10 @@ export default defineConfig({
   resolve: {
     alias: [
       // Os mesmos apelidos do Nuxt, para os testes importarem como o app importa.
+      // `~~` (raiz do projeto) vem ANTES de `~`: o Vite usa o primeiro apelido
+      // que casa, e `~` casaria com `~~/server/...` primeiro, resolvendo para
+      // um caminho inexistente dentro de app/.
+      { find: '~~', replacement: raiz },
       { find: '~', replacement: app },
       { find: '@', replacement: app },
 
@@ -46,6 +53,18 @@ export default defineConfig({
       {
         find: /^\.\/config\.gerado\.js$/,
         replacement: fileURLToPath(new URL('./test/fixtures/config-extensao.js', import.meta.url)),
+      },
+
+      /*
+       * `#supabase/server` é um alias virtual que o @nuxtjs/supabase cria no
+       * build do Nitro — fora do Nuxt ele não existe, e qualquer arquivo de
+       * `server/utils/` que o importe morre já na coleta do Vitest, mesmo que o
+       * teste só queira uma função pura dali. O substituto estoura se alguém
+       * chamar de verdade; ver test/fixtures/supabase-server.ts.
+       */
+      {
+        find: '#supabase/server',
+        replacement: fileURLToPath(new URL('./test/fixtures/supabase-server.ts', import.meta.url)),
       },
     ],
   },
