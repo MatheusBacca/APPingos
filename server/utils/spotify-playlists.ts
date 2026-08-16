@@ -83,34 +83,57 @@ async function todasAsPaginas<T>(
 
 // ---- A lista de playlists ---------------------------------------------------
 
+/**
+ * As linhas prontas para o upsert, sem id repetido.
+ *
+ * A deduplicação NÃO é zelo preventivo — sem ela o Postgres recusa o lote
+ * inteiro com "ON CONFLICT DO UPDATE command cannot affect row a second time",
+ * que é o que ele diz quando um único INSERT traz duas linhas que caem na mesma
+ * chave de conflito. E o `/me/playlists` repete mesmo: a paginação é por
+ * offset, então basta uma playlist ser criada ou apagada entre a página 1 e a 2
+ * para um item aparecer nas duas.
+ *
+ * Fica a PRIMEIRA ocorrência: as páginas vêm na ordem do Spotify, e a repetida
+ * é a que foi empurrada pelo deslocamento.
+ *
+ * Pura e exportada para ser testável sem rede nem banco — ver test/spotify-playlists.test.ts.
+ */
+export function linhasDePlaylist(
+  brutas: PlaylistBruta[],
+  userId: string,
+  agora: string,
+): Array<Record<string, unknown>> {
+  const porId = new Map<string, PlaylistBruta>()
+  for (const p of brutas) {
+    if (p?.id && !porId.has(p.id)) porId.set(p.id, p)
+  }
+
+  return [...porId.values()].map(p => ({
+    user_id: userId,
+    spotify_id: p.id,
+    nome: p.name?.trim() || 'Sem nome',
+    descricao: p.description?.trim() || null,
+    capa_url: capaDe(p.images),
+    total_faixas: p.tracks?.total ?? 0,
+    publica: p.public ?? false,
+    colaborativa: p.collaborative ?? false,
+    url_spotify: p.external_urls?.spotify ?? null,
+    sincronizado_em: agora,
+  }))
+}
+
 export async function sincronizarPlaylists(event: H3Event): Promise<number> {
   const userId = await usuarioDaRequisicao(event)
   const acesso = await acessoDoUsuario(event)
   const supabase = await serverSupabaseClient<Database>(event)
 
   const brutas = await todasAsPaginas<PlaylistBruta>('/me/playlists', acesso, 50)
-  const validas = brutas.filter(p => !!p?.id)
+  const linhas = linhasDePlaylist(brutas, userId, new Date().toISOString())
 
-  const agora = new Date().toISOString()
-
-  if (validas.length) {
+  if (linhas.length) {
     const { error } = await supabase
       .from('playlist_spotify')
-      .upsert(
-        validas.map(p => ({
-          user_id: userId,
-          spotify_id: p.id,
-          nome: p.name?.trim() || 'Sem nome',
-          descricao: p.description?.trim() || null,
-          capa_url: capaDe(p.images),
-          total_faixas: p.tracks?.total ?? 0,
-          publica: p.public ?? false,
-          colaborativa: p.collaborative ?? false,
-          url_spotify: p.external_urls?.spotify ?? null,
-          sincronizado_em: agora,
-        })),
-        { onConflict: 'user_id,spotify_id' },
-      )
+      .upsert(linhas as never, { onConflict: 'user_id,spotify_id' })
 
     if (error) throw erroSpotify(500, `Não deu para guardar as playlists: ${error.message}`)
   }
@@ -123,7 +146,7 @@ export async function sincronizarPlaylists(event: H3Event): Promise<number> {
    * e está aqui de propósito: um `delete` que depende só da policy para não
    * apagar demais é um `delete` a uma migration de distância de apagar tudo.
    */
-  const idsVivos = validas.map(p => p.id)
+  const idsVivos = linhas.map(l => l.spotify_id as string)
   const remocao = supabase.from('playlist_spotify').delete().eq('user_id', userId)
   const { error: erroRemocao } = idsVivos.length
     ? await remocao.not('spotify_id', 'in', `(${idsVivos.map(id => `"${id}"`).join(',')})`)
@@ -131,7 +154,7 @@ export async function sincronizarPlaylists(event: H3Event): Promise<number> {
 
   if (erroRemocao) throw erroSpotify(500, `Não deu para limpar as playlists: ${erroRemocao.message}`)
 
-  return validas.length
+  return linhas.length
 }
 
 // ---- As faixas de uma playlist ----------------------------------------------

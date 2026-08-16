@@ -41,6 +41,7 @@ const RECADOS: Record<string, { texto: string, tom: 'ok' | 'erro' }> = {
   'sem-refresh': { texto: 'O Spotify não liberou acesso contínuo. Tente conectar de novo.', tom: 'erro' },
   'falhou': { texto: 'Não deu para conectar o Spotify.', tom: 'erro' },
   'nao-configurado': { texto: 'O Spotify ainda não foi configurado neste ambiente (falta a chave no .env).', tom: 'erro' },
+  'use-loopback': { texto: 'O Spotify não aceita "localhost". Abra o app em http://127.0.0.1:3000 e conecte por lá.', tom: 'erro' },
 }
 
 const route = useRoute()

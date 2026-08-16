@@ -7,7 +7,7 @@
  * assim conectar o Spotify depois — e desconectar o Spotify sem perder a conta.
  */
 import { createHash, randomBytes } from 'node:crypto'
-import { ESCOPOS_SPOTIFY, redirecionamentoSpotify, usuarioDaRequisicao } from '~~/server/utils/spotify-conta'
+import { ESCOPOS_SPOTIFY, ehLoopbackPorNome, redirecionamentoSpotify, usuarioDaRequisicao } from '~~/server/utils/spotify-conta'
 import { credenciaisSpotify } from '~~/server/utils/spotify'
 import { COOKIE_ESTADO, COOKIE_VERIFICADOR, opcoesDoCookie } from '~~/server/utils/spotify-oauth'
 
@@ -32,6 +32,12 @@ export default defineEventHandler(async (event) => {
   }
   catch {
     return sendRedirect(event, '/espacos?spotify=nao-configurado')
+  }
+
+  // Aberto em `localhost`? O Spotify recusaria o redirect_uri lá na frente, numa
+  // tela dele sem volta. Melhor parar aqui e dizer o endereço certo.
+  if (ehLoopbackPorNome(event)) {
+    return sendRedirect(event, '/espacos?spotify=use-loopback')
   }
 
   /*

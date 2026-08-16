@@ -54,6 +54,18 @@ export default defineConfig({
         find: /^\.\/config\.gerado\.js$/,
         replacement: fileURLToPath(new URL('./test/fixtures/config-extensao.js', import.meta.url)),
       },
+
+      /*
+       * `#supabase/server` é um alias virtual que o @nuxtjs/supabase cria no
+       * build do Nitro — fora do Nuxt ele não existe, e qualquer arquivo de
+       * `server/utils/` que o importe morre já na coleta do Vitest, mesmo que o
+       * teste só queira uma função pura dali. O substituto estoura se alguém
+       * chamar de verdade; ver test/fixtures/supabase-server.ts.
+       */
+      {
+        find: '#supabase/server',
+        replacement: fileURLToPath(new URL('./test/fixtures/supabase-server.ts', import.meta.url)),
+      },
     ],
   },
 

@@ -70,6 +70,23 @@ export function redirecionamentoSpotify(event: H3Event): string {
   return `${getRequestURL(event).origin}/api/spotify/auth/callback`
 }
 
+/**
+ * O Spotify não aceita `localhost` — em loopback, só o IP explícito.
+ *
+ * A regra dele é: redirect URI tem que ser https, e a exceção é o endereço de
+ * loopback escrito como número (`127.0.0.1` ou `[::1]`). O nome `localhost` é
+ * recusado mesmo apontando para o mesmo lugar.
+ *
+ * Isso importa porque o `redirect_uri` é montado a partir da origem da
+ * requisição: abrir o app em `http://localhost:3000` manda um endereço que o
+ * Spotify recusa, e o erro aparece só depois do salto, numa página dele que diz
+ * "redirect_uri: Not matching configuration" e não tem caminho de volta.
+ * Barrar antes troca essa tela por uma frase que diz o que fazer.
+ */
+export function ehLoopbackPorNome(event: H3Event): boolean {
+  return getRequestURL(event).hostname === 'localhost'
+}
+
 // ---- A chave que cifra o refresh token --------------------------------------
 
 function chaveDoServidor(event: H3Event): Buffer {
