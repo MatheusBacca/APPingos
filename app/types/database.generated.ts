@@ -1351,6 +1351,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      atualizar_media_item: {
+        Args: { p_dados: Json; p_media: string }
+        Returns: undefined
+      }
       avisar_viagens_proximas: { Args: never; Returns: number }
       can_access_entry: { Args: { p_entry: string }; Returns: boolean }
       can_access_playlist: { Args: { p_playlist: string }; Returns: boolean }

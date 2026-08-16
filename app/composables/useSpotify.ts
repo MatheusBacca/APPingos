@@ -8,8 +8,13 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { MaybeRefOrGetter } from 'vue'
+import type { DetalheMusica } from '~~/server/utils/spotify'
 import type { Database } from '~/types/database.types'
+import type { Json } from '~/types/database.generated'
+import type { ItemDoEspaco } from '~/types/catalogo'
+import { formatoDe } from '~/lib/musica'
 import { useUsuarioId } from '~/composables/useUsuarioId'
+import { useSpaceStore } from '~/stores/space'
 
 export interface IntegracaoSpotify {
   spotify_user_id: string | null
@@ -148,16 +153,140 @@ export function useFaixasDaPlaylist(playlistId: MaybeRefOrGetter<string | null>)
   })
 }
 
-/** Puxa do Spotify a lista de playlists e regrava o snapshot. */
-export function useSincronizarPlaylists() {
+/** Uma playlist como o Spotify a devolve — ainda não está no banco. */
+export interface PlaylistDoSpotify {
+  spotify_id: string
+  nome: string
+  descricao: string | null
+  capa_url: string | null
+  total_faixas: number
+  publica: boolean
+  colaborativa: boolean
+  url_spotify: string | null
+  dono: string | null
+}
+
+/**
+ * Lista as playlists da conta, sem gravar nada.
+ *
+ * `useMutation` e não `useQuery` de propósito: isto é uma AÇÃO que a pessoa
+ * dispara ("listar as minhas"), com custo de rede real e resultado descartável.
+ * Como query, o TanStack a refaria sozinho ao voltar para a aba, gastando cota
+ * do Spotify para encher uma lista que ninguém está olhando.
+ */
+export function useListarPlaylistsDoSpotify() {
+  return useMutation({
+    mutationFn: () => $fetch<{ playlists: PlaylistDoSpotify[] }>('/api/spotify/playlists/minhas'),
+  })
+}
+
+/** Grava no espaço só as playlists escolhidas. */
+export function useSalvarPlaylists() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: () => $fetch<{ total: number }>('/api/spotify/playlists/sincronizar', {
+    mutationFn: (ids: string[]) => $fetch<{ total: number }>('/api/spotify/playlists/salvar', {
+      method: 'POST',
+      body: { ids },
+    }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: CHAVE_PLAYLISTS })
+    },
+  })
+}
+
+/** Recarrega nome, capa e contagem do que já está salvo. */
+export function useAtualizarPlaylists() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () => $fetch<{ total: number }>('/api/spotify/playlists/atualizar', {
       method: 'POST',
     }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: CHAVE_PLAYLISTS })
+    },
+  })
+}
+
+/**
+ * Tira uma playlist do espaço — sem tocar em nada no Spotify.
+ *
+ * Pelo client mesmo: a RLS já garante que só o dono apaga a própria linha, e
+ * as faixas saem junto pelo `on delete cascade`.
+ */
+export function useRemoverPlaylist() {
+  const supabase = useSupabaseClient<Database>()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('playlist_spotify').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: CHAVE_PLAYLISTS })
+    },
+  })
+}
+
+/**
+ * Recarrega no Spotify os itens de música já adicionados ao espaço.
+ *
+ * Uma ida por item, em sequência e não em paralelo: são poucas músicas num
+ * catálogo de casal, e disparar tudo de uma vez é a forma mais fácil de tomar
+ * 429 justamente na ação que a pessoa pediu.
+ *
+ * Passa pela RPC `atualizar_media_item`, e não por `adicionar_item`: aquela
+ * termina inserindo `rating (…, 'quero')`, então recarregar uma música que a
+ * outra pessoa adicionou marcaria você como interessado nela, em silêncio.
+ */
+export function useAtualizarMusicas() {
+  const supabase = useSupabaseClient<Database>()
+  const queryClient = useQueryClient()
+  const store = useSpaceStore()
+
+  return useMutation({
+    mutationFn: async (itens: ItemDoEspaco[]) => {
+      let atualizados = 0
+
+      for (const item of itens) {
+        // Item que não veio do Spotify não tem o que recarregar de lá.
+        if (item.media.fonte !== 'spotify' || !item.media.fonte_id) continue
+
+        const formato = formatoDe(item.media.metadados)
+        const detalhe = await $fetch<DetalheMusica>(
+          `/api/spotify/${formato}/${item.media.fonte_id}`,
+        )
+
+        const { error } = await supabase.rpc('atualizar_media_item', {
+          p_media: item.media.id,
+          p_dados: {
+            titulo: detalhe.titulo,
+            ano: detalhe.ano,
+            capa_url: detalhe.capa_url,
+            metadados: {
+              formato: detalhe.formato,
+              artistas: detalhe.artistas,
+              album: detalhe.album,
+              duracao_ms: detalhe.duracao_ms,
+              url_spotify: detalhe.url_spotify,
+            },
+          } as unknown as Json,
+        })
+        if (error) throw error
+
+        atualizados++
+      }
+
+      return atualizados
+    },
+    onSuccess: async () => {
+      // A chave do catálogo é prefixada pelo espaço (ver useSpaceQuery) —
+      // invalidar só `['catalogo']` não casa com nada e a tela ficaria velha.
+      await queryClient.invalidateQueries({
+        queryKey: ['space', store.espacoAtivoId, 'catalogo'],
+      })
     },
   })
 }

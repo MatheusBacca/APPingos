@@ -187,7 +187,35 @@ export async function chamarSpotify<T>(
       throw erroSpotify(429, 'O Spotify pediu uma pausa — tente de novo em alguns segundos.')
     }
 
-    throw erroSpotify(status === 401 ? 502 : status, 'Falha ao consultar o Spotify')
+    /*
+     * O status e o recurso vão na mensagem de propósito.
+     *
+     * "Falha ao consultar o Spotify" foi o que apareceu na tela quando as
+     * faixas pararam de carregar, e ela não distingue as três causas que se
+     * comportam igual daqui: playlist que o app não pode ler (404), escopo
+     * faltando (403) e serviço fora (5xx). Sem o número não há como saber qual
+     * é sem instrumentar de novo.
+     *
+     * O caminho é só a rota da API — não carrega token nem dado de ninguém.
+     */
+    const recurso = caminho.replace(BASE, '').split('?')[0]
+
+    /*
+     * O motivo que o Spotify dá vai junto.
+     *
+     * Ele responde `{"error":{"status":403,"message":"..."}}`, e é nessa frase
+     * que está a diferença entre "escopo faltando", "recurso restrito para este
+     * app" e "playlist não existe" — todas 403 ou 404 do lado de fora. Sem ela
+     * o diagnóstico vira adivinhação, e foi o que atrasou a investigação das
+     * faixas que não carregavam.
+     */
+    const motivo = (e as { data?: { error?: { message?: string } } })
+      .data?.error?.message
+
+    throw erroSpotify(
+      status === 401 ? 502 : status,
+      `Falha ao consultar o Spotify (${status} em ${recurso})${motivo ? `: ${motivo}` : ''}`,
+    )
   }
 }
 

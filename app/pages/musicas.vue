@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query'
 import { refDebounced } from '@vueuse/core'
-import { PlusIcon, SearchIcon } from '@lucide/vue'
+import { PlusIcon, RefreshCwIcon, SearchIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { mensagemDeErro } from '@/lib/utils'
 import { FORMATO_ROTULO, creditos } from '@/lib/musica'
@@ -12,6 +13,7 @@ import type { ItemDoEspaco, ItemParaAdicionar, StatusItem } from '~/types/catalo
 import { STATUS_ROTULO_MUSICA } from '~/types/catalogo'
 import { useItens, useAdicionarItem, useAvaliar, useRemoverItem } from '~/composables/useCatalogo'
 import { useMembros } from '~/composables/useMembros'
+import { useAtualizarMusicas } from '~/composables/useSpotify'
 import { useUsuarioId } from '~/composables/useUsuarioId'
 
 useHead({ title: 'Músicas · APPingos' })
@@ -120,6 +122,22 @@ const esperandoVoce = computed(() =>
 
 const listaVazia = computed(() => !isPending.value && !(itens.value ?? []).length)
 
+// ---- Recarregar do Spotify --------------------------------------------------
+
+const atualizarMusicas = useAtualizarMusicas()
+
+async function onRecarregar() {
+  try {
+    const total = await atualizarMusicas.mutateAsync(itens.value ?? [])
+    toast.success(total
+      ? `${total} item(ns) recarregado(s) do Spotify.`
+      : 'Nada veio do Spotify para recarregar.')
+  }
+  catch (e) {
+    toast.error(mensagemDeErro(e, 'Não deu para recarregar.'))
+  }
+}
+
 // ---- Avaliar ----------------------------------------------------------------
 
 const salvando = ref(new Set<string>())
@@ -181,11 +199,25 @@ function onRemover(item: ItemDoEspaco) {
 
 <template>
   <div class="space-y-6">
-    <header>
-      <h1 class="text-2xl font-semibold tracking-tight">Músicas</h1>
-      <p class="mt-1 text-sm text-muted-foreground">
-        Álbuns e faixas que valem repetir — com a nota de cada um.
-      </p>
+    <header class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Músicas</h1>
+        <p class="mt-1 text-sm text-muted-foreground">
+          Álbuns e faixas que valem repetir — com a nota de cada um.
+        </p>
+      </div>
+
+      <Button
+        v-if="!listaVazia"
+        variant="outline"
+        size="sm"
+        class="gap-1.5"
+        :disabled="atualizarMusicas.isPending.value"
+        @click="onRecarregar"
+      >
+        <RefreshCwIcon class="size-3.5" :class="atualizarMusicas.isPending.value ? 'animate-spin' : ''" />
+        {{ atualizarMusicas.isPending.value ? 'Recarregando…' : 'Recarregar' }}
+      </Button>
     </header>
 
     <!-- Busca -->

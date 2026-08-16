@@ -43,7 +43,19 @@ const dosOutros = computed(() =>
 
 <template>
   <div class="flex gap-3 rounded-lg border bg-card p-3">
-    <div class="size-16 shrink-0 overflow-hidden rounded-md border bg-muted">
+    <!--
+      Capa e título levam ao Spotify — o ícone de link dedicado saiu.
+      A área clicável para de propósito antes dos controles: nota e status são
+      da pessoa, e um clique neles não pode abrir outra aba.
+    -->
+    <component
+      :is="urlSpotifyDe(metadados) ? 'a' : 'div'"
+      :href="urlSpotifyDe(metadados) ?? undefined"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="size-16 shrink-0 overflow-hidden rounded-md border bg-muted"
+      :aria-label="urlSpotifyDe(metadados) ? `Abrir ${item.media.titulo} no Spotify` : undefined"
+    >
       <img
         v-if="item.media.capa_url"
         :src="item.media.capa_url"
@@ -54,42 +66,41 @@ const dosOutros = computed(() =>
       <div v-else class="grid size-full place-items-center text-muted-foreground">
         <MusicIcon class="size-5" />
       </div>
-    </div>
+    </component>
 
     <div class="min-w-0 flex-1 space-y-2">
       <div class="flex items-start justify-between gap-2">
-        <div class="min-w-0">
-          <p class="truncate text-sm font-medium leading-snug">{{ item.media.titulo }}</p>
+        <component
+          :is="urlSpotifyDe(metadados) ? 'a' : 'div'"
+          :href="urlSpotifyDe(metadados) ?? undefined"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="group min-w-0"
+        >
+          <p class="flex items-center gap-1.5 text-sm font-medium leading-snug">
+            <span class="truncate group-hover:underline">{{ item.media.titulo }}</span>
+            <ExternalLinkIcon
+              v-if="urlSpotifyDe(metadados)"
+              class="size-3 shrink-0 text-muted-foreground"
+            />
+          </p>
           <p class="truncate text-xs text-muted-foreground">{{ legendaDe(item.media) }}</p>
           <p class="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
             {{ FORMATO_ROTULO[formatoDe(metadados)] }}
             <template v-if="duracaoDe(metadados)"> · {{ duracaoDe(metadados) }}</template>
           </p>
-        </div>
+        </component>
 
-        <div class="flex shrink-0 items-center gap-0.5">
-          <a
-            v-if="urlSpotifyDe(metadados)"
-            :href="urlSpotifyDe(metadados)!"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-            :aria-label="`Abrir ${item.media.titulo} no Spotify`"
-          >
-            <ExternalLinkIcon class="size-4" />
-          </a>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            class="size-8 text-muted-foreground hover:text-destructive"
-            :disabled="salvando"
-            :aria-label="`Tirar ${item.media.titulo} da lista`"
-            @click="emit('remover')"
-          >
-            <Trash2Icon class="size-4" />
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          class="size-8 shrink-0 text-muted-foreground hover:text-destructive"
+          :disabled="salvando"
+          :aria-label="`Tirar ${item.media.titulo} da lista`"
+          @click="emit('remover')"
+        >
+          <Trash2Icon class="size-4" />
+        </Button>
       </div>
 
       <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
