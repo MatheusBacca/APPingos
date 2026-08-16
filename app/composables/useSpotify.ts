@@ -7,12 +7,14 @@
  * recorta por espaço é a tela, ao agrupar por membro.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
+import { useDocumentVisibility, useIntervalFn } from '@vueuse/core'
 import type { MaybeRefOrGetter } from 'vue'
 import type { DetalheMusica } from '~~/server/utils/spotify'
 import type { Database } from '~/types/database.types'
 import type { Json } from '~/types/database.generated'
 import type { ItemDoEspaco } from '~/types/catalogo'
 import { formatoDe } from '~/lib/musica'
+import { useSpaceMutation, useSpaceQuery } from '~/composables/useSpaceQuery'
 import { useUsuarioId } from '~/composables/useUsuarioId'
 import { useSpaceStore } from '~/stores/space'
 
@@ -20,6 +22,17 @@ export interface IntegracaoSpotify {
   spotify_user_id: string | null
   escopos: string
   conectado_em: string
+  mostrar_escuta: boolean
+}
+
+/**
+ * Quem conectou antes da fase 3 não concedeu o escopo de "o que está tocando".
+ *
+ * Escopo se concede autorizando, não com um deploy — sem isto a pessoa ligaria
+ * o interruptor e nada aconteceria, sem explicação nenhuma na tela.
+ */
+export function temEscopoDeEscuta(escopos: string | undefined): boolean {
+  return (escopos ?? '').split(/\s+/).includes('user-read-currently-playing')
 }
 
 export interface PlaylistSpotify {
@@ -37,6 +50,17 @@ export interface PlaylistSpotify {
   faixas_sincronizadas_em: string | null
 }
 
+export interface EscutaAgora {
+  user_id: string
+  tocando: boolean
+  titulo: string | null
+  artistas: string | null
+  album: string | null
+  capa_url: string | null
+  url_spotify: string | null
+  atualizado_em: string
+}
+
 export interface FaixaDaPlaylist {
   posicao: number
   spotify_track_id: string
@@ -49,6 +73,8 @@ export interface FaixaDaPlaylist {
 
 const CHAVE_INTEGRACAO = ['spotify', 'integracao']
 const CHAVE_PLAYLISTS = ['spotify', 'playlists']
+const CHAVE_FAVORITAS = ['spotify', 'playlists', 'favoritas']
+const CHAVE_ESCUTA = ['spotify', 'escuta']
 
 /** A sua conexão, ou `null` se você ainda não conectou. */
 export function useIntegracaoSpotify() {
@@ -62,7 +88,7 @@ export function useIntegracaoSpotify() {
       // A RLS já limita à própria linha; o select sem filtro devolve só a sua.
       const { data, error } = await supabase
         .from('integracao_spotify')
-        .select('spotify_user_id, escopos, conectado_em')
+        .select('spotify_user_id, escopos, conectado_em, mostrar_escuta')
         .maybeSingle()
 
       if (error) throw error
@@ -289,6 +315,179 @@ export function useAtualizarMusicas() {
       })
     },
   })
+}
+
+// ---- Favoritas: o que vira "Nossas músicas" ---------------------------------
+
+/**
+ * Os ids das playlists favoritadas NO ESPAÇO ATIVO.
+ *
+ * Só os ids: o dado da playlist já vem em `usePlaylistsSpotify`, e buscar de
+ * novo com join deixaria duas listas para manter em dia. A tela cruza as duas.
+ */
+export function useFavoritasDoEspaco() {
+  const supabase = useSupabaseClient<Database>()
+
+  return useSpaceQuery(CHAVE_FAVORITAS, async (spaceId): Promise<string[]> => {
+    const { data, error } = await supabase
+      .from('playlist_favorita')
+      .select('playlist_id')
+      .eq('space_id', spaceId)
+
+    if (error) throw error
+    return (data ?? []).map(f => f.playlist_id)
+  })
+}
+
+/** Favoritar promove ao topo; desfavoritar só tira do destaque. */
+export function useAlternarFavorita() {
+  const supabase = useSupabaseClient<Database>()
+  const usuarioId = useUsuarioId()
+
+  return useSpaceMutation<{ playlistId: string, favoritar: boolean }, void>(
+    async (spaceId, { playlistId, favoritar }) => {
+      if (favoritar) {
+        const { error } = await supabase.from('playlist_favorita').insert({
+          playlist_id: playlistId,
+          space_id: spaceId,
+          marcada_por: usuarioId.value!,
+        })
+        if (error) throw error
+        return
+      }
+
+      const { error } = await supabase
+        .from('playlist_favorita')
+        .delete()
+        .eq('playlist_id', playlistId)
+        .eq('space_id', spaceId)
+      if (error) throw error
+    },
+    [['spotify', 'playlists', 'favoritas']],
+  )
+}
+
+// ---- O que cada um está ouvindo ---------------------------------------------
+
+export function useEscutaDoEspaco() {
+  const supabase = useSupabaseClient<Database>()
+  const usuarioId = useUsuarioId()
+
+  return useQuery({
+    queryKey: CHAVE_ESCUTA,
+    enabled: computed(() => !!usuarioId.value),
+    queryFn: async (): Promise<EscutaAgora[]> => {
+      // A RLS resolve quem aparece: você, e quem divide espaço com você E
+      // ligou `mostrar_escuta`.
+      const { data, error } = await supabase
+        .from('escuta_agora')
+        .select('user_id, tocando, titulo, artistas, album, capa_url, url_spotify, atualizado_em')
+
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+/**
+ * Liga/desliga o "mostrar o que estou ouvindo".
+ *
+ * Desligar apaga a linha em `escuta_agora` — isso acontece por trigger no
+ * banco, e não aqui, para valer mesmo se alguém desligar por outro caminho.
+ */
+export function useAlternarMostrarEscuta() {
+  const supabase = useSupabaseClient<Database>()
+  const usuarioId = useUsuarioId()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (mostrar: boolean) => {
+      const { error } = await supabase
+        .from('integracao_spotify')
+        .update({ mostrar_escuta: mostrar })
+        .eq('user_id', usuarioId.value!)
+      if (error) throw error
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: CHAVE_INTEGRACAO }),
+        queryClient.invalidateQueries({ queryKey: CHAVE_ESCUTA }),
+      ])
+    },
+  })
+}
+
+/**
+ * Pede ao servidor que pergunte ao Spotify por todo mundo do espaço.
+ *
+ * Quem chama é quem está OLHANDO — é isso que faz o polling existir só
+ * enquanto alguém tem o app aberto. Ver `useEscutaViva`.
+ */
+export function useAtualizarEscuta() {
+  const queryClient = useQueryClient()
+  const store = useSpaceStore()
+
+  return useMutation({
+    mutationFn: () => $fetch<{ total: number }>('/api/spotify/escuta/atualizar', {
+      method: 'POST',
+      body: { space: store.espacoAtivoId },
+    }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: CHAVE_ESCUTA })
+    },
+  })
+}
+
+/**
+ * O polling: só existe enquanto alguém está olhando.
+ *
+ * Três guardas, e as três importam:
+ *
+ *   - **conectado**: sem a sua conta ligada não há a quem perguntar. Quem nunca
+ *     conectou não gera uma única chamada ao Spotify.
+ *   - **aba visível**: `useDocumentVisibility` para o app esquecido numa aba de
+ *     fundo, ou o PWA minimizado no celular, pararem de perguntar. Sem isto o
+ *     "só enquanto alguém olha" viraria "para sempre, depois da primeira visita".
+ *   - **intervalo**: 25s. O rate limit do Spotify é uma janela curta, e a faixa
+ *     mais curta que existe dura minutos — perguntar mais que isso gasta cota
+ *     para mostrar a mesma coisa.
+ *
+ * Não há cron por trás. Ninguém com o app aberto, nenhuma chamada.
+ */
+export function useEscutaViva(intervaloMs = 25_000) {
+  const { data: integracao } = useIntegracaoSpotify()
+  const atualizar = useAtualizarEscuta()
+  const store = useSpaceStore()
+  const visibilidade = useDocumentVisibility()
+
+  const ativo = computed(() =>
+    !!integracao.value && !!store.espacoAtivoId && visibilidade.value === 'visible',
+  )
+
+  async function perguntar() {
+    if (!ativo.value || atualizar.isPending.value) return
+    // Falha aqui é silenciosa de propósito: isto roda sozinho, de fundo, e um
+    // toast de erro a cada 25 segundos por causa de uma queda de rede seria
+    // pior que a informação desatualizada.
+    try {
+      await atualizar.mutateAsync()
+    }
+    catch { /* segue no próximo tique */ }
+  }
+
+  const { pause, resume } = useIntervalFn(perguntar, intervaloMs, { immediate: false })
+
+  watch(ativo, (ligado) => {
+    if (ligado) {
+      // Uma pergunta imediata ao voltar para a aba: esperar 25s para a tela
+      // deixar de mentir seria tempo demais para quem acabou de olhar.
+      perguntar()
+      resume()
+    }
+    else {
+      pause()
+    }
+  }, { immediate: true })
 }
 
 /** Puxa as faixas de UMA playlist — só quando alguém abre. */

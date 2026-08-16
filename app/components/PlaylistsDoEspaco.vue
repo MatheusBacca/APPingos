@@ -23,8 +23,10 @@ import { mensagemDeErro } from '@/lib/utils'
 import type { Membro } from '~/composables/useMembros'
 import type { PlaylistDoSpotify, PlaylistSpotify } from '~/composables/useSpotify'
 import {
+  useAlternarFavorita,
   useAtualizarPlaylists,
   useFaixasDaPlaylist,
+  useFavoritasDoEspaco,
   useIntegracaoSpotify,
   useListarPlaylistsDoSpotify,
   usePlaylistsSpotify,
@@ -39,6 +41,9 @@ const props = defineProps<{ membros: Membro[] }>()
 const euId = useUsuarioId()
 const { data: integracao } = useIntegracaoSpotify()
 const { data: playlists, isPending } = usePlaylistsSpotify()
+
+const { data: favoritas } = useFavoritasDoEspaco()
+const alternarFavorita = useAlternarFavorita()
 
 const listar = useListarPlaylistsDoSpotify()
 const salvar = useSalvarPlaylists()
@@ -60,6 +65,30 @@ const porPessoa = computed(() =>
     lista: (playlists.value ?? []).filter(p => p.user_id === membro.user_id),
   })),
 )
+
+const idsFavoritas = computed(() => new Set(favoritas.value ?? []))
+
+/** As favoritadas, de quem quer que sejam — é o que "Nossas músicas" mostra. */
+const nossas = computed(() =>
+  (playlists.value ?? []).filter(p => idsFavoritas.value.has(p.id)),
+)
+
+function ehMinha(playlist: PlaylistSpotify): boolean {
+  return playlist.user_id === euId.value
+}
+
+async function onFavoritar(playlist: PlaylistSpotify) {
+  const favoritar = !idsFavoritas.value.has(playlist.id)
+  try {
+    await alternarFavorita.mutateAsync({ playlistId: playlist.id, favoritar })
+    toast.success(favoritar
+      ? `"${playlist.nome}" entrou em Nossas músicas.`
+      : `"${playlist.nome}" saiu de Nossas músicas.`)
+  }
+  catch (e) {
+    toast.error(mensagemDeErro(e, 'Não deu para favoritar.'))
+  }
+}
 
 // ---- Escolher o que entra no espaço -----------------------------------------
 
@@ -191,10 +220,10 @@ function duracao(ms: number | null): string {
 <template>
   <section class="space-y-4">
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <h3 class="flex items-center gap-2 text-sm font-medium">
-        <ListMusicIcon class="size-4 text-muted-foreground" />
-        Playlists
-      </h3>
+      <h2 class="flex items-center gap-2 text-lg font-semibold tracking-tight">
+        <ListMusicIcon class="size-5 text-muted-foreground" />
+        Nossas músicas
+      </h2>
 
       <div v-if="integracao" class="flex flex-wrap gap-2">
         <Button
@@ -219,7 +248,32 @@ function duracao(ms: number | null): string {
       <Skeleton v-for="i in 4" :key="i" class="aspect-square w-full rounded-lg" />
     </div>
 
-    <div v-else class="space-y-5">
+    <div v-else class="space-y-6">
+      <!--
+        As favoritadas primeiro: é o que "Nossas músicas" quer dizer. Trazer a
+        playlist para o espaço a torna visível para os dois; favoritar é o
+        segundo gesto, o de dizer que ela é da casa.
+      -->
+      <div v-if="nossas.length" class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+        <PlaylistCard
+          v-for="playlist in nossas"
+          :key="playlist.id"
+          :playlist="playlist"
+          :sou-dono="ehMinha(playlist)"
+          :removendo="remover.isPending.value"
+          favorita
+          @faixas="verFaixas(playlist)"
+          @remover="onRemover(playlist)"
+          @favoritar="onFavoritar(playlist)"
+        />
+      </div>
+      <p v-else class="text-sm text-muted-foreground">
+        Nenhuma favorita ainda — toque na estrela de uma playlist abaixo, sua ou de quem
+        divide o espaço, para trazê-la para cá.
+      </p>
+
+      <h3 class="pt-2 text-sm font-medium">Playlists de cada um</h3>
+
       <div v-for="grupo in porPessoa" :key="grupo.membro.user_id" class="space-y-2">
         <h4 class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {{ grupo.souEu ? 'Suas playlists' : `Playlists de ${grupo.membro.exibicao}` }}
@@ -249,8 +303,10 @@ function duracao(ms: number | null): string {
             :playlist="playlist"
             :sou-dono="grupo.souEu"
             :removendo="remover.isPending.value"
+            :favorita="idsFavoritas.has(playlist.id)"
             @faixas="verFaixas(playlist)"
             @remover="onRemover(playlist)"
+            @favoritar="onFavoritar(playlist)"
           />
         </div>
       </div>
@@ -258,7 +314,13 @@ function duracao(ms: number | null): string {
 
     <!-- As faixas de uma playlist -->
     <Dialog :open="!!aberta" @update:open="aberta = $event ? aberta : null">
-      <DialogContent class="max-h-[85vh] gap-3 sm:max-w-lg">
+      <!--
+        `flex flex-col` porque o DialogContent nasce `grid`: num grid, o
+        `min-h-0 flex-1` da lista não significa nada, a lista cresce além do
+        `max-h` e o excesso fica cortado em vez de rolar. Foi o que quebrou a
+        rolagem das duas caixas.
+      -->
+      <DialogContent class="flex max-h-[85vh] flex-col gap-3 sm:max-w-lg">
         <DialogHeader>
           <DialogTitle class="truncate">{{ aberta?.nome }}</DialogTitle>
           <DialogDescription>
@@ -332,7 +394,7 @@ function duracao(ms: number | null): string {
 
     <!-- Escolher quais entram no espaço -->
     <Dialog :open="escolhendo" @update:open="escolhendo = $event">
-      <DialogContent class="max-h-[85vh] gap-3 sm:max-w-2xl">
+      <DialogContent class="flex max-h-[85vh] flex-col gap-3 sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Quais entram no espaço?</DialogTitle>
           <DialogDescription>

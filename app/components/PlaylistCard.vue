@@ -9,7 +9,7 @@
  * diálogo em vez de expandir no lugar: numa grade, expandir um card empurraria
  * a linha inteira e desalinharia tudo o que vem depois.
  */
-import { ListMusicIcon, MusicIcon, Trash2Icon } from '@lucide/vue'
+import { ListMusicIcon, MusicIcon, StarIcon, Trash2Icon } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import type { PlaylistSpotify } from '~/composables/useSpotify'
 
@@ -18,9 +18,11 @@ const props = defineProps<{
   /** Só o dono tira do espaço e recarrega as faixas. */
   souDono: boolean
   removendo: boolean
+  /** Favoritar é do ESPAÇO: vale para a playlist de qualquer membro. */
+  favorita?: boolean
 }>()
 
-const emit = defineEmits<{ faixas: [], remover: [] }>()
+const emit = defineEmits<{ faixas: [], remover: [], favoritar: [] }>()
 
 const legenda = computed(() => {
   const n = props.playlist.total_faixas
@@ -63,6 +65,21 @@ const legenda = computed(() => {
       que só aparece ao passar o mouse simplesmente não existe lá.
     -->
     <div class="absolute right-1 top-1 flex gap-1">
+      <!--
+        A estrela é o gesto de "isto é nosso": não importa de quem é a
+        playlist, favoritar a promove para "Nossas músicas".
+      -->
+      <button
+        type="button"
+        class="grid size-7 place-items-center rounded-md bg-black/50 backdrop-blur-sm transition-colors hover:bg-black/70"
+        :class="favorita ? 'text-amber-300' : 'text-white'"
+        :aria-label="favorita ? `Tirar ${playlist.nome} de Nossas músicas` : `Favoritar ${playlist.nome}`"
+        :aria-pressed="!!favorita"
+        @click.stop.prevent="emit('favoritar')"
+      >
+        <StarIcon class="size-3.5" :class="favorita ? 'fill-current' : ''" />
+      </button>
+
       <button
         type="button"
         class="grid size-7 place-items-center rounded-md bg-black/50 text-white backdrop-blur-sm transition-colors hover:bg-black/70"

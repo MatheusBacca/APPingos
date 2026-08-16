@@ -20,10 +20,38 @@ import {
 } from '@/components/ui/dialog'
 import { formatarDia } from '@/lib/datas'
 import { mensagemDeErro } from '@/lib/utils'
-import { useDesconectarSpotify, useIntegracaoSpotify } from '~/composables/useSpotify'
+import {
+  temEscopoDeEscuta,
+  useAlternarMostrarEscuta,
+  useDesconectarSpotify,
+  useIntegracaoSpotify,
+} from '~/composables/useSpotify'
 
 const { data: integracao, isPending } = useIntegracaoSpotify()
 const desconectar = useDesconectarSpotify()
+const alternarEscuta = useAlternarMostrarEscuta()
+
+/**
+ * Quem conectou antes da fase 3 não concedeu `user-read-currently-playing`.
+ *
+ * Escopo se concede autorizando de novo — não chega num deploy. Sem este aviso
+ * a pessoa ligaria o interruptor e nada apareceria, sem explicação nenhuma.
+ */
+const faltaEscopo = computed(() =>
+  !!integracao.value && !temEscopoDeEscuta(integracao.value.escopos),
+)
+
+async function onAlternarEscuta(mostrar: boolean) {
+  try {
+    await alternarEscuta.mutateAsync(mostrar)
+    toast.success(mostrar
+      ? 'Quem divide o espaço com você passa a ver o que você está ouvindo.'
+      : 'Pronto — ninguém mais vê o que você está ouvindo.')
+  }
+  catch (e) {
+    toast.error(mensagemDeErro(e, 'Não deu para mudar.'))
+  }
+}
 
 const confirmando = ref(false)
 
@@ -105,6 +133,35 @@ async function onDesconectar() {
           <UnplugIcon class="size-4" />
           Desconectar
         </Button>
+      </div>
+
+      <!--
+        Interruptor separado, e nascendo desligado: conectar a conta serve para
+        as playlists. Dizer o que está tocando agora é outra permissão, e
+        assumi-la junto seria decidir pela pessoa.
+      -->
+      <div v-if="integracao" class="mt-4 border-t pt-4">
+        <label class="flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            class="mt-0.5 size-4 shrink-0 accent-primary"
+            :checked="integracao.mostrar_escuta"
+            :disabled="faltaEscopo || alternarEscuta.isPending.value"
+            @change="onAlternarEscuta(($event.target as HTMLInputElement).checked)"
+          >
+          <span class="text-sm">
+            Mostrar o que estou ouvindo
+            <span class="block text-xs text-muted-foreground">
+              Aparece na barra lateral de quem divide o espaço com você, enquanto o app
+              estiver aberto. Nada fica guardado depois que a música passa.
+            </span>
+          </span>
+        </label>
+
+        <p v-if="faltaEscopo" class="mt-2 text-xs text-destructive">
+          Você conectou antes desta função existir. Clique em Desconectar e conecte de novo
+          para autorizar a leitura do que está tocando.
+        </p>
       </div>
 
       <div v-else class="flex flex-wrap items-center justify-between gap-3">

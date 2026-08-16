@@ -54,6 +54,9 @@ const classeLink = computed(() => aberta.value ? 'px-3' : 'justify-center px-0')
 
     <SpaceSwitcher :compacto="!aberta" />
 
+    <!-- Logo abaixo do espaço: é de quem está nele que a linha fala. -->
+    <EscutaDosMembros :compacto="!aberta" class="mt-2" />
+
     <Separator class="my-2" />
 
     <nav class="flex flex-1 flex-col gap-0.5 overflow-y-auto" aria-label="Módulos">

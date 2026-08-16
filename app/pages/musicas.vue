@@ -284,20 +284,18 @@ function onRemover(item: ItemDoEspaco) {
     </section>
 
     <!--
-      "Nossas músicas" é o guarda-chuva do módulo: primeiro as playlists
-      (agrupadas por pessoa), depois o catálogo. É a ordem de quem chega
-      querendo ouvir algo — a playlist é o atalho, a faixa avulsa é o detalhe.
+      A ordem do módulo: "Nossas músicas" (as playlists favoritadas), depois as
+      playlists de cada um, e por fim as músicas soltas. É a ordem de quem chega
+      querendo ouvir algo — o destaque primeiro, a faixa avulsa por último.
     -->
     <section v-if="!buscando" class="space-y-8">
-      <h2 class="text-lg font-semibold tracking-tight">Nossas músicas</h2>
-
       <PlaylistsDoEspaco :membros="membros ?? []" />
 
       <section class="space-y-5">
-        <h3 class="flex items-center gap-2 text-sm font-medium">
-          <MusicIcon class="size-4 text-muted-foreground" />
-          Músicas
-        </h3>
+        <h2 class="flex items-center gap-2 text-lg font-semibold tracking-tight">
+          <MusicIcon class="size-5 text-muted-foreground" />
+          Músicas soltas
+        </h2>
 
         <div v-if="isPending" class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
           <Skeleton v-for="i in 4" :key="i" class="aspect-square w-full rounded-lg" />

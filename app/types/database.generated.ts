@@ -316,6 +316,48 @@ export type Database = {
           },
         ]
       }
+      escuta_agora: {
+        Row: {
+          album: string | null
+          artistas: string | null
+          atualizado_em: string
+          capa_url: string | null
+          duracao_ms: number | null
+          progresso_ms: number | null
+          spotify_track_id: string | null
+          titulo: string | null
+          tocando: boolean
+          url_spotify: string | null
+          user_id: string
+        }
+        Insert: {
+          album?: string | null
+          artistas?: string | null
+          atualizado_em?: string
+          capa_url?: string | null
+          duracao_ms?: number | null
+          progresso_ms?: number | null
+          spotify_track_id?: string | null
+          titulo?: string | null
+          tocando?: boolean
+          url_spotify?: string | null
+          user_id: string
+        }
+        Update: {
+          album?: string | null
+          artistas?: string | null
+          atualizado_em?: string
+          capa_url?: string | null
+          duracao_ms?: number | null
+          progresso_ms?: number | null
+          spotify_track_id?: string | null
+          titulo?: string | null
+          tocando?: boolean
+          url_spotify?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       foto: {
         Row: {
           aprovada_em: string | null
@@ -406,6 +448,7 @@ export type Database = {
           atualizado_em: string
           conectado_em: string
           escopos: string
+          mostrar_escuta: boolean
           refresh_cifrado: string
           spotify_user_id: string | null
           user_id: string
@@ -414,6 +457,7 @@ export type Database = {
           atualizado_em?: string
           conectado_em?: string
           escopos?: string
+          mostrar_escuta?: boolean
           refresh_cifrado: string
           spotify_user_id?: string | null
           user_id: string
@@ -422,6 +466,7 @@ export type Database = {
           atualizado_em?: string
           conectado_em?: string
           escopos?: string
+          mostrar_escuta?: boolean
           refresh_cifrado?: string
           spotify_user_id?: string | null
           user_id?: string
@@ -1003,6 +1048,42 @@ export type Database = {
           },
         ]
       }
+      playlist_favorita: {
+        Row: {
+          created_at: string
+          marcada_por: string
+          playlist_id: string
+          space_id: string
+        }
+        Insert: {
+          created_at?: string
+          marcada_por: string
+          playlist_id: string
+          space_id: string
+        }
+        Update: {
+          created_at?: string
+          marcada_por?: string
+          playlist_id?: string
+          space_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playlist_favorita_playlist_id_fkey"
+            columns: ["playlist_id"]
+            isOneToOne: false
+            referencedRelation: "playlist_spotify"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "playlist_favorita_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       playlist_spotify: {
         Row: {
           capa_url: string | null
@@ -1463,6 +1544,10 @@ export type Database = {
         }
         Returns: string
       }
+      registrar_escuta: {
+        Args: { p_dados: Json; p_user: string }
+        Returns: undefined
+      }
       registrar_interesse: {
         Args: {
           p_destino?: string
@@ -1509,6 +1594,7 @@ export type Database = {
         Returns: boolean
       }
       status_do_email: { Args: never; Returns: Json }
+      token_de_escuta: { Args: { p_user: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never

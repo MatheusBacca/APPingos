@@ -27,7 +27,24 @@ import { credenciaisSpotify, erroSpotify, pedirTokenSpotify } from '~~/server/ut
  * já existe no Spotify e não escreve nada lá (ver o plano). Pedir escopo de
  * escrita "para depois" seria pedir à pessoa uma permissão que o app não usa.
  */
-export const ESCOPOS_SPOTIFY = 'playlist-read-private playlist-read-collaborative'
+export const ESCOPOS_SPOTIFY = [
+  'playlist-read-private',
+  'playlist-read-collaborative',
+  // Fase 3: só LER o que está tocando. `user-modify-playback-state` (pausar,
+  // pular) fica de fora de propósito — é um poder que ninguém pediu.
+  'user-read-currently-playing',
+].join(' ')
+
+/**
+ * Quem conectou antes da fase 3 não tem o escopo de "o que está tocando".
+ *
+ * O escopo é concedido na hora de autorizar; ele não aparece sozinho num
+ * deploy. Sem esta checagem a pessoa ligaria o interruptor de transmitir e
+ * nada aconteceria, sem nenhuma explicação na tela.
+ */
+export function temEscopoDeEscuta(escopos: string): boolean {
+  return escopos.split(/\s+/).includes('user-read-currently-playing')
+}
 
 interface RespostaToken {
   access_token: string
@@ -123,6 +140,49 @@ export async function guardarConexao(
 }
 
 /**
+ * Decifra um refresh token guardado e troca por um access token.
+ *
+ * Separado de `acessoDoUsuario` porque a fase 3 precisa fazer isso para OUTRA
+ * pessoa: quem está olhando a tela pergunta o now-playing de quem autorizou, e
+ * o token daquela pessoa chega pela RPC `token_de_escuta` — já cifrado, e sem
+ * passar pela RLS da própria linha.
+ *
+ * Devolve também o refresh original, porque quem chama precisa saber se o
+ * Spotify devolveu um diferente para guardar no lugar.
+ */
+export async function trocarCifradoPorAcesso(
+  event: H3Event,
+  cifrado: string,
+): Promise<{ refresh: string, resposta: RespostaToken }> {
+  let refresh: string
+  try {
+    refresh = decifrar(chaveDoServidor(event), cifrado)
+  }
+  catch {
+    // Acontece se NUXT_SPOTIFY_TOKEN_SECRET mudou depois de alguém conectar: o
+    // que está guardado deixa de abrir. Reconectar reescreve a linha com a
+    // chave nova, e é a única saída — por isso a mensagem manda fazer isso em
+    // vez de falar em criptografia.
+    throw erroSpotify(409, 'A conexão com o Spotify expirou — conecte de novo.')
+  }
+
+  // Fora do try pelo mesmo motivo de sempre: o 503 de segredo ausente não pode
+  // virar "autorização revogada".
+  credenciaisSpotify(event)
+
+  try {
+    const resposta = await pedirTokenSpotify<RespostaToken>(event, {
+      grant_type: 'refresh_token',
+      refresh_token: refresh,
+    })
+    return { refresh, resposta }
+  }
+  catch {
+    throw erroSpotify(409, 'O Spotify recusou a conexão — conecte a sua conta de novo.')
+  }
+}
+
+/**
  * Um access token válido para a pessoa da requisição.
  *
  * Sem cache: o access token vale ~1h, mas na Vercel cada instância vive pouco e
@@ -142,33 +202,7 @@ export async function acessoDoUsuario(event: H3Event): Promise<string> {
   if (!data) throw erroSpotify(409, 'Conecte a sua conta do Spotify primeiro.')
 
   const chave = chaveDoServidor(event)
-
-  let refresh: string
-  try {
-    refresh = decifrar(chave, data.refresh_cifrado)
-  }
-  catch {
-    // Acontece se NUXT_SPOTIFY_TOKEN_SECRET mudou depois de alguém conectar: o
-    // que está guardado deixa de abrir. Reconectar reescreve a linha com a
-    // chave nova, e é a única saída — por isso a mensagem manda fazer isso em
-    // vez de falar em criptografia.
-    throw erroSpotify(409, 'A conexão com o Spotify expirou — conecte de novo.')
-  }
-
-  // Fora do try pelo mesmo motivo de sempre: o 503 de segredo ausente não pode
-  // virar "autorização revogada".
-  credenciaisSpotify(event)
-
-  let resposta: RespostaToken
-  try {
-    resposta = await pedirTokenSpotify<RespostaToken>(event, {
-      grant_type: 'refresh_token',
-      refresh_token: refresh,
-    })
-  }
-  catch {
-    throw erroSpotify(409, 'O Spotify recusou a conexão — conecte a sua conta de novo.')
-  }
+  const { refresh, resposta } = await trocarCifradoPorAcesso(event, data.refresh_cifrado)
 
   /*
    * O Spotify PODE devolver um refresh token novo e aposentar o antigo. Não é
