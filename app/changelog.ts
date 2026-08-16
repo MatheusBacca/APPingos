@@ -48,6 +48,12 @@ export interface Lancamento {
  */
 export const LANCAMENTOS: Lancamento[] = [
   {
+    versao: '1.2.0',
+    titulo: 'Músicas, com o Spotify de cada um',
+    descricao: 'O módulo Músicas estreia: busquem faixas e álbuns e avaliem juntos, tragam as playlists de cada um para o espaço e favoritem as que são de vocês. Com a conta conectada, dá para ver na barra lateral o que a outra pessoa está ouvindo agora.',
+    data: '2026-08-16',
+  },
+  {
     versao: '1.1.0',
     titulo: 'Interesses que se comparam por conjunto',
     descricao: 'Um interesse agora tem saídas possíveis — produtos que só valem juntos —, e a comparação é entre elas: dá para juntar e separar produtos arrastando, compartilhar o interesse com o espaço, e escolher na extensão quais preços reler.',
