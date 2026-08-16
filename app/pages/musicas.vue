@@ -201,7 +201,7 @@ function onRemover(item: ItemDoEspaco) {
       </div>
 
       <template v-if="buscando">
-        <div v-if="busca.isPending.value" class="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-6">
+        <div v-if="busca.isPending.value" class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
           <Skeleton v-for="i in 6" :key="i" class="aspect-square w-full rounded-lg" />
         </div>
 
@@ -213,7 +213,12 @@ function onRemover(item: ItemDoEspaco) {
           Nada encontrado para "{{ termoDebounced }}".
         </p>
 
-        <div v-else class="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-6">
+        <!--
+          Menos colunas que em Filmes de propósito: capa de disco é quadrada, e
+          num card estreito o botão de adicionar fica mais alto que a própria
+          capa. Cartaz 2:3 aguenta seis colunas; capa 1:1, não.
+        -->
+        <div v-else class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
           <PosterCard
             v-for="resultado in busca.data.value"
             :key="`${resultado.formato}:${resultado.fonte_id}`"
