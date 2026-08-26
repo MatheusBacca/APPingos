@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CalendarIcon, LockIcon, MapPinIcon, SparklesIcon } from '@lucide/vue'
+import { BookHeartIcon, CalendarIcon, LockIcon, MapPinIcon, SparklesIcon } from '@lucide/vue'
 import { formatarDiaCurto } from '@/lib/datas'
 import type { RoteiroNaLista } from '~/composables/useRoteiros'
 import { MODOS_TRANSPORTE } from '~/types/viagem'
@@ -7,6 +7,14 @@ import { MODOS_TRANSPORTE } from '~/types/viagem'
 const props = defineProps<{
   roteiro: RoteiroNaLista
   novo?: boolean
+  /**
+   * A viagem já tem memória fechada.
+   *
+   * Vem de fora porque a lista consulta as memórias do espaço de uma vez
+   * (`useMemoriasDoEspaco`) — trinta cards perguntando um por um seria o mesmo
+   * erro que a assinatura em lote de fotos evita.
+   */
+  comMemoria?: boolean
 }>()
 
 const modo = computed(() =>
@@ -43,6 +51,19 @@ const periodo = computed(() => {
         >
           <SparklesIcon class="size-3" />
           Novo
+        </span>
+
+        <!--
+          O selo da memória fechada. Discreto de propósito: ele não pede nada,
+          só conta que aquela viagem virou documento.
+        -->
+        <span
+          v-if="comMemoria"
+          class="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+          title="Esta viagem tem memória fechada"
+        >
+          <BookHeartIcon class="size-3" />
+          Memória
         </span>
       </span>
     </div>

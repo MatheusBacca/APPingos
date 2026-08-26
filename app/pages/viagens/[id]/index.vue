@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { mensagemDeErro } from '@/lib/utils'
 import { watchDebounced } from '@vueuse/core'
-import { LockIcon, PencilIcon, Trash2Icon } from '@lucide/vue'
+import { BookHeartIcon, LockIcon, NotebookPenIcon, PencilIcon, Trash2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatarDiaCurto } from '@/lib/datas'
+import { formatarDiaCurto, hojeIso } from '@/lib/datas'
 import type { LugarDaParada, ParadaParaSalvar, RecorteDeDia } from '~/types/viagem'
 import type { RoteiroParaSalvar } from '~/composables/useRoteiros'
-import { MODOS_TRANSPORTE, paradasDoRecorte, paradasOrdenadas } from '~/types/viagem'
+import { MODOS_TRANSPORTE, jaPassou, paradasDoRecorte, paradasOrdenadas } from '~/types/viagem'
+import { useMemoria } from '~/composables/useMemoria'
 import {
   paraSalvar,
   useApagarRoteiro,
@@ -41,6 +42,18 @@ useHead({
 
 const souOCriador = computed(() => roteiro.value?.criado_por === usuarioId.value)
 const secreto = computed(() => roteiro.value?.visibilidade === 'segredo')
+
+/*
+ * A viagem acabou — e o módulo continua.
+ *
+ * `jaPassou` é a MESMA função que o cron reproduz em SQL
+ * (`avisar_viagens_concluidas`), de propósito: tela e banco precisam concordar
+ * sobre o que "acabou" quer dizer, senão o convite chega por e-mail e a página
+ * não oferece o botão que ele promete.
+ */
+const { data: memoria } = useMemoria(roteiroId)
+
+const passou = computed(() => !!roteiro.value && jaPassou(roteiro.value, hojeIso()))
 
 /*
  * Abrir É a leitura. Dispara uma vez, quando o roteiro chega, e falha em
@@ -332,6 +345,37 @@ async function onApagar() {
         </p>
         <Button size="sm" :disabled="liberar.isPending.value" @click="onLiberar">
           {{ liberar.isPending.value ? 'Liberando…' : 'Liberar' }}
+        </Button>
+      </section>
+
+      <!--
+        A faixa da memória. Só aparece depois que a viagem terminou: antes disso
+        o roteiro é um plano, e não há o que lembrar ainda.
+      -->
+      <section
+        v-if="passou"
+        class="flex flex-wrap items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 p-3"
+      >
+        <component :is="memoria?.concluida_em ? BookHeartIcon : NotebookPenIcon" class="size-5 shrink-0 text-primary" />
+
+        <p class="min-w-0 flex-1 text-sm">
+          <template v-if="memoria?.concluida_em">
+            A memória desta viagem está fechada — e pronta para baixar em folhas A4.
+          </template>
+          <template v-else-if="memoria">
+            Vocês começaram a memória desta viagem. Ela fica guardada aqui.
+          </template>
+          <template v-else>
+            Esta viagem já aconteceu. Contem como foi — a memória de vocês fica guardada aqui.
+          </template>
+        </p>
+
+        <Button as-child size="sm" :variant="memoria?.concluida_em ? 'outline' : 'default'">
+          <NuxtLink :to="`/viagens/${roteiroId}/memoria`">
+            <template v-if="memoria?.concluida_em">Ver a memória</template>
+            <template v-else-if="memoria">Continuar a memória</template>
+            <template v-else>Gerar memória da viagem</template>
+          </NuxtLink>
         </Button>
       </section>
 

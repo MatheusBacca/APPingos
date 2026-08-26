@@ -32,6 +32,8 @@ export type TipoNotificacao =
   | 'roteiro_liberado'
   | 'roteiro_editado'
   | 'viagem_perto'
+  | 'viagem_terminou'
+  | 'memoria_pronta'
   | 'interesse_novo'
   | 'marcado_assistiu'
   | 'lembrete_filmes'
@@ -218,6 +220,39 @@ export function textoDaNotificacao(n: Notificacao): TextoNotificacao {
         corpo: dataDaViagem(d),
         rota: n.rota ?? '/viagens',
         icone: 'PlaneIcon',
+      }
+    }
+
+    /*
+      A viagem acabou ontem, e o módulo continua.
+
+      É o único aviso do app que PEDE alguma coisa em vez de contar — e por isso
+      o corpo diz o que se ganha ao atender, não o que se deve fazer. Nasce no
+      cron, sem ator: "acabou" aconteceu para os dois, inclusive para quem montou
+      o roteiro.
+    */
+    case 'viagem_terminou':
+      return {
+        titulo: `A viagem ${texto(d, 'nome', 'de vocês')} acabou`,
+        corpo: 'Contem como foi — a memória de vocês fica guardada aqui.',
+        rota: n.rota ?? '/viagens',
+        icone: 'NotebookPenIcon',
+      }
+
+    /*
+      O par fechado, como em `foto_aprovada`: o documento existe e está pronto
+      para baixar. A nota entra no corpo quando houver — ela é a única coisa da
+      memória que cabe numa linha.
+    */
+    case 'memoria_pronta': {
+      const nota = Number(d.nota)
+      return {
+        titulo: `${quem} fechou a memória de ${texto(d, 'nome', 'uma viagem')}`,
+        corpo: Number.isFinite(nota) && nota > 0
+          ? `A viagem levou ${nota} de 5. O documento está pronto para baixar.`
+          : 'O documento está pronto para baixar.',
+        rota: n.rota ?? '/viagens',
+        icone: 'BookHeartIcon',
       }
     }
 
@@ -446,12 +481,16 @@ export type CategoriaNotificacao =
   | 'app'
 
 /**
- * Catorze tipos em sete interruptores.
+ * Dezesseis tipos em sete interruptores.
  *
- * A tabela do banco é por TIPO, e a tela é por CATEGORIA: uma caixa com catorze
- * chaves é uma caixa que ninguém configura. O agrupamento vive aqui, e não numa
- * coluna, para poder mudar sem migration no dia em que "Edições" precisar ser
- * partida ao meio.
+ * A tabela do banco é por TIPO, e a tela é por CATEGORIA: uma caixa com
+ * dezesseis chaves é uma caixa que ninguém configura. O agrupamento vive aqui, e
+ * não numa coluna, para poder mudar sem migration no dia em que "Edições"
+ * precisar ser partida ao meio.
+ *
+ * `viagem_terminou` fica em Lembretes, e não em Viagens: ele é "a data chegou",
+ * irmão de `viagem_perto`, e nasce do mesmo cron. Quem desliga os lembretes está
+ * desligando o app que cutuca pelo calendário — e é essa a expectativa.
  *
  * "Novidades do app" é a última de propósito: é a categoria menos frequente
  * (algumas por mês, contra várias por dia das outras) e a única que não fala de
@@ -459,11 +498,11 @@ export type CategoriaNotificacao =
  */
 export const TIPOS_DA_CATEGORIA: Record<CategoriaNotificacao, TipoNotificacao[]> = {
   orcamentos: ['gasto_novo', 'mes_fechado'],
-  viagens: ['roteiro_novo', 'roteiro_liberado'],
+  viagens: ['roteiro_novo', 'roteiro_liberado', 'memoria_pronta'],
   filmes: ['interesse_novo', 'marcado_assistiu'],
   fotos: ['foto_nova', 'foto_aprovada'],
   edicoes: ['gasto_editado', 'gasto_removido', 'roteiro_editado'],
-  lembretes: ['lembrete_filmes', 'viagem_perto'],
+  lembretes: ['lembrete_filmes', 'viagem_perto', 'viagem_terminou'],
   app: ['app_atualizado'],
 }
 
@@ -481,11 +520,11 @@ export const CATEGORIA_ROTULO: Record<CategoriaNotificacao, string> = {
 
 export const CATEGORIA_DESCRICAO: Record<CategoriaNotificacao, string> = {
   orcamentos: 'Gastos novos e o mês acertado.',
-  viagens: 'Roteiro novo e surpresa revelada.',
+  viagens: 'Roteiro novo, surpresa revelada e a memória da viagem fechada.',
   filmes: 'Interesse novo e quando marcam que você assistiu.',
   fotos: 'Foto nova esperando o seu coração, e quando os dois curtiram.',
   edicoes: 'Quando o outro mexe ou apaga algo que já existia.',
-  lembretes: 'Domingo de filmes e a viagem que se aproxima.',
+  lembretes: 'Domingo de filmes, a viagem que se aproxima e a que acabou de terminar.',
   app: 'Quando uma versão nova entra no ar, com o que ela trouxe.',
 }
 

@@ -73,10 +73,27 @@ export function useFotos() {
  * lista, não os arquivos) não refaz as assinaturas, e mandar uma foto nova refaz.
  */
 export function useUrlsDasFotos(fotos: MaybeRefOrGetter<Foto[]>) {
+  return useUrlsDosCaminhos(computed(() => toValue(fotos).map(f => f.caminho)))
+}
+
+/**
+ * O mesmo, a partir dos CAMINHOS crus.
+ *
+ * Existe porque a memória da viagem também desenha fotos, e o que ela guarda é o
+ * `caminho` — `foto_id` é `on delete set null` ali, justamente para o documento
+ * sobreviver à remoção da linha do mural. Ela não tem `Foto[]` para oferecer, e
+ * inventar objetos falsos só para caber na assinatura seria pior.
+ *
+ * A renovação, a validade e o cuidado com a assinatura que falha sozinha ficam
+ * num lugar só — é o ponto de a função existir.
+ */
+export function useUrlsDosCaminhos(caminhosBrutos: MaybeRefOrGetter<string[]>) {
   const supabase = useSupabaseClient()
   const store = useSpaceStore()
 
-  const caminhos = computed(() => toValue(fotos).map(f => f.caminho).sort())
+  // Ordenados e sem repetição: a chave da query são eles, e a mesma foto em dois
+  // dias da memória não pode virar duas assinaturas do mesmo arquivo.
+  const caminhos = computed(() => [...new Set(toValue(caminhosBrutos))].sort())
 
   return useQuery({
     queryKey: computed(() => ['space', store.espacoAtivoId, 'fotos', 'urls', caminhos.value.join('|')]),
@@ -111,6 +128,15 @@ export interface ResultadoDoEnvio {
   enviadas: number
   /** Uma frase por arquivo que não subiu — a tela as mostra sem esconder o resto. */
   falhas: string[]
+  /**
+   * O que de fato entrou, com id e caminho.
+   *
+   * A galeria não precisa disso — ela recarrega a lista e pronto. Quem precisa é
+   * a memória da viagem: lá o envio acontece DENTRO do seletor de fotos, e a
+   * foto tem que ser anexada à seção no mesmo gesto. Sem os ids de volta, a
+   * alternativa seria recarregar a galeria e adivinhar as N mais recentes.
+   */
+  criadas: { id: string, caminho: string }[]
 }
 
 /**
@@ -177,17 +203,17 @@ export function useEnviarFotos() {
       }))
 
       const linhas = subidas.filter(l => l !== null)
-      if (!linhas.length) return { enviadas: 0, falhas }
+      if (!linhas.length) return { enviadas: 0, falhas, criadas: [] }
 
-      const { error } = await supabase.from('foto').insert(linhas)
+      const { data, error } = await supabase.from('foto').insert(linhas).select('id, caminho')
 
       if (error) {
         // As linhas não entraram, mas os arquivos estão no bucket. Órfãos, e é o
         // lado certo de falhar: ninguém vê, e o próximo envio não é afetado.
-        return { enviadas: 0, falhas: [...falhas, error.message] }
+        return { enviadas: 0, falhas: [...falhas, error.message], criadas: [] }
       }
 
-      return { enviadas: linhas.length, falhas }
+      return { enviadas: linhas.length, falhas, criadas: data ?? [] }
     },
     [['fotos']],
   )

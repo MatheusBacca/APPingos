@@ -4,6 +4,32 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
+  A única fonte customizada do app, e ela existe para um lugar só: o papel da
+  memória da viagem (`MemoriaPapel.vue`). Nenhuma outra tela muda.
+
+  SELF-HOSPEDADA, e não `@nuxt/fonts` nem link para o CDN do Google, porque o app
+  é um PWA offline-first: uma fonte buscada na rede simplesmente não aparece no
+  documento de quem abriu o app sem sinal — e o documento é justamente a tela que
+  a pessoa vai querer mostrar para alguém. `woff2` já está nos `globPatterns` do
+  Workbox (ver nuxt.config.ts), então o arquivo entra no precache sozinho.
+
+  O arquivo é o subset `latin` da Caveat v23 (SIL OFL), que cobre U+0000–00FF —
+  toda a acentuação do pt-BR mora ali. É uma fonte VARIÁVEL no eixo de peso, daí
+  o `font-weight: 400 700` num `@font-face` só, em vez de dois arquivos.
+
+  `swap` porque o texto tem que ser legível antes de a fonte chegar. Numa
+  impressão isso importa em dobro: o diálogo de impressão do navegador não espera
+  fonte nenhuma.
+*/
+@font-face {
+  font-family: 'Caveat';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fontes/caveat.woff2') format('woff2');
+}
+
+/*
   Base neutra do shadcn-vue com o "primary" trocado por um teal — pingos d'água.
   Alterar a identidade do app é mexer só em --primary / --ring / --sidebar-primary.
 */
@@ -99,6 +125,13 @@
 }
 
 @theme inline {
+  /*
+    Produz o utilitário `font-manuscrita`, usado SÓ dentro de `MemoriaPapel.vue`.
+    A pilha de fallback é real: sem a Caveat, `ui-serif` e `cursive` ainda
+    entregam algo que não é a fonte da interface — que é o ponto do papel.
+  */
+  --font-manuscrita: 'Caveat', ui-serif, cursive;
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -168,4 +201,41 @@
 
 @utility h-safe-bottom {
   height: env(safe-area-inset-bottom);
+}
+
+/*
+  A impressão — o "PDF" da memória da viagem.
+
+  Não há biblioteca por trás: o botão "Baixar PDF" chama `window.print()` e nada
+  mais. É o que preserva texto selecionável e imagens na resolução original, e —
+  o motivo decisivo — é o que faz as capas do Spotify (`i.scdn.co`, que não manda
+  cabeçalho de CORS) aparecerem. Um `html2canvas` precisaria ler os pixels delas,
+  e o canvas contaminado devolveria retângulos vazios sem um proxy novo.
+
+  `print-color-adjust: exact` NÃO é detalhe. Sem ele o navegador descarta o fundo
+  de papel, as linhas do caderno e as fitas adesivas por serem "cor de fundo", e
+  o PDF sai como texto solto numa folha branca — que é exatamente o documento que
+  ninguém queria.
+
+  Quem esconde a navegação são os utilitários `print:hidden` do Tailwind, nos
+  componentes. Nada de seletor frágil aqui em cima tentando adivinhar a estrutura
+  do shell.
+*/
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  html,
+  body {
+    background: white;
+    /* O fundo escuro do tema não pode vazar para o papel. */
+    color: #1c1917;
+  }
+
+  .folha {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
 }

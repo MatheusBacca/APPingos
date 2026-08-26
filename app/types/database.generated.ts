@@ -794,6 +794,171 @@ export type Database = {
           },
         ]
       }
+      memoria: {
+        Row: {
+          concluida_em: string | null
+          created_at: string
+          criada_por: string
+          id: string
+          nota: number | null
+          roteiro_id: string
+          updated_at: string
+        }
+        Insert: {
+          concluida_em?: string | null
+          created_at?: string
+          criada_por: string
+          id?: string
+          nota?: number | null
+          roteiro_id: string
+          updated_at?: string
+        }
+        Update: {
+          concluida_em?: string | null
+          created_at?: string
+          criada_por?: string
+          id?: string
+          nota?: number | null
+          roteiro_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memoria_roteiro_id_fkey"
+            columns: ["roteiro_id"]
+            isOneToOne: true
+            referencedRelation: "roteiro"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      memoria_item: {
+        Row: {
+          caminho: string | null
+          capa_url: string | null
+          created_at: string
+          foto_id: string | null
+          id: string
+          legenda: string | null
+          memoria_id: string
+          ordem: number
+          playlist_id: string | null
+          secao_id: string | null
+          spotify_id: string | null
+          subtitulo: string | null
+          tipo: string
+          titulo: string | null
+          url_spotify: string | null
+        }
+        Insert: {
+          caminho?: string | null
+          capa_url?: string | null
+          created_at?: string
+          foto_id?: string | null
+          id?: string
+          legenda?: string | null
+          memoria_id: string
+          ordem?: number
+          playlist_id?: string | null
+          secao_id?: string | null
+          spotify_id?: string | null
+          subtitulo?: string | null
+          tipo: string
+          titulo?: string | null
+          url_spotify?: string | null
+        }
+        Update: {
+          caminho?: string | null
+          capa_url?: string | null
+          created_at?: string
+          foto_id?: string | null
+          id?: string
+          legenda?: string | null
+          memoria_id?: string
+          ordem?: number
+          playlist_id?: string | null
+          secao_id?: string | null
+          spotify_id?: string | null
+          subtitulo?: string | null
+          tipo?: string
+          titulo?: string | null
+          url_spotify?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memoria_item_foto_id_fkey"
+            columns: ["foto_id"]
+            isOneToOne: false
+            referencedRelation: "foto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memoria_item_memoria_id_fkey"
+            columns: ["memoria_id"]
+            isOneToOne: false
+            referencedRelation: "memoria"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memoria_item_playlist_id_fkey"
+            columns: ["playlist_id"]
+            isOneToOne: false
+            referencedRelation: "playlist_spotify"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memoria_item_secao_id_fkey"
+            columns: ["secao_id"]
+            isOneToOne: false
+            referencedRelation: "memoria_secao"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      memoria_secao: {
+        Row: {
+          created_at: string
+          data: string | null
+          id: string
+          memoria_id: string
+          nova_folha: boolean
+          ordem: number
+          texto: string | null
+          titulo: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data?: string | null
+          id?: string
+          memoria_id: string
+          nova_folha?: boolean
+          ordem: number
+          texto?: string | null
+          titulo?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data?: string | null
+          id?: string
+          memoria_id?: string
+          nova_folha?: boolean
+          ordem?: number
+          texto?: string | null
+          titulo?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memoria_secao_memoria_id_fkey"
+            columns: ["memoria_id"]
+            isOneToOne: false
+            referencedRelation: "memoria"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notificacao: {
         Row: {
           ator_id: string | null
@@ -1436,6 +1601,7 @@ export type Database = {
         Args: { p_dados: Json; p_media: string }
         Returns: undefined
       }
+      avisar_viagens_concluidas: { Args: never; Returns: number }
       avisar_viagens_proximas: { Args: never; Returns: number }
       can_access_entry: { Args: { p_entry: string }; Returns: boolean }
       can_access_playlist: { Args: { p_playlist: string }; Returns: boolean }
@@ -1443,6 +1609,7 @@ export type Database = {
         Args: { p_interesse: string; p_space: string }
         Returns: undefined
       }
+      concluir_memoria: { Args: { p_memoria: string }; Returns: undefined }
       create_space: {
         Args: { p_nome: string; p_tipo?: string }
         Returns: string
@@ -1528,7 +1695,9 @@ export type Database = {
       playlist_e_minha: { Args: { p_playlist: string }; Returns: boolean }
       pode_ver_foto: { Args: { p_foto: string }; Returns: boolean }
       pode_ver_interesse: { Args: { p_interesse: string }; Returns: boolean }
+      pode_ver_memoria: { Args: { p_memoria: string }; Returns: boolean }
       pode_ver_roteiro: { Args: { p_roteiro: string }; Returns: boolean }
+      reabrir_memoria: { Args: { p_memoria: string }; Returns: undefined }
       registrar_compra: {
         Args: {
           p_categoria_cor?: string
@@ -1577,6 +1746,10 @@ export type Database = {
       }
       salvar_paradas: {
         Args: { p_paradas: Json; p_roteiro: string }
+        Returns: number
+      }
+      salvar_secoes: {
+        Args: { p_memoria: string; p_secoes: Json }
         Returns: number
       }
       segredos_do_espaco: {

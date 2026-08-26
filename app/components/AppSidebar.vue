@@ -31,7 +31,7 @@ const classeLink = computed(() => aberta.value ? 'px-3' : 'justify-center px-0')
 
 <template>
   <aside
-    class="flex h-full flex-col gap-1 border-r bg-sidebar p-3 transition-[width] duration-200"
+    class="flex h-full flex-col gap-1 border-r bg-sidebar p-3 transition-[width] duration-200 print:hidden"
     :class="aberta ? 'w-64' : 'w-16'"
   >
     <div
