@@ -48,6 +48,12 @@ export interface Lancamento {
  */
 export const LANCAMENTOS: Lancamento[] = [
   {
+    versao: '1.3.0',
+    titulo: 'Memória da viagem',
+    descricao: 'Quando a viagem termina, o roteiro vira caderno: seções por dia, as fotos do mural e as músicas que tocaram, tudo em folhas A4 prontas para baixar em PDF. O app avisa no dia seguinte ao fim da viagem, e de novo quando alguém fecha o documento.',
+    data: '2026-08-25',
+  },
+  {
     versao: '1.2.0',
     titulo: 'Músicas, com o Spotify de cada um',
     descricao: 'O módulo Músicas estreia: busquem faixas e álbuns e avaliem juntos, tragam as playlists de cada um para o espaço e favoritem as que são de vocês. Com a conta conectada, dá para ver na barra lateral o que a outra pessoa está ouvindo agora.',

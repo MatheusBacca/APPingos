@@ -28,6 +28,7 @@ import type { Foto } from '~/types/foto'
 import { euCurti, formatarTamanho, situacaoDaFoto, temPrevia } from '~/types/foto'
 import type { Membro } from '~/composables/useMembros'
 import { useAlternarCurtida, useApagarFoto, useAtualizarFoto, useBaixarFotos } from '~/composables/useFotos'
+import { useFotosEmMemorias } from '~/composables/useMemoria'
 import { useUsuarioId } from '~/composables/useUsuarioId'
 import { useSpaceStore } from '~/stores/space'
 
@@ -42,6 +43,7 @@ const aberto = defineModel<boolean>('aberto', { required: true })
 const curtir = useAlternarCurtida()
 const atualizar = useAtualizarFoto()
 const apagar = useApagarFoto()
+const { data: emMemorias } = useFotosEmMemorias()
 const { baixar, baixando } = useBaixarFotos()
 const euId = useUsuarioId()
 const store = useSpaceStore()
@@ -125,8 +127,35 @@ async function baixarEsta() {
   if (falhas) toast.error('Não deu para baixar.')
 }
 
+/**
+ * Apagar uma foto que está numa memória de viagem fura o documento.
+ *
+ * `useApagarFoto` remove a linha E o arquivo do bucket: o `memoria_item` fica
+ * com `foto_id` nulo (é `on delete set null`) e um `caminho` que não resolve
+ * mais — um PDF já entregue virando mentira. Daí a confirmação NOMEAR a viagem:
+ * "tem certeza?" sem dizer o que se perde é a pergunta que todo mundo aceita
+ * sem ler.
+ *
+ * Uma memória de roteiro SECRETO de outra pessoa não aparece aqui, porque a RLS
+ * não a mostra — e é o certo: avisar seria contar que a surpresa existe.
+ */
+const viagensComEsta = computed(() =>
+  (props.foto && emMemorias.value?.get(props.foto.id)) || [],
+)
+
 async function remover() {
   if (!props.foto) return
+
+  if (viagensComEsta.value.length) {
+    const quais = viagensComEsta.value.map(n => `"${n}"`).join(', ')
+    const aviso = viagensComEsta.value.length === 1
+      ? `Esta foto está na memória da viagem ${quais}. Apagar aqui tira ela de lá também — e do PDF.`
+      : `Esta foto está nas memórias de ${quais}. Apagar aqui tira ela de lá também — e dos PDFs.`
+
+    if (!confirm(`${aviso}
+
+Apagar assim mesmo?`)) return
+  }
 
   try {
     await apagar.mutateAsync(props.foto)

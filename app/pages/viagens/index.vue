@@ -9,6 +9,7 @@ import { hojeIso } from '@/lib/datas'
 import { roteirosNovos, separarPorTempo } from '~/types/viagem'
 import { useRoteiros, useRoteirosVistos, useCriarRoteiro, useSegredosDoEspaco } from '~/composables/useRoteiros'
 import { useMembros } from '~/composables/useMembros'
+import { useMemoriasDoEspaco } from '~/composables/useMemoria'
 
 useHead({ title: 'Viagens · APPingos' })
 
@@ -56,6 +57,18 @@ const separar = computed(() => passadas.value.length > 0)
 
 const novos = computed(() =>
   new Set(roteirosNovos(roteiros.value ?? [], vistos.value ?? [])),
+)
+
+/*
+ * Uma consulta para a lista inteira, e não uma por card. Só as memórias
+ * FECHADAS entram no conjunto: uma memória começada e ainda em branco não é um
+ * fato sobre a viagem, é um documento que alguém abriu — anunciá-la no card
+ * cobraria a continuação, e o selo aqui não cobra nada.
+ */
+const { data: memorias } = useMemoriasDoEspaco()
+
+const comMemoria = computed(() =>
+  new Set((memorias.value ?? []).filter(m => m.concluida_em).map(m => m.roteiro_id)),
 )
 
 async function onCriar(campos: RoteiroParaSalvar) {
@@ -106,6 +119,7 @@ async function onCriar(campos: RoteiroParaSalvar) {
             :key="roteiro.id"
             :roteiro="roteiro"
             :novo="novos.has(roteiro.id)"
+            :com-memoria="comMemoria.has(roteiro.id)"
           />
 
           <!--
@@ -139,6 +153,7 @@ async function onCriar(campos: RoteiroParaSalvar) {
             v-for="roteiro in passadas"
             :key="roteiro.id"
             :roteiro="roteiro"
+            :com-memoria="comMemoria.has(roteiro.id)"
           />
         </div>
       </section>

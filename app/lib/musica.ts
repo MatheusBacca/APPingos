@@ -33,13 +33,24 @@ export function albumDe(metadados: Record<string, unknown>): string | null {
   return typeof metadados.album === 'string' && metadados.album ? metadados.album : null
 }
 
-export function urlSpotifyDe(metadados: Record<string, unknown>): string | null {
-  const url = metadados.url_spotify
-  // Só https do domínio do Spotify: o valor vem do banco, e o banco é escrito
-  // por uma RPC que aceita qualquer jsonb. Um `javascript:` aqui viraria XSS
-  // no href do "Abrir no Spotify".
+/**
+ * O link do Spotify, ou `null` se não for um link do Spotify.
+ *
+ * Só https do domínio do Spotify: o valor vem do banco, e o banco é escrito por
+ * RPCs e inserts que aceitam texto livre. Um `javascript:` aqui viraria XSS no
+ * href do "Abrir no Spotify".
+ *
+ * Recebe `unknown` porque as duas origens são diferentes e igualmente frouxas:
+ * o `metadados` jsonb do catálogo e a coluna `url_spotify` da memória da viagem.
+ * A regra é uma só, e vale para as duas.
+ */
+export function urlSpotifySegura(url: unknown): string | null {
   if (typeof url !== 'string') return null
   return url.startsWith('https://open.spotify.com/') ? url : null
+}
+
+export function urlSpotifyDe(metadados: Record<string, unknown>): string | null {
+  return urlSpotifySegura(metadados.url_spotify)
 }
 
 export function duracaoDe(metadados: Record<string, unknown>): string | null {

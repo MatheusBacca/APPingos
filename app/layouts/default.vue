@@ -42,13 +42,13 @@ const { aberta } = useSidebar()
 <template>
   <div class="min-h-dvh bg-background">
     <!-- Desktop: sidebar fixa -->
-    <div class="hidden md:fixed md:inset-y-0 md:left-0 md:z-30 md:block">
+    <div class="hidden md:fixed md:inset-y-0 md:left-0 md:z-30 md:block print:hidden">
       <AppSidebar />
     </div>
 
     <!-- Mobile: header enxuto com o seletor de espaço -->
     <header
-      class="sticky top-0 z-30 flex items-center justify-between gap-2 border-b bg-background/95 px-3 pt-safe backdrop-blur md:hidden"
+      class="sticky top-0 z-30 flex items-center justify-between gap-2 border-b bg-background/95 px-3 pt-safe backdrop-blur md:hidden print:hidden"
     >
       <div class="flex h-14 items-center gap-2">
         <AppLogo :com-texto="false" />
@@ -62,8 +62,17 @@ const { aberta } = useSidebar()
       </div>
     </header>
 
-    <main class="transition-[padding] duration-200" :class="aberta ? 'md:pl-64' : 'md:pl-16'">
-      <div class="mx-auto w-full max-w-5xl px-4 pb-24 pt-4 md:px-8 md:pb-12 md:pt-8">
+    <!--
+      Na impressão o recuo da sidebar tem que sumir junto com ela: o `md:pl-64`
+      continuaria empurrando o conteúdo 16rem para a direita numa folha A4, e a
+      memória sairia cortada pela margem direita. `print:max-w-none` e
+      `print:p-0` pelo mesmo motivo — a folha traz as próprias medidas.
+    -->
+    <main
+      class="transition-[padding] duration-200 print:pl-0"
+      :class="aberta ? 'md:pl-64' : 'md:pl-16'"
+    >
+      <div class="mx-auto w-full max-w-5xl px-4 pb-24 pt-4 md:px-8 md:pb-12 md:pt-8 print:max-w-none print:p-0">
         <div v-if="isError" class="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">
           <p class="font-medium text-destructive">Não consegui carregar os seus espaços.</p>
           <p class="mt-1 text-muted-foreground">{{ error?.message }}</p>
