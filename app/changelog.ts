@@ -48,6 +48,12 @@ export interface Lancamento {
  */
 export const LANCAMENTOS: Lancamento[] = [
   {
+    versao: '1.4.0',
+    titulo: 'O painel mostra, e você arruma',
+    descricao: 'A tela inicial virou vitrine: os três últimos meses de gasto, os próximos filmes, as fotos liberadas passando sozinhas, a última música ouvida no espaço, o mapa da próxima viagem e os interesses em aberto. Pela engrenagem dá para reordenar, redimensionar e esconder cada cartão — e o conteúdo de cada um acompanha o tamanho que você deu.',
+    data: '2026-09-03',
+  },
+  {
     versao: '1.3.0',
     titulo: 'Memória da viagem',
     descricao: 'Quando a viagem termina, o roteiro vira caderno: seções por dia, as fotos do mural e as músicas que tocaram, tudo em folhas A4 prontas para baixar em PDF. O app avisa no dia seguinte ao fim da viagem, e de novo quando alguém fecha o documento.',
