@@ -63,6 +63,19 @@ describe('ResumoDoModulo', () => {
     }
   })
 
+  it('no cabeçalho do cartão com vitrine, as linhas aparecem sem a descrição estática', () => {
+    const tela = mount(ResumoDoModulo, {
+      props: { modulo: modulo(comLinhas([LINHA])), variante: 'cabecalho' },
+      global,
+    })
+
+    expect(tela.text()).toContain('Pendente')
+    expect(tela.text()).toContain('−R$ 50,00')
+    // A vitrine é que preenche o cartão: repetir a descrição ali seria roubar a
+    // linha do que o módulo tem de concreto a dizer.
+    expect(tela.text()).not.toContain('Gastos, receitas e metas')
+  })
+
   it('sem nada a dizer, o cartão cai na descrição do módulo e o bloco lateral some', () => {
     const cartao = mount(ResumoDoModulo, {
       props: { modulo: modulo(comLinhas([])), variante: 'cartao' },
@@ -75,6 +88,13 @@ describe('ResumoDoModulo', () => {
       global,
     })
     expect(lateral.text()).toBe('')
+
+    // O cabeçalho some pelo mesmo motivo do lateral: ali o cartão já tem corpo.
+    const cabecalho = mount(ResumoDoModulo, {
+      props: { modulo: modulo(comLinhas([])), variante: 'cabecalho' },
+      global,
+    })
+    expect(cabecalho.text()).toBe('')
   })
 
   it('um resumo que estoura não derruba quem o montou', () => {

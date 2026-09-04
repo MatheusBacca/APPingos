@@ -11,6 +11,7 @@
  */
 import { MusicIcon } from '@lucide/vue'
 import { useIntervalFn } from '@vueuse/core'
+import { LIMITE_ESCUTA_MS } from '@/lib/musica'
 import type { Membro } from '~/composables/useMembros'
 import { useMembros } from '~/composables/useMembros'
 import { useEscutaDoEspaco, useEscutaViva } from '~/composables/useSpotify'
@@ -23,14 +24,6 @@ const { data: membros } = useMembros()
 const { data: escutas } = useEscutaDoEspaco()
 
 useEscutaViva()
-
-/**
- * Depois de dois minutos sem notícia, a faixa deixa de ser "agora".
- *
- * Sem este corte a tela congelaria na última música para sempre — e diria "está
- * ouvindo" sobre alguém que fechou o Spotify há horas.
- */
-const LIMITE_MS = 2 * 60 * 1000
 
 const agora = ref(Date.now())
 // O relógio precisa andar para a linha sumir sozinha; sem isto ela só sairia
@@ -54,7 +47,9 @@ const linhas = computed<LinhaEscuta[]>(() => {
       if (!escuta?.tocando || !escuta.titulo) return null
 
       const idade = agora.value - new Date(escuta.atualizado_em).getTime()
-      if (idade > LIMITE_MS) return null
+      // Sem este corte a tela congelaria na última música para sempre — e diria
+      // "está ouvindo" sobre alguém que fechou o Spotify há horas.
+      if (idade > LIMITE_ESCUTA_MS) return null
 
       return {
         membro,

@@ -1,12 +1,12 @@
 /**
  * O contrato do resumo de um módulo — dado, não componente.
  *
- * O painel aparece em duas superfícies com formatos bem diferentes (o cartão do
- * dashboard e o bloco da sidebar), e a regra que vale para as duas é que o
- * CONTEÚDO seja definido uma vez só. Por isso o módulo registra um composable
- * que devolve linhas prontas, e não um componente: as duas superfícies desenham
- * as mesmas linhas do jeito delas, e não há como uma passar a dizer uma coisa e
- * a outra, outra.
+ * O painel aparece em superfícies com formatos bem diferentes (o cartão do
+ * dashboard, o canto do cartão que tem vitrine, o bloco da sidebar), e a regra
+ * que vale para todas é que o CONTEÚDO seja definido uma vez só. Por isso o
+ * módulo registra um composable que devolve linhas prontas, e não um
+ * componente: as superfícies desenham as mesmas linhas do jeito delas, e não há
+ * como uma passar a dizer uma coisa e a outra, outra.
  *
  * Formatar aqui (dinheiro, data) é de propósito — a superfície não deveria
  * precisar saber que "R$" existe para conseguir mostrar um resumo.

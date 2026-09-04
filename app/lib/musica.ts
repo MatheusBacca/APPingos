@@ -13,6 +13,15 @@ import type { MediaItem } from '~/types/catalogo'
 // Reexportado para as telas não precisarem saber que o tipo nasce no servidor.
 export type { FormatoMusica }
 
+/**
+ * Depois de dois minutos sem notícia, a faixa deixa de ser "agora".
+ *
+ * Vale para todas as superfícies que mostram a escuta (a sidebar e o cartão do
+ * painel): duas ideias diferentes de quando o "agora" vence dariam duas
+ * respostas para a mesma pergunta na mesma tela.
+ */
+export const LIMITE_ESCUTA_MS = 2 * 60 * 1000
+
 export const FORMATO_ROTULO: Record<FormatoMusica, string> = {
   faixa: 'Faixa',
   album: 'Álbum',

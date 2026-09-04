@@ -13,8 +13,33 @@
  * linhas de resumo, e o dashboard e a sidebar desenham as mesmas linhas. Ficou
  * aqui, e não numa lista própria do painel, para a promessa acima continuar
  * valendo — um lugar só a editar quando um módulo entra ou muda de nome.
+ *
+ * `vitrine` é a mesma ideia, um andar acima: o pedaço VISUAL do cartão do
+ * dashboard (as barras do mês, os cartazes, o mapa). Fica no mesmo registro pelo
+ * mesmo motivo — e é `defineAsyncComponent` porque este arquivo é lido pela
+ * sidebar e pela bottom bar em toda página. Import estático traria o mapa, o
+ * carrossel e os gráficos para o bundle de quem só abriu a tela de Filmes.
  */
+import { defineAsyncComponent } from 'vue'
+import type { Component } from 'vue'
 import type { UsarResumo } from '~/types/resumo'
+
+/**
+ * O que o cartão do painel mostra ao lado do título.
+ *
+ * O padrão é `resumo`: as linhas de número do módulo, que é o que o painel
+ * sempre deu. As outras duas existem porque a vitrine mudou a conta — quando o
+ * visual já diz aquilo, repetir em texto é ocupar a única linha de cabeçalho com
+ * a informação que a pessoa acabou de ler logo abaixo.
+ *
+ *   `nada`     — Filmes: cada cartaz já traz o título e a data embaixo dele.
+ *   `legenda`  — Fotos: a linha vira o nome da coisa ("Nossas memórias"), porque
+ *                contar quantas fotos estão liberadas não é o assunto do cartão.
+ */
+export type CabecalhoDoCartao =
+  | { tipo: 'resumo' }
+  | { tipo: 'legenda', texto: string }
+  | { tipo: 'nada' }
 
 export interface AppModule {
   slug: string
@@ -27,6 +52,10 @@ export interface AppModule {
   naBarra: boolean
   /** Sem isto o módulo simplesmente não aparece no painel de resumos. */
   resumo?: UsarResumo
+  /** O visual do cartão no dashboard. Só o dashboard desenha; a sidebar, não. */
+  vitrine?: Component
+  /** Ausente = `resumo`, que é o comportamento de sempre. */
+  cabecalho?: CabecalhoDoCartao
 }
 
 export const MODULOS: AppModule[] = [
@@ -39,6 +68,7 @@ export const MODULOS: AppModule[] = [
     ativo: true,
     naBarra: true,
     resumo: useResumoOrcamentos,
+    vitrine: defineAsyncComponent(() => import('~/components/VitrineOrcamentos.vue')),
   },
   {
     slug: 'filmes',
@@ -49,6 +79,10 @@ export const MODULOS: AppModule[] = [
     ativo: true,
     naBarra: true,
     resumo: useResumoFilmes,
+    vitrine: defineAsyncComponent(() => import('~/components/VitrineFilmes.vue')),
+    // A data de cada filme aparece embaixo do cartaz dele; no topo era a mesma
+    // lista, duas vezes, na mesma caixa.
+    cabecalho: { tipo: 'nada' },
   },
   {
     slug: 'fotos',
@@ -62,6 +96,8 @@ export const MODULOS: AppModule[] = [
     // alvo de toque pequeno demais. Vive no "Mais".
     naBarra: false,
     resumo: useResumoFotos,
+    vitrine: defineAsyncComponent(() => import('~/components/VitrineFotos.vue')),
+    cabecalho: { tipo: 'legenda', texto: 'Nossas memórias ❤️' },
   },
   {
     slug: 'musicas',
@@ -74,6 +110,7 @@ export const MODULOS: AppModule[] = [
     // de Orçamentos, Filmes e Viagens. Vive no "Mais".
     naBarra: false,
     resumo: useResumoMusicas,
+    vitrine: defineAsyncComponent(() => import('~/components/VitrineMusicas.vue')),
   },
   {
     slug: 'livros',
@@ -93,6 +130,7 @@ export const MODULOS: AppModule[] = [
     ativo: true,
     naBarra: true,
     resumo: useResumoViagens,
+    vitrine: defineAsyncComponent(() => import('~/components/VitrineViagens.vue')),
   },
   {
     slug: 'objetivos',
@@ -110,6 +148,7 @@ export const MODULOS: AppModule[] = [
     // de um módulo inteiro seria desproporcional. Vive no "Mais".
     naBarra: false,
     resumo: useResumoInteresses,
+    vitrine: defineAsyncComponent(() => import('~/components/VitrineObjetivos.vue')),
   },
   {
     slug: 'treinos',
