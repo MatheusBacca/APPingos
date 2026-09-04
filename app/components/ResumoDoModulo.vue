@@ -20,8 +20,12 @@ const props = defineProps<{
    * `cartao`: no dashboard, dentro do cartão do módulo — sem nada a dizer, cai
    * na descrição estática, porque o cartão existe de qualquer jeito (é a
    * navegação). `lateral`: na sidebar do desktop — sem nada a dizer, some.
+   * `cabecalho`: no canto do cartão que tem vitrine, empilhado e alinhado à
+   * direita — sem nada a dizer, some também, porque ali quem preenche o cartão
+   * é o visual, e a descrição estática só roubaria a linha do que o módulo tem
+   * de concreto a contar.
    */
-  variante: 'cartao' | 'lateral'
+  variante: 'cartao' | 'cabecalho' | 'lateral'
 }>()
 
 /*
@@ -68,7 +72,11 @@ const linhas = computed<LinhaResumo[]>(() => {
 
   <div
     v-else-if="linhas.length"
-    :class="variante === 'lateral' ? 'rounded-lg bg-sidebar-accent/50 px-3 py-2' : 'mt-1'"
+    :class="{
+      'rounded-lg bg-sidebar-accent/50 px-3 py-2': variante === 'lateral',
+      'mt-1': variante === 'cartao',
+      'shrink-0 text-right': variante === 'cabecalho',
+    }"
   >
     <NuxtLink
       v-if="variante === 'lateral'"
@@ -79,11 +87,12 @@ const linhas = computed<LinhaResumo[]>(() => {
       {{ modulo.rotulo }}
     </NuxtLink>
 
-    <ul class="space-y-0.5">
+    <ul :class="variante === 'cabecalho' ? 'space-y-1' : 'space-y-0.5'">
       <li
         v-for="linha in linhas"
         :key="linha.chave"
-        class="flex items-baseline gap-2 text-sm"
+        class="text-sm"
+        :class="variante === 'cabecalho' ? '' : 'flex items-baseline gap-2'"
       >
         <!--
           `title` porque a linha é estreita por natureza (a sidebar tem 256px):
@@ -91,15 +100,18 @@ const linhas = computed<LinhaResumo[]>(() => {
           reticências e ponto final.
         -->
         <span
-          class="min-w-0 flex-1 truncate"
+          class="min-w-0 truncate"
+          :class="variante === 'cabecalho'
+            ? 'block text-xs text-muted-foreground'
+            : 'flex-1'"
           :title="linha.nota ? `${linha.rotulo} · ${linha.nota}` : linha.rotulo"
         >
-          <span :class="linha.destaque ? 'font-medium' : ''">{{ linha.rotulo }}</span>
+          <span :class="linha.destaque && variante !== 'cabecalho' ? 'font-medium' : ''">{{ linha.rotulo }}</span>
           <!--
             A nota carrega o sentido que a cor sozinha não pode carregar: qual
             mês é aquele saldo, quem mandou o convite.
           -->
-          <span v-if="linha.nota" class="text-xs text-muted-foreground">
+          <span v-if="linha.nota" :class="variante === 'cabecalho' ? '' : 'text-xs text-muted-foreground'">
             · {{ linha.nota }}
           </span>
         </span>
@@ -107,7 +119,7 @@ const linhas = computed<LinhaResumo[]>(() => {
         <span
           v-if="linha.valor"
           class="shrink-0 font-medium tabular-nums"
-          :class="CLASSE_TOM[linha.tom ?? 'neutro']"
+          :class="[CLASSE_TOM[linha.tom ?? 'neutro'], variante === 'cabecalho' ? 'block' : '']"
         >
           <span v-if="linha.valorDescrito" class="sr-only">{{ linha.valorDescrito }}</span>
           {{ linha.valor }}

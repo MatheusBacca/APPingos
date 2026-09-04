@@ -439,10 +439,25 @@ export function useAtualizarEscuta() {
 }
 
 /**
+ * Quem está olhando, na ordem em que chegou — e só o primeiro pergunta.
+ *
+ * Duas superfícies mostram a escuta ao mesmo tempo (o bloco da sidebar e o
+ * cartão de Músicas no painel), e cada uma chama `useEscutaViva`. Sem esta
+ * fila, o app perguntaria ao Spotify duas vezes por ciclo pela mesma coisa —
+ * dobrando o gasto de cota para pintar o mesmo dado em dois lugares.
+ *
+ * É uma fila, e não um booleano "já tem alguém": quando o primeiro sai da tela,
+ * o seguinte vira dono e retoma sozinho, porque `ativo` é reativo. Um booleano
+ * deixaria o polling morto até alguém recarregar a página.
+ */
+const olhando = ref<symbol[]>([])
+
+/**
  * O polling: só existe enquanto alguém está olhando.
  *
- * Três guardas, e as três importam:
+ * Quatro guardas, e as quatro importam:
  *
+ *   - **primeiro da fila**: duas superfícies olhando não fazem duas perguntas.
  *   - **conectado**: sem a sua conta ligada não há a quem perguntar. Quem nunca
  *     conectou não gera uma única chamada ao Spotify.
  *   - **aba visível**: `useDocumentVisibility` para o app esquecido numa aba de
@@ -460,8 +475,19 @@ export function useEscutaViva(intervaloMs = 25_000) {
   const store = useSpaceStore()
   const visibilidade = useDocumentVisibility()
 
+  /*
+   * A vaga na fila é tomada no setup e devolvida quando o componente sai — ver
+   * `olhando`, acima.
+   */
+  const eu = Symbol('escuta viva')
+  olhando.value = [...olhando.value, eu]
+  onScopeDispose(() => {
+    olhando.value = olhando.value.filter(o => o !== eu)
+  })
+
   const ativo = computed(() =>
-    !!integracao.value && !!store.espacoAtivoId && visibilidade.value === 'visible',
+    olhando.value[0] === eu
+    && !!integracao.value && !!store.espacoAtivoId && visibilidade.value === 'visible',
   )
 
   async function perguntar() {

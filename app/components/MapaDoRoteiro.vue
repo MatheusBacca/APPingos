@@ -16,6 +16,14 @@ const props = defineProps<{
   modo: ModoTransporte
   /** O mapa está mostrando um dia só? Muda o que a caixa vazia diz. */
   filtrado?: boolean
+  /**
+   * Ocupar a altura que o pai der, em vez do 16:9 de sempre.
+   *
+   * É o modo do cartão do painel com altura fixa: lá o mapa é o conteúdo
+   * principal, e deixá-lo em 16:9 no meio de um cartão alto sobraria um vão
+   * embaixo do tamanho de outro mapa.
+   */
+  preencher?: boolean
 }>()
 
 const chave = useRuntimeConfig().public.googleMapsEmbedKey
@@ -51,12 +59,16 @@ const mensagemVazia = computed(() => {
 </script>
 
 <template>
-  <div class="space-y-2">
-    <div class="overflow-hidden rounded-lg border bg-muted">
+  <div :class="preencher ? 'flex min-h-0 flex-1 flex-col gap-2' : 'space-y-2'">
+    <div
+      class="overflow-hidden rounded-lg border bg-muted"
+      :class="preencher ? 'min-h-0 flex-1' : ''"
+    >
       <iframe
         v-if="src"
         :src="src"
-        class="aspect-video w-full"
+        class="w-full"
+        :class="preencher ? 'h-full' : 'aspect-video'"
         style="border: 0"
         loading="lazy"
         referrerpolicy="no-referrer-when-downgrade"
@@ -65,7 +77,11 @@ const mensagemVazia = computed(() => {
       />
 
       <!-- Os motivos de não haver mapa são vários — ver `mensagemVazia`. -->
-      <div v-else class="grid aspect-video place-items-center px-6 text-center">
+      <div
+        v-else
+        class="grid place-items-center px-6 text-center"
+        :class="preencher ? 'h-full' : 'aspect-video'"
+      >
         <div>
           <MapIcon class="mx-auto size-8 text-muted-foreground" />
           <p class="mt-2 text-sm text-muted-foreground">{{ mensagemVazia }}</p>
