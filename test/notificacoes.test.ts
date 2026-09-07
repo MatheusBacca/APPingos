@@ -103,6 +103,38 @@ describe('textoDaNotificacao', () => {
     O app instalado no celular pode estar duas versões atrás do banco. Um tipo
     que ele não conhece não pode deixar buraco na lista nem quebrar a tela.
   */
+  /*
+    Pins é o único tipo em que o agrupamento SOMA (o `p_somar` de `notificar()`):
+    `vezes` conta as conquistas e `pontos` traz o total delas. Os dois casos
+    abaixo são as duas frases que isso produz — e o singular importa, porque
+    "1 Pins" seria a primeira coisa que alguém notaria.
+  */
+  it('conta os Pins ganhos, concordando em número', () => {
+    const um = textoDaNotificacao(notificacao({
+      tipo: 'pins_ganhos',
+      dados: { ator_nome: 'Ana', pontos: 1, rotulo: 'Foto curtida' },
+      rota: '/pins',
+    }))
+
+    expect(um.titulo).toBe('Ana ganhou 1 Pin')
+    expect(um.corpo).toBe('Foto curtida')
+    expect(um.rota).toBe('/pins')
+  })
+
+  it('muda de assunto quando os ganhos foram agrupados', () => {
+    const varios = textoDaNotificacao(notificacao({
+      tipo: 'pins_ganhos',
+      dados: { ator_nome: 'Ana', pontos: 60, rotulo: 'Filme ou série visto', vezes: 5 },
+      rota: '/pins',
+    }))
+
+    // O total somado no título, e o rótulo rebaixado a "a última" — com cinco
+    // conquistas, o nome de uma delas não é o assunto.
+    expect(varios.titulo).toBe('Ana ganhou 60 Pins')
+    expect(varios.corpo).toContain('5 conquistas')
+    expect(varios.corpo).toContain('Filme ou série visto')
+  })
+
   it('não quebra num tipo que ainda não conhece', () => {
     const t = textoDaNotificacao(notificacao({ tipo: 'coisa_do_futuro', rota: null }))
 
@@ -188,9 +220,10 @@ describe('categoriasDePreferencia', () => {
   it('sem linha nenhuma, tudo ligado', () => {
     const cats = categoriasDePreferencia([])
 
-    // Sete desde que "Fotos" entrou — o número está escrito para quebrar
-    // quando uma categoria for acrescentada sem revisar esta tela.
-    expect(cats).toHaveLength(7)
+    // Oito desde que "Pins" entrou — o número está escrito para quebrar
+    // quando uma categoria for acrescentada sem revisar esta tela. Ele já
+    // cumpriu o papel duas vezes (Fotos, depois Pins); mantenha-o literal.
+    expect(cats).toHaveLength(8)
     expect(cats.every(c => c.app === 'ligado' && c.email === 'ligado')).toBe(true)
   })
 

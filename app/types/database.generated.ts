@@ -1172,6 +1172,141 @@ export type Database = {
           },
         ]
       }
+      pin: {
+        Row: {
+          base: number
+          chave: string
+          created_at: string
+          dados: Json
+          entidade: string | null
+          entidade_id: string | null
+          hotspots: string[]
+          id: string
+          multiplicador: number
+          pontos: number
+          regra: string
+          space_id: string | null
+          user_id: string
+        }
+        Insert: {
+          base: number
+          chave: string
+          created_at?: string
+          dados?: Json
+          entidade?: string | null
+          entidade_id?: string | null
+          hotspots?: string[]
+          id?: string
+          multiplicador?: number
+          pontos: number
+          regra: string
+          space_id?: string | null
+          user_id: string
+        }
+        Update: {
+          base?: number
+          chave?: string
+          created_at?: string
+          dados?: Json
+          entidade?: string | null
+          entidade_id?: string | null
+          hotspots?: string[]
+          id?: string
+          multiplicador?: number
+          pontos?: number
+          regra?: string
+          space_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pin_regra_fkey"
+            columns: ["regra"]
+            isOneToOne: false
+            referencedRelation: "pin_regra"
+            referencedColumns: ["chave"]
+          },
+          {
+            foreignKeyName: "pin_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pin_hotspot: {
+        Row: {
+          ativo: boolean
+          chave: string
+          descricao: string
+          fator: number
+          ordem: number
+          por_dia: boolean
+          rotulo: string
+          teto: number
+        }
+        Insert: {
+          ativo?: boolean
+          chave: string
+          descricao: string
+          fator: number
+          ordem?: number
+          por_dia?: boolean
+          rotulo: string
+          teto: number
+        }
+        Update: {
+          ativo?: boolean
+          chave?: string
+          descricao?: string
+          fator?: number
+          ordem?: number
+          por_dia?: boolean
+          rotulo?: string
+          teto?: number
+        }
+        Relationships: []
+      }
+      pin_regra: {
+        Row: {
+          ativa: boolean
+          base: number
+          chave: string
+          descricao: string
+          lazer: boolean
+          modulo: string
+          noturna: boolean
+          ordem: number
+          rotulo: string
+          teto_dia: number | null
+        }
+        Insert: {
+          ativa?: boolean
+          base: number
+          chave: string
+          descricao: string
+          lazer?: boolean
+          modulo: string
+          noturna?: boolean
+          ordem?: number
+          rotulo: string
+          teto_dia?: number | null
+        }
+        Update: {
+          ativa?: boolean
+          base?: number
+          chave?: string
+          descricao?: string
+          lazer?: boolean
+          modulo?: string
+          noturna?: boolean
+          ordem?: number
+          rotulo?: string
+          teto_dia?: number | null
+        }
+        Relationships: []
+      }
       playlist_faixa: {
         Row: {
           album: string | null
@@ -1554,6 +1689,24 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "compra_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pin_saldo: {
+        Row: {
+          conquistas: number | null
+          pontos: number | null
+          space_id: string | null
+          ultimo: string | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pin_space_id_fkey"
             columns: ["space_id"]
             isOneToOne: false
             referencedRelation: "space"

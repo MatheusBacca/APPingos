@@ -151,6 +151,26 @@ export const MODULOS: AppModule[] = [
     vitrine: defineAsyncComponent(() => import('~/components/VitrineObjetivos.vue')),
   },
   {
+    slug: 'pins',
+    rotulo: 'Pins',
+    descricao: 'A moeda do app — o que rende, e quanto cada um já fez',
+    icone: 'SparklesIcon',
+    rota: '/pins',
+    ativo: true,
+    // Fora da barra, e não por falta de espaço: Pins ATRAVESSA os módulos —
+    // rende em Orçamentos, em Filmes, em Fotos, em Viagens. Tomar um dos cinco
+    // slots de um módulo que é um assunto seria dar a ele o peso errado. Vive no
+    // "Mais", e aparece de fato no cartão do painel.
+    naBarra: false,
+    resumo: useResumoPins,
+    vitrine: defineAsyncComponent(() => import('~/components/VitrinePins.vue')),
+    // As barras do placar já trazem nome e número dos dois; repetir "Seus Pins:
+    // 340" no cabeçalho seria dizer no topo o que a pessoa lê logo abaixo. As
+    // linhas de resumo continuam existindo — é o que a sidebar desenha, e lá não
+    // há vitrine. Mesma escolha de Filmes.
+    cabecalho: { tipo: 'nada' },
+  },
+  {
     slug: 'treinos',
     rotulo: 'Treinos',
     descricao: 'Sessões, cargas e constância',
