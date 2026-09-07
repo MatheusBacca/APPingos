@@ -40,7 +40,24 @@ const { aberta } = useSidebar()
 </script>
 
 <template>
-  <div class="min-h-dvh bg-background">
+  <!--
+    SEM `bg-background` aqui, e isso é essencial, não economia.
+
+    O brilho é um filho em `z-index: -1`. Um fundo pintado neste `div` ficaria
+    POR CIMA dele — a camada continuaria no DOM, do tamanho certo, e invisível.
+    O fundo da página vem do `body` (em @layer base), que é canvas e é pintado
+    antes de qualquer z-index negativo.
+  -->
+  <div class="min-h-dvh">
+    <!--
+      A iluminação do ambiente, atrás de tudo. Duas manchas do acento em
+      `position: fixed`, então elas não rolam com a página: é luz do cenário, não
+      conteúdo. É o que dá o fundo das referências e o que faz o vidro dos cards
+      ter algo colorido para desfocar — sem ela, "vidro" sobre um fundo chapado
+      não se distingue de um card comum.
+    -->
+    <div class="brilho-ambiente" aria-hidden="true" />
+
     <!-- Desktop: sidebar fixa -->
     <div class="hidden md:fixed md:inset-y-0 md:left-0 md:z-30 md:block print:hidden">
       <AppSidebar />
@@ -48,7 +65,7 @@ const { aberta } = useSidebar()
 
     <!-- Mobile: header enxuto com o seletor de espaço -->
     <header
-      class="sticky top-0 z-30 flex items-center justify-between gap-2 border-b bg-background/95 px-3 pt-safe backdrop-blur md:hidden print:hidden"
+      class="vidro sticky top-0 z-30 flex items-center justify-between gap-2 rounded-none border-x-0 border-t-0 px-3 pt-safe md:hidden print:hidden"
     >
       <div class="flex h-14 items-center gap-2">
         <AppLogo :com-texto="false" />
@@ -58,7 +75,7 @@ const { aberta } = useSidebar()
       </div>
       <div class="flex items-center">
         <SinoDeNotificacoes />
-        <ThemeToggle />
+        <BotaoDeAparencia />
       </div>
     </header>
 

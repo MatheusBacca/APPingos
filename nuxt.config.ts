@@ -64,7 +64,27 @@ export default defineNuxtConfig({
     '@pinia/nuxt',
     'shadcn-nuxt',
     '@vite-pwa/nuxt',
+    '@nuxt/fonts',
   ],
+
+  /*
+    As fontes. `@nuxt/fonts` BAIXA os arquivos no build e serve do nosso domínio
+    — não há requisição ao Google em runtime. Isso importa por três motivos: o
+    app é PWA e precisa abrir offline, uma fonte de terceiro é uma origem a mais
+    para o service worker cachear, e assim nenhum dado de quem usa o app passa
+    por servidor alheio só para desenhar uma letra.
+
+    `Sora` nos títulos e números: geométrica, de terminais retos, é ela que dá o
+    ar técnico das referências. `Manrope` no texto corrido, porque Sora em corpo
+    pequeno e parágrafo longo cansa — as duas compartilham a mesma lógica
+    geométrica, então convivem sem parecer remendo.
+  */
+  fonts: {
+    families: [
+      { name: 'Sora', provider: 'google', weights: [500, 600, 700] },
+      { name: 'Manrope', provider: 'google', weights: [400, 500, 600, 700] },
+    ],
+  },
 
   css: ['~/assets/css/tailwind.css'],
 

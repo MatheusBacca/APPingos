@@ -30,8 +30,18 @@ const classeLink = computed(() => aberta.value ? 'px-3' : 'justify-center px-0')
 </script>
 
 <template>
+  <!--
+    `vidro-leve`, e não `vidro`: a lateral é alta e fica montada o tempo todo,
+    com a página inteira rolando ao lado. `backdrop-filter` repinta a área
+    desfocada a cada quadro, e numa superfície desse tamanho isso cobra FPS de
+    toda rolagem — inclusive no celular, onde ela está escondida mas continua no
+    DOM. A borda e a lâmina translúcida já entregam a leitura de vidro.
+
+    `rounded-none` e as bordas zeradas porque o utilitário traz borda inteira, e
+    aqui só a da direita existe: a lateral encosta nas três outras quinas da tela.
+  -->
   <aside
-    class="flex h-full flex-col gap-1 border-r bg-sidebar p-3 transition-[width] duration-200 print:hidden"
+    class="vidro-leve flex h-full flex-col gap-1 rounded-none border-y-0 border-l-0 p-3 transition-[width] duration-200 print:hidden"
     :class="aberta ? 'w-64' : 'w-16'"
   >
     <div
@@ -162,7 +172,7 @@ const classeLink = computed(() => aberta.value ? 'px-3' : 'justify-center px-0')
 
       <SinoDeNotificacoes />
 
-      <ThemeToggle />
+      <BotaoDeAparencia />
 
       <Button variant="ghost" size="icon" aria-label="Sair" title="Sair" @click="sair">
         <LogOutIcon class="size-4" />
