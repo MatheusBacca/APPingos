@@ -70,10 +70,16 @@ const linhas = computed<LinhaResumo[]>(() => {
     {{ modulo.descricao }}
   </p>
 
+  <!--
+    `vidro` e não `bg-sidebar-accent/50`: este bloco é um painel de verdade, do
+    tamanho de um card, e era a terceira classe de superfície do app — não
+    alcançada nem pelo componente `Card` nem pela regra de `bg-card`. Superfície
+    levantada usa `vidro`; o resto herda a translucidez pelos tokens.
+  -->
   <div
     v-else-if="linhas.length"
     :class="{
-      'rounded-lg bg-sidebar-accent/50 px-3 py-2': variante === 'lateral',
+      'vidro rounded-lg px-3 py-2': variante === 'lateral',
       'mt-1': variante === 'cartao',
       'shrink-0 text-right': variante === 'cabecalho',
     }"

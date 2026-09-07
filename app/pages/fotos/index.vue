@@ -39,8 +39,22 @@ const aberta = ref<Foto | null>(null)
  * `null` = todas. Guardado como o filtro de Interesses: quem foi ver as postadas
  * costuma olhar mais de uma, e perder o filtro ao abrir e fechar uma foto seria
  * atrito num gesto que se repete.
+ *
+ * O SENTINELA `'todas'` NÃO É ENFEITE. Em `useStorage`, escrever `null` não
+ * guarda nulo: apaga a chave — e ler chave ausente devolve o valor inicial, aqui
+ * `'esperando'`. Guardar `null` direto fazia o clique em "Todas" voltar sozinho
+ * para "Esperando curtida" no mesmo instante, sem erro nenhum no console.
+ *
+ * Interesses guarda `null` e passa ileso porque lá o padrão TAMBÉM é `null`, e
+ * "ausente" e "nulo" acabam significando a mesma coisa. Aqui não: o padrão é um
+ * estado de verdade, então o "sem filtro" precisa de um nome próprio no disco.
  */
-const filtro = useLocalStorage<SituacaoFoto | null>('appingos:fotos:situacao', 'esperando')
+const filtroSalvo = useLocalStorage<SituacaoFoto | 'todas'>('appingos:fotos:situacao', 'esperando')
+
+const filtro = computed<SituacaoFoto | null>({
+  get: () => (filtroSalvo.value === 'todas' ? null : filtroSalvo.value),
+  set: (valor) => { filtroSalvo.value = valor ?? 'todas' },
+})
 
 const totalDeMembros = computed(() => membros.value?.length ?? 0)
 

@@ -30,41 +30,98 @@
 }
 
 /*
-  Base neutra do shadcn-vue com o "primary" trocado por um teal — pingos d'água.
-  Alterar a identidade do app é mexer só em --primary / --ring / --sidebar-primary.
+  Base neutra do shadcn-vue com o acento em OKLCH.
+
+  O ACENTO É SÓ `--matiz` E `--croma`. Toda cor de destaque abaixo nasce desses
+  dois números; o que muda entre o claro e o escuro é a LUMINOSIDADE, escrita uma
+  vez em cada bloco. Trocar de acento é trocar dois números (ver os blocos
+  `[data-acento]` no fim do arquivo e `app/lib/tema.ts`), e nenhum acento
+  consegue destoar do resto porque nenhum deles escolhe o próprio brilho.
 */
 :root {
   --radius: 0.75rem;
 
+  /* O padrão: teal, os pingos d'água. */
+  --matiz: 205;
+  --croma: 0.108;
+
   --background: oklch(0.995 0.002 240);
   --foreground: oklch(0.185 0.015 250);
 
-  --card: oklch(1 0 0);
+  /*
+    `--card` é translúcido para as dezenas de lugares que escrevem
+    `rounded-lg border bg-card` à mão, sem passar pelo componente `Card`. Assim
+    eles deixam o brilho do fundo atravessar e acompanham o tema novo sem uma
+    varredura por todas as páginas. Sem blur — quem quer o desfoque usa `vidro`.
+  */
+  --card: oklch(1 0 0 / 62%);
   --card-foreground: oklch(0.185 0.015 250);
+
+  /*
+    Popover continua OPACO, e isso não é esquecimento. Ele abre por cima de
+    conteúdo qualquer — uma lista de opções sobre um texto — e translucidez ali
+    empilha letra sobre letra. Menu tem que ser legível antes de ser bonito.
+  */
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.185 0.015 250);
 
-  --primary: oklch(0.57 0.108 205);
-  --primary-foreground: oklch(0.985 0.005 200);
+  --primary: oklch(0.57 var(--croma) var(--matiz));
+  --primary-foreground: oklch(0.985 0.005 var(--matiz));
 
-  --secondary: oklch(0.965 0.006 240);
+  /*
+    AS SUPERFÍCIES SÃO TRANSLÚCIDAS, TODAS.
+
+    São ~90 usos espalhados em 14 variações (`bg-muted`, `bg-accent`,
+    `bg-secondary`, `bg-card/50`…). Vestir cada um de vidro à mão seria uma
+    varredura por todas as páginas e, pior, uma que se desfaz sozinha: o próximo
+    componente escrito viria opaco de novo.
+
+    Mexer no TOKEN resolve os 90 de uma vez e mantém resolvido. E aqui só entra a
+    translucidez, que é de graça — é ela que põe tudo sob a mesma luz do fundo.
+    O desfoque fica para os painéis grandes (ver `vidro` e a regra de `.bg-card`),
+    porque `bg-muted` é quase todo hover e caixinha de 24px: ali `backdrop-filter`
+    repintaria a cada quadro sem nada visível em troca.
+  */
+  --secondary: oklch(0.965 0.006 240 / 70%);
   --secondary-foreground: oklch(0.25 0.015 250);
 
-  --muted: oklch(0.965 0.006 240);
+  --muted: oklch(0.965 0.006 240 / 70%);
   --muted-foreground: oklch(0.53 0.014 250);
 
-  --accent: oklch(0.95 0.022 200);
-  --accent-foreground: oklch(0.28 0.04 205);
+  --accent: oklch(0.95 calc(var(--croma) * 0.2) var(--matiz) / 75%);
+  --accent-foreground: oklch(0.28 calc(var(--croma) * 0.37) var(--matiz));
 
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
 
   --border: oklch(0.915 0.008 245);
   --input: oklch(0.915 0.008 245);
-  --ring: oklch(0.57 0.108 205);
+  --ring: oklch(0.57 var(--croma) var(--matiz));
+
+  /*
+    Vidro — a superfície translúcida das referências.
+
+    `--vidro` é deliberadamente MUITO claro e MUITO transparente: o efeito não
+    vem da cor, vem do `backdrop-filter` desfocando o que está atrás somado a uma
+    borda de um pixel mais clara que o fundo. Vidro opaco demais vira só um card
+    cinza, e o blur passa a custar GPU sem entregar nada.
+
+    `--brilho-a` e `--brilho-b` são as duas manchas de cor do fundo. Elas herdam
+    o matiz do acento, com um desvio de 60° na segunda: duas manchas do mesmo
+    matiz exato leem como uma mancha só mal desenhada, e a diferença é o que dá a
+    sensação de profundidade das referências.
+  */
+  --vidro: oklch(1 0 0 / 55%);
+  --vidro-borda: oklch(1 0 0 / 70%);
+  --vidro-realce: oklch(1 0 0 / 85%);
+  /* A luz que escorre pela quina de cima do card — ver o utilitário `vidro`. */
+  --vidro-luz: oklch(1 0 0 / 45%);
+  --desfoque: 20px;
+  --brilho-a: oklch(0.72 calc(var(--croma) * 2.2) var(--matiz) / 42%);
+  --brilho-b: oklch(0.76 calc(var(--croma) * 1.8) calc(var(--matiz) + 60) / 32%);
 
   /* Séries de gráfico — ordem estável para Chart.js/ECharts nos módulos */
-  --chart-1: oklch(0.57 0.108 205);
+  --chart-1: oklch(0.57 var(--croma) var(--matiz));
   --chart-2: oklch(0.66 0.13 155);
   --chart-3: oklch(0.72 0.14 75);
   --chart-4: oklch(0.62 0.16 300);
@@ -72,43 +129,66 @@
 
   --sidebar: oklch(0.985 0.004 240);
   --sidebar-foreground: oklch(0.185 0.015 250);
-  --sidebar-primary: oklch(0.57 0.108 205);
-  --sidebar-primary-foreground: oklch(0.985 0.005 200);
-  --sidebar-accent: oklch(0.95 0.022 200);
-  --sidebar-accent-foreground: oklch(0.28 0.04 205);
+  --sidebar-primary: oklch(0.57 var(--croma) var(--matiz));
+  --sidebar-primary-foreground: oklch(0.985 0.005 var(--matiz));
+  --sidebar-accent: oklch(0.95 calc(var(--croma) * 0.2) var(--matiz) / 75%);
+  --sidebar-accent-foreground: oklch(0.28 calc(var(--croma) * 0.37) var(--matiz));
   --sidebar-border: oklch(0.915 0.008 245);
-  --sidebar-ring: oklch(0.57 0.108 205);
+  --sidebar-ring: oklch(0.57 var(--croma) var(--matiz));
 }
 
 .dark {
-  --background: oklch(0.175 0.018 255);
+  /*
+    Quase preto, e não cinza-azulado.
+
+    O escuro anterior (L 0.175) era claro o bastante para competir com o brilho
+    do acento: as manchas de cor se diluíam no fundo em vez de acender sobre ele.
+    Cor saturada só parece luz quando tem escuro de verdade em volta — é o que
+    faz o roxo das referências brilhar. A pitada de croma no matiz 265 evita o
+    cinza morto do preto puro.
+  */
+  --background: oklch(0.135 0.014 265);
   --foreground: oklch(0.97 0.005 240);
 
-  --card: oklch(0.225 0.02 255);
+  --card: oklch(0.26 0.018 265 / 48%);
   --card-foreground: oklch(0.97 0.005 240);
   --popover: oklch(0.225 0.02 255);
   --popover-foreground: oklch(0.97 0.005 240);
 
-  --primary: oklch(0.72 0.115 200);
-  --primary-foreground: oklch(0.19 0.03 210);
+  --primary: oklch(0.72 var(--croma) var(--matiz));
+  --primary-foreground: oklch(0.19 calc(var(--croma) * 0.28) var(--matiz));
 
-  --secondary: oklch(0.27 0.02 255);
+  --secondary: oklch(0.3 0.018 265 / 55%);
   --secondary-foreground: oklch(0.97 0.005 240);
 
-  --muted: oklch(0.27 0.02 255);
+  --muted: oklch(0.3 0.018 265 / 55%);
   --muted-foreground: oklch(0.7 0.015 250);
 
-  --accent: oklch(0.3 0.035 210);
-  --accent-foreground: oklch(0.95 0.02 200);
+  --accent: oklch(0.34 calc(var(--croma) * 0.32) var(--matiz) / 60%);
+  --accent-foreground: oklch(0.95 calc(var(--croma) * 0.18) var(--matiz));
 
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.985 0 0);
 
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.72 0.115 200);
+  --ring: oklch(0.72 var(--croma) var(--matiz));
 
-  --chart-1: oklch(0.72 0.115 200);
+  /*
+    No escuro o vidro é o inverso: uma lâmina CLARA sobre o fundo, não escura.
+    Vidro escuro sobre fundo escuro some — o que separa o card do fundo é a borda
+    clara e o pouquinho de branco por cima, exatamente como nos widgets do iOS
+    das referências. O brilho ganha mais croma porque cor saturada sobre preto lê
+    mais apagada do que sobre branco.
+  */
+  --vidro: oklch(1 0 0 / 6%);
+  --vidro-borda: oklch(1 0 0 / 12%);
+  --vidro-realce: oklch(1 0 0 / 20%);
+  --vidro-luz: oklch(1 0 0 / 8%);
+  --brilho-a: oklch(0.62 calc(var(--croma) * 2.6) var(--matiz) / 52%);
+  --brilho-b: oklch(0.55 calc(var(--croma) * 2.2) calc(var(--matiz) + 60) / 40%);
+
+  --chart-1: oklch(0.72 var(--croma) var(--matiz));
   --chart-2: oklch(0.74 0.13 155);
   --chart-3: oklch(0.79 0.14 80);
   --chart-4: oklch(0.7 0.16 300);
@@ -116,13 +196,35 @@
 
   --sidebar: oklch(0.205 0.02 255);
   --sidebar-foreground: oklch(0.97 0.005 240);
-  --sidebar-primary: oklch(0.72 0.115 200);
-  --sidebar-primary-foreground: oklch(0.19 0.03 210);
-  --sidebar-accent: oklch(0.3 0.035 210);
-  --sidebar-accent-foreground: oklch(0.95 0.02 200);
+  --sidebar-primary: oklch(0.72 var(--croma) var(--matiz));
+  --sidebar-primary-foreground: oklch(0.19 calc(var(--croma) * 0.28) var(--matiz));
+  --sidebar-accent: oklch(0.34 calc(var(--croma) * 0.32) var(--matiz) / 60%);
+  --sidebar-accent-foreground: oklch(0.95 calc(var(--croma) * 0.18) var(--matiz));
   --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: oklch(0.72 0.115 200);
+  --sidebar-ring: oklch(0.72 var(--croma) var(--matiz));
 }
+
+/*
+  Os acentos.
+
+  Cada bloco define SÓ matiz e croma — a luminosidade já foi resolvida acima, uma
+  vez para o claro e uma para o escuro. É por isso que uma cor nova aqui é uma
+  linha, e é por isso que nenhuma delas consegue ficar mais berrante que as
+  outras por descuido.
+
+  Vêm depois de `:root` e de `.dark` de propósito: os três seletores têm a mesma
+  especificidade, então quem vence é quem aparece por último. Mover este bloco
+  para cima faria o seletor de cor parar de funcionar, em silêncio.
+
+  A lista espelha `ACENTOS` em app/lib/tema.ts — os dois arquivos mudam juntos.
+*/
+[data-acento='rosa']    { --matiz: 350; --croma: 0.13; }
+[data-acento='violeta'] { --matiz: 305; --croma: 0.15; }
+[data-acento='indigo']  { --matiz: 275; --croma: 0.15; }
+[data-acento='azul']    { --matiz: 245; --croma: 0.14; }
+[data-acento='menta']   { --matiz: 165; --croma: 0.11; }
+[data-acento='ambar']   { --matiz: 75;  --croma: 0.13; }
+[data-acento='coral']   { --matiz: 30;  --croma: 0.14; }
 
 @theme inline {
   /*
@@ -131,6 +233,17 @@
     entregam algo que não é a fonte da interface — que é o ponto do papel.
   */
   --font-manuscrita: 'Caveat', ui-serif, cursive;
+
+  /*
+    Sora desenha; Manrope explica.
+
+    A regra prática: título, número e rótulo curto vão em `font-display`; texto
+    que se lê em frase fica no padrão. Sora tem contraste e personalidade demais
+    para um parágrafo — é o que a faz boa num "R$ 12.304,11" e cansativa num
+    aviso de três linhas.
+  */
+  --font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Sora', ui-sans-serif, system-ui, sans-serif;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -185,6 +298,37 @@
     /* iOS: impede o "bounce" branco atrás da bottom bar */
     overscroll-behavior-y: none;
   }
+
+  /*
+    Títulos em Sora, sem ninguém precisar lembrar de pedir.
+
+    Mora aqui, e não numa classe aplicada tela por tela, porque são dezenas de
+    títulos espalhados por sete módulos: qualquer arquivo esquecido viraria uma
+    página com a tipografia da versão anterior, e o defeito só apareceria para
+    quem abrisse justamente aquela tela.
+
+    O `letter-spacing` negativo não é enfeite. Sora é larga por natureza, e em
+    tamanho de título o espaçamento padrão a faz parecer solta; fechar um pouco é
+    o que dá a densidade das referências. Em corpo pequeno o mesmo ajuste
+    prejudicaria a leitura — por isso ele vive junto do título, e não no `body`.
+  */
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  /*
+    Números em Sora também, com os algarismos de largura FIXA.
+
+    Sem `tabular-nums`, o "1" é mais estreito que o "8" — e uma coluna de valores
+    em Orçamentos fica com as vírgulas desalinhadas, que é exatamente onde o
+    olho procura para comparar. É a mesma razão de planilha usar fonte
+    monoespaçada em número.
+  */
+  .tabular {
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 /*
@@ -237,5 +381,138 @@
   .folha {
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+}
+
+/*
+  ---------------------------------------------------------------------------
+  Vidro
+  ---------------------------------------------------------------------------
+
+  `vidro` é a superfície translúcida das referências: desfoca o que está atrás,
+  põe uma lâmina finíssima de cor por cima e fecha com uma borda de um pixel.
+
+  O `inset 0 1px 0` é o detalhe que faz o efeito. É uma linha clara de um pixel
+  no TOPO de dentro do card, imitando a luz que bate na quina de uma lâmina de
+  vidro de verdade. Sem ela o card fica chapado, com blur e tudo — é o que separa
+  "fundo transparente" de "parece vidro".
+
+  `-webkit-backdrop-filter` continua necessário: é o que o Safari do iOS entende,
+  e o app é instalado como PWA justamente lá.
+*/
+@utility vidro {
+  background-color: var(--vidro);
+  /*
+    O GRADIENTE INTERNO é o que faltava para a superfície parecer vidro de
+    verdade, e não um retângulo translúcido.
+
+    Uma lâmina real não tem cor uniforme: ela recebe mais luz na quina que aponta
+    para a fonte e escurece na oposta. Sem essa variação o card fica chapado por
+    mais blur que tenha. 145° põe a luz no canto superior esquerdo, coerente com
+    as manchas do fundo, e o corte em 55% evita a faixa dura que um gradiente
+    inteiro cria no meio do card.
+  */
+  background-image: linear-gradient(145deg, var(--vidro-luz), transparent 55%);
+  border: 1px solid var(--vidro-borda);
+  backdrop-filter: blur(var(--desfoque)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--desfoque)) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 var(--vidro-realce),
+    0 8px 32px -12px oklch(0 0 0 / 25%);
+}
+
+/*
+  ---------------------------------------------------------------------------
+  O vidro onde os cards realmente estão
+  ---------------------------------------------------------------------------
+
+  As páginas dos módulos NÃO usam o componente `Card`: elas escrevem
+  `rounded-lg border bg-card p-3` à mão, e só as telas de login e configurações
+  passam pelo componente. Vestir só o componente de vidro, como estava, não
+  alcançava nenhuma das telas do dia a dia.
+
+  Por isso o efeito mora aqui, na classe. `--card` já é o token da superfície
+  translúcida — dar a ela o desfoque e o realce é terminar o que o token começou,
+  não sobrescrever a intenção de ninguém. E qualquer `bg-card` futuro nasce certo
+  sem ninguém precisar lembrar.
+
+  `@layer components` para as utilidades de `bg-*` escritas depois na marcação
+  continuarem vencendo esta regra quando alguém quiser um card opaco.
+*/
+@layer components {
+  .bg-card {
+    background-image: linear-gradient(145deg, var(--vidro-luz), transparent 55%);
+    backdrop-filter: blur(var(--desfoque)) saturate(180%);
+    -webkit-backdrop-filter: blur(var(--desfoque)) saturate(180%);
+    box-shadow:
+      inset 0 1px 0 var(--vidro-realce),
+      0 8px 32px -12px oklch(0 0 0 / 22%);
+  }
+}
+
+/*
+  Vidro para superfícies que seguram FORMULÁRIO.
+
+  Mesmo desenho, fundo bem mais denso. Num diálogo o texto é pequeno, escrito em
+  campo de entrada, e lido sobre o que quer que estivesse na página — o vidro
+  leve de um card não sustenta essa leitura. Aqui o blur é o efeito e a opacidade
+  é o que garante o contraste.
+*/
+@utility vidro-denso {
+  background-color: color-mix(in oklch, var(--background) 82%, transparent);
+  border: 1px solid var(--vidro-borda);
+  backdrop-filter: blur(var(--desfoque)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--desfoque)) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 var(--vidro-realce),
+    0 24px 64px -24px oklch(0 0 0 / 45%);
+}
+
+/*
+  A mesma lâmina, sem o desfoque.
+
+  Para superfícies que rolam com muito conteúdo por baixo: `backdrop-filter`
+  repinta a área inteira a cada quadro, e num celular modesto isso derruba o FPS
+  de uma lista longa. Aqui o custo não se paga, e a borda sozinha já dá a leitura.
+*/
+@utility vidro-leve {
+  background-color: var(--vidro);
+  border: 1px solid var(--vidro-borda);
+  box-shadow: inset 0 1px 0 var(--vidro-realce);
+}
+
+/*
+  As manchas de cor do fundo, atrás de tudo.
+
+  Ficam em `position: fixed` e não rolam com a página: são iluminação do
+  ambiente, não conteúdo. `pointer-events: none` porque a camada cobre a tela
+  inteira e engoliria todo clique se pudesse recebê-los.
+
+  Os `radial-gradient` param em `70%` porque um gradiente radial que vai até a
+  borda cria um anel visível onde ele termina — o corte antes disso é o que
+  deixa a mancha com cara de luz, e não de bola.
+*/
+@utility brilho-ambiente {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60rem 40rem at 15% -10%, var(--brilho-a), transparent 70%),
+    radial-gradient(50rem 35rem at 95% 15%, var(--brilho-b), transparent 70%);
+}
+
+/*
+  Quem pediu menos movimento não quer um fundo que pulsa nem transições de cor ao
+  trocar de acento. O `!important` é para vencer as transições que os utilitários
+  do Tailwind põem em cada elemento.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
