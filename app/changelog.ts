@@ -48,6 +48,12 @@ export interface Lancamento {
  */
 export const LANCAMENTOS: Lancamento[] = [
   {
+    versao: '1.6.0',
+    titulo: 'Pins, a moeda de vocês',
+    descricao: 'Lançar um gasto, marcar um filme, curtir uma foto ou fechar o mês gastando o mesmo que o anterior agora rende Pins — e o outro fica sabendo por quanto e por quê. Fim de semana, viagem em curso e dias seguidos multiplicam o que você ganhou, e o extrato explica a conta de cada conquista.',
+    data: '2026-09-07',
+  },
+  {
     versao: '1.5.0',
     titulo: 'O app na cor de vocês',
     descricao: 'Escolha entre oito cores de destaque, e o app inteiro acompanha — do brilho do fundo aos botões. As telas ganharam superfícies de vidro, que deixam a luz passar por trás. E o filtro "Todas" em Fotos, que voltava sozinho para "Esperando curtida", parou de voltar.',
