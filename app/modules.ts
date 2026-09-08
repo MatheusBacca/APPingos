@@ -118,8 +118,9 @@ export const MODULOS: AppModule[] = [
     descricao: 'Lidos, lendo e a fila de espera',
     icone: 'BookOpenIcon',
     rota: '/livros',
-    ativo: false,
+    ativo: true,
     naBarra: false,
+    resumo: useResumoLivros,
   },
   {
     slug: 'viagens',
