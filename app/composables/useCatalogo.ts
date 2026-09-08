@@ -10,7 +10,7 @@ const SELECT = `
   id,
   created_at,
   media:media_item!inner(id, tipo, fonte, fonte_id, titulo, titulo_original, ano, capa_url, sinopse, metadados),
-  avaliacoes:rating(user_id, status, nota, resenha, planejado_para, visto_em, enviado_em)
+  avaliacoes:rating(user_id, status, nota, resenha, planejado_para, visto_em, enviado_em, pagina_atual)
 `
 
 /**
@@ -83,6 +83,8 @@ interface AvaliacaoInput {
   planejado_para?: string | null
   visto_em?: string | null
   enviado_em?: string | null
+  /** Livros: a página em que você está. Ver app/types/livro.ts. */
+  pagina_atual?: number | null
 }
 
 export function useAvaliar() {

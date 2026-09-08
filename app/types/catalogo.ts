@@ -57,6 +57,14 @@ export interface Avaliacao {
   /** Datas em ISO curto (YYYY-MM-DD) — são `date` no banco, sem fuso. */
   planejado_para: string | null
   visto_em: string | null
+  /**
+   * Só Livros usa: em que página a pessoa está.
+   *
+   * Vive aqui, e não num tipo à parte, porque é uma coluna de `rating` como as
+   * outras — e `rating` é uma tabela só para os três tipos. Filme e música
+   * simplesmente a deixam nula.
+   */
+  pagina_atual: number | null
   /** Carimbo do "Enviar". Preenchido = nota e resenha não mudam mais. */
   enviado_em: string | null
 }

@@ -207,6 +207,19 @@ export default defineNuxtConfig({
     // servidor apenas — a chave do TMDB nunca vai para o client
     tmdbApiKey: '',
     googlePlacesApiKey: '',
+    /*
+     * OPCIONAL — Livros funciona sem ela, com a Open Library.
+     *
+     * Com a chave, a busca passa a usar o Google Books, que tem capa, sinopse e
+     * número de páginas de bem mais edições brasileiras. SEM ela o Google não
+     * serve: as chamadas anônimas do mundo inteiro dividem uma cota diária
+     * única, e ela vive estourada (429).
+     *
+     * Habilitar a Books API no mesmo projeto do Maps e preencher
+     * `NUXT_GOOGLE_BOOKS_API_KEY` no .env é tudo — o código troca de fonte
+     * sozinho. São 1.000 buscas/dia no gratuito.
+     */
+    googleBooksApiKey: '',
     // Idem: o secret do Spotify é trocado por um token dentro do servidor, em
     // `server/utils/spotify.ts`, e nem ele nem o token chegam ao navegador.
     spotifyClientId: '',

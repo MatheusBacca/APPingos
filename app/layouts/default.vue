@@ -69,7 +69,7 @@ const euId = useUsuarioId()
 
     <!-- Mobile: header enxuto com o seletor de espaço -->
     <header
-      class="vidro sticky top-0 z-30 flex items-center justify-between gap-2 rounded-none border-x-0 border-t-0 px-3 pt-safe md:hidden print:hidden"
+      class="vidro-barra sticky top-0 z-30 flex items-center justify-between gap-2 rounded-none border-x-0 border-t-0 px-3 pt-safe md:hidden print:hidden"
     >
       <div class="flex h-14 items-center gap-2">
         <AppLogo :com-texto="false" />

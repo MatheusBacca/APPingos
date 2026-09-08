@@ -16,7 +16,7 @@ const noMais = MODULOS.filter(m => !m.naBarra)
 
 <template>
   <nav
-    class="vidro fixed inset-x-0 bottom-0 z-40 rounded-none border-x-0 border-b-0 pb-safe md:hidden print:hidden"
+    class="vidro-barra fixed inset-x-0 bottom-0 z-40 rounded-none border-x-0 border-b-0 pb-safe md:hidden print:hidden"
     aria-label="Navegação principal"
   >
     <div class="grid h-16 grid-cols-5">
