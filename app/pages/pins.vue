@@ -163,7 +163,9 @@ function comoPercentual(fator: number): string {
             </p>
           </div>
 
-          <p class="shrink-0 text-2xl font-semibold tabular-nums">
+          <!-- A gota é a moeda; ver o cabeçalho de SeloDePins.vue. -->
+          <p class="flex shrink-0 items-center gap-1.5 text-2xl font-semibold tabular-nums text-primary">
+            <PingoIcone class="size-5" />
             {{ saldo.pontos }}
             <span class="sr-only">{{ pinsEmTexto(saldo.pontos) }}</span>
           </p>

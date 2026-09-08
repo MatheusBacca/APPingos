@@ -72,7 +72,16 @@ const sequencia = computed(() =>
           <span class="truncate" :class="linha.sou ? 'font-medium' : 'text-muted-foreground'">
             {{ linha.nome }}
           </span>
-          <span class="shrink-0 font-medium tabular-nums">
+          <!--
+            A gota entra só na SUA linha. Ela é a moeda (ver SeloDePins.vue), e
+            repeti-la em toda linha do placar transformaria a coluna de números
+            numa fileira de ícones idênticos — o cartão inteiro já é sobre Pins.
+          -->
+          <span
+            class="flex shrink-0 items-center gap-1 font-medium tabular-nums"
+            :class="linha.sou ? 'text-primary' : ''"
+          >
+            <PingoIcone v-if="linha.sou" class="size-3" />
             {{ linha.pontos }}
             <span class="sr-only">{{ pinsEmTexto(linha.pontos) }}</span>
           </span>
