@@ -48,6 +48,12 @@ export interface Lancamento {
  */
 export const LANCAMENTOS: Lancamento[] = [
   {
+    versao: '1.8.0',
+    titulo: 'Menos tela, mais resposta',
+    descricao: 'O acerto do mês saiu do card e virou uma linha na barra de Orçamentos, com a conta a um clique — e "Em que foi" agora alterna entre as categorias e a lista corrida das compras do mês. Em Filmes, o plano que ninguém cumpriu volta sozinho para Disponível depois de dois dias, o calendário marca uma bolinha por filme (e não uma por pessoa), e o cartaz da busca abre a ficha com sinopse antes de você adicionar. Em Objetivos dá para mover o status pelo próprio card e ver de quem é cada interesse e quem vai dar de presente. E os seus Pins agora aparecem ao lado do seu nome na tela inicial, com um fogo quando algum hotspot está multiplicando.',
+    data: '2026-09-08',
+  },
+  {
     versao: '1.7.0',
     titulo: 'Livros: a estante de vocês',
     descricao: 'Cada um marca o que quer ler, o que está lendo e o que já leu — a estante é dos dois, e a prateleira é de cada um. Clicando no livro tem o resumo e a sua resenha, que trava depois de enviada: você só vê a do outro depois de mandar a sua. E dá para pôr uma meta de leitura do ano, com a barra dos dois lado a lado.',
