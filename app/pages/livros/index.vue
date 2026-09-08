@@ -30,6 +30,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatarDia, hojeIso } from '@/lib/datas'
+import { capaEmAlta } from '@/lib/capa'
 import { mensagemDeErro } from '@/lib/utils'
 import type { ResultadoBuscaLivro } from '~~/server/utils/livros'
 import type { ItemDoEspaco, ItemParaAdicionar, StatusItem } from '~/types/catalogo'
@@ -382,7 +383,7 @@ function autoresDe(item: ItemDoEspaco): string | null {
             :key="livro.fonte_id"
             :titulo="livro.titulo"
             :ano="livro.ano"
-            :capa-url="livro.capa_url"
+            :capa-url="capaEmAlta(livro.capa_url)"
             :legenda="livro.autores[0] ?? null"
           >
             <template #overlay>
@@ -428,7 +429,7 @@ function autoresDe(item: ItemDoEspaco): string | null {
                 <PosterCard
                   :titulo="item.media.titulo"
                   :ano="item.media.ano"
-                  :capa-url="item.media.capa_url"
+                  :capa-url="capaEmAlta(item.media.capa_url)"
                   :legenda="autoresDe(item)"
                 />
               </NuxtLink>
@@ -470,7 +471,7 @@ function autoresDe(item: ItemDoEspaco): string | null {
                 <PosterCard
                   :titulo="item.media.titulo"
                   :ano="item.media.ano"
-                  :capa-url="item.media.capa_url"
+                  :capa-url="capaEmAlta(item.media.capa_url)"
                   :legenda="autoresDe(item)"
                 >
                   <template v-if="prateleira.valor === 'vendo' && progressoDaLeitura(item, euId ?? null) !== null" #rodape>

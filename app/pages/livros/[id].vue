@@ -28,7 +28,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
-import { fundoDaCapa } from '@/lib/capa'
+import { capaEmAlta, fundoDaCapa } from '@/lib/capa'
 import { formatarDia } from '@/lib/datas'
 import { mensagemDeErro } from '@/lib/utils'
 import type { StatusItem } from '~/types/catalogo'
@@ -233,7 +233,7 @@ async function onRemover() {
         <div class="w-36 overflow-hidden rounded-lg border sm:w-auto">
           <img
             v-if="item.media.capa_url"
-            :src="item.media.capa_url"
+            :src="capaEmAlta(item.media.capa_url)!"
             :alt="`Capa de ${item.media.titulo}`"
             class="aspect-[2/3] w-full object-cover"
           >

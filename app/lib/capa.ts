@@ -22,6 +22,41 @@
  */
 
 /**
+ * A mesma capa do Google, num tamanho que não fica borrado.
+ *
+ * A BUSCA DO GOOGLE SÓ DEVOLVE MINIATURA. `imageLinks` traz `smallThumbnail` e
+ * `thumbnail` e nada além disso — os tamanhos grandes existem, mas não chegam
+ * no resultado de busca. O que se guardava era a URL com `zoom=1`, que é
+ * 128×191: metade da largura de um cartão da estante, e um quarto num celular
+ * retina. Daí a impressão de imagem ruim.
+ *
+ * O endpoint aceita `w` e devolve a largura pedida, medido em três livros:
+ * 400×580, 400×619, 400×596. Em 600 a capa fica nítida até no detalhe de um
+ * aparelho 3x, por volta de 60 KB — e as da grade são carregadas com `lazy`.
+ *
+ * NORMALIZA NA HORA DE MOSTRAR, e não ao guardar, porque assim os livros que já
+ * estão na estante com a URL velha melhoram junto. Guardar a URL boa só
+ * consertaria os próximos, e exigiria uma migration para os que já existem.
+ *
+ * Open Library passa direto: `-L` já é o maior tamanho que ela serve (329×500).
+ */
+export function capaEmAlta(url: string | null | undefined, largura = 600): string | null {
+  if (!url) return null
+  if (!url.includes('books.google.com')) return url
+
+  // Tira o `zoom` e um `w` que já estivesse lá, e devolve com a largura pedida.
+  // A limpeza vem antes para a função ser idempotente: aplicá-la duas vezes não
+  // pode empilhar `&w=600&w=600`.
+  const limpa = url
+    .replace(/&zoom=\d+/g, '')
+    .replace(/\?zoom=\d+&/g, '?')
+    .replace(/&w=\d+/g, '')
+    .replace(/\?w=\d+&/g, '?')
+
+  return `${limpa}${limpa.includes('?') ? '&' : '?'}w=${largura}`
+}
+
+/**
  * Um matiz de 0 a 359, estável para uma mesma string.
  *
  * É um hash multiplicativo simples (a constante 31 é a clássica de `String
