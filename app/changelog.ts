@@ -48,6 +48,12 @@ export interface Lancamento {
  */
 export const LANCAMENTOS: Lancamento[] = [
   {
+    versao: '1.7.0',
+    titulo: 'Livros: a estante de vocês',
+    descricao: 'Cada um marca o que quer ler, o que está lendo e o que já leu — a estante é dos dois, e a prateleira é de cada um. Clicando no livro tem o resumo e a sua resenha, que trava depois de enviada: você só vê a do outro depois de mandar a sua. E dá para pôr uma meta de leitura do ano, com a barra dos dois lado a lado.',
+    data: '2026-09-08',
+  },
+  {
     versao: '1.6.0',
     titulo: 'Pins, a moeda de vocês',
     descricao: 'Lançar um gasto, marcar um filme, curtir uma foto ou fechar o mês gastando o mesmo que o anterior agora rende Pins — e o outro fica sabendo por quanto e por quê. Fim de semana, viagem em curso e dias seguidos multiplicam o que você ganhou, e o extrato explica a conta de cada conquista.',
