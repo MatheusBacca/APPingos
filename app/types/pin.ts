@@ -1,7 +1,7 @@
 /**
  * Domínio dos Pins — a moeda do APPingos.
  *
- * Ver `supabase/migrations/20260907230100_pins.sql` para o motor e o porquê de
+ * Ver `supabase/migrations/20260908025100_pins.sql` para o motor e o porquê de
  * o saldo ser derivado, e `docs/notion-plano-pins.md` para a economia inteira.
  *
  * A lógica daqui é pura de propósito: o extrato mostra a CONTA de cada linha

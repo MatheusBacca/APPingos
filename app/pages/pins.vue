@@ -2,7 +2,7 @@
 /**
  * O extrato dos Pins — a tela que responde "por que eu tenho 340".
  *
- * É a razão de o livro-razão existir (ver 20260907230100_pins.sql): saldo sem
+ * É a razão de o livro-razão existir (ver 20260908025100_pins.sql): saldo sem
  * extrato é um número que ninguém consegue conferir, e um app de pontos que não
  * se explica vira um app de pontos em que ninguém acredita.
  *
