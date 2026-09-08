@@ -6,18 +6,14 @@
  * Este arquivo reexporta o `Database` (nome que o @nuxtjs/supabase procura) e
  * acrescenta o que o gerador não consegue inferir.
  *
- * ⚠️ EXCEÇÃO EM ABERTO (Pins, 07/09/2026): `pin`, `pin_regra`, `pin_hotspot` e a
- * view `pin_saldo` estão no arquivo gerado ESCRITAS À MÃO, porque as migrations
- * dos Pins ainda não foram aplicadas a banco nenhum e o gerador só sabe ler
- * schema real. Rodar `npm run db:types` com elas aplicadas substitui as entradas
- * pelas de verdade e encerra a exceção — não é preciso limpar nada antes.
- *
- * O caminho "certo" foi tentado e é pior: estender o `Database` aqui, com
- * `Tables: Gerado['public']['Tables'] & { pin: ... }`, compila neste arquivo e
+ * LIÇÃO PAGA (Pins, 08/09/2026), para o próximo que precisar de uma tabela ainda
+ * não aplicada: NÃO estenda o `Database` aqui com
+ * `Tables: Gerado['public']['Tables'] & { nova: ... }`. Compila neste arquivo e
  * QUEBRA a inferência do cliente do Supabase no app inteiro — `from()` e `rpc()`
  * passam a resolver para `never` e `undefined`, com o erro aparecendo em
  * `server/utils/spotify-*`, longe da causa. Os tipos do Supabase casam a FORMA do
- * schema, e uma interseção não é a mesma forma que um objeto literal.
+ * schema, e uma interseção não é a mesma forma que um objeto literal. O caminho
+ * que funciona é aplicar a migration e rodar `npm run db:types`.
  */
 import type { Database as GeneratedDatabase } from './database.generated'
 

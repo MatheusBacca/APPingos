@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.15"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -959,6 +959,38 @@ export type Database = {
           },
         ]
       }
+      meta_leitura: {
+        Row: {
+          alvo: number
+          ano: number
+          created_at: string
+          space_id: string
+          user_id: string
+        }
+        Insert: {
+          alvo: number
+          ano: number
+          created_at?: string
+          space_id: string
+          user_id: string
+        }
+        Update: {
+          alvo?: number
+          ano?: number
+          created_at?: string
+          space_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_leitura_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notificacao: {
         Row: {
           ator_id: string | null
@@ -1459,6 +1491,8 @@ export type Database = {
           enviado_em: string | null
           id: string
           nota: number | null
+          pagina_atual: number | null
+          planejado_em: string | null
           planejado_para: string | null
           resenha: string | null
           status: string
@@ -1471,6 +1505,8 @@ export type Database = {
           enviado_em?: string | null
           id?: string
           nota?: number | null
+          pagina_atual?: number | null
+          planejado_em?: string | null
           planejado_para?: string | null
           resenha?: string | null
           status?: string
@@ -1483,6 +1519,8 @@ export type Database = {
           enviado_em?: string | null
           id?: string
           nota?: number | null
+          pagina_atual?: number | null
+          planejado_em?: string | null
           planejado_para?: string | null
           resenha?: string | null
           status?: string
@@ -1762,6 +1800,35 @@ export type Database = {
         Args: { p_interesse: string; p_space: string }
         Returns: undefined
       }
+      conceder_pins: {
+        Args: {
+          p_base_extra?: number
+          p_chave: string
+          p_dados?: Json
+          p_entidade?: string
+          p_entidade_id?: string
+          p_hotspots_extra?: string[]
+          p_regra: string
+          p_rota?: string
+          p_space: string
+          p_user: string
+        }
+        Returns: number
+      }
+      conceder_pins_todos: {
+        Args: {
+          p_base_extra?: number
+          p_chave: string
+          p_dados?: Json
+          p_entidade?: string
+          p_entidade_id?: string
+          p_regra: string
+          p_rota?: string
+          p_space: string
+        }
+        Returns: number
+      }
+      conceder_pins_viagens_concluidas: { Args: never; Returns: number }
       concluir_memoria: { Args: { p_memoria: string }; Returns: undefined }
       create_space: {
         Args: { p_nome: string; p_tipo?: string }
@@ -1794,6 +1861,7 @@ export type Database = {
       espaco_do_caminho: { Args: { p_nome: string }; Returns: string }
       faxina_notificacoes: { Args: never; Returns: number }
       gerar_codigo_convite: { Args: never; Returns: string }
+      inicio_do_dia_brt: { Args: { p_dia: string }; Returns: string }
       is_space_admin: { Args: { p_space: string }; Returns: boolean }
       is_space_member: { Args: { p_space: string }; Returns: boolean }
       is_space_owner: { Args: { p_space: string }; Returns: boolean }
@@ -1819,6 +1887,7 @@ export type Database = {
           p_entidade_id?: string
           p_janela?: string
           p_rota?: string
+          p_somar?: string[]
           p_space: string
           p_tipo: string
         }
@@ -1840,6 +1909,19 @@ export type Database = {
       obter_ou_criar_categoria: {
         Args: { p_cor?: string; p_nome: string; p_space: string }
         Returns: string
+      }
+      pins_hotspots: {
+        Args: {
+          p_agora: string
+          p_extra?: string[]
+          p_regra: string
+          p_space: string
+          p_user: string
+        }
+        Returns: {
+          hotspots: string[]
+          multiplicador: number
+        }[]
       }
       planejar_filme: {
         Args: { p_data: string; p_entry: string }
@@ -1915,10 +1997,7 @@ export type Database = {
       }
       separar_produto: { Args: { p_produto: string }; Returns: string }
       shares_space_with: { Args: { p_user: string }; Returns: boolean }
-      sou_dono_do_interesse: {
-        Args: { p_interesse: string }
-        Returns: boolean
-      }
+      sou_dono_do_interesse: { Args: { p_interesse: string }; Returns: boolean }
       status_do_email: { Args: never; Returns: Json }
       token_de_escuta: { Args: { p_user: string }; Returns: string }
     }
@@ -1939,12 +2018,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1968,11 +2047,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1993,11 +2072,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2018,11 +2097,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2035,11 +2114,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
