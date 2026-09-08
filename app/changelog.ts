@@ -48,6 +48,12 @@ export interface Lancamento {
  */
 export const LANCAMENTOS: Lancamento[] = [
   {
+    versao: '1.5.0',
+    titulo: 'O app na cor de vocês',
+    descricao: 'Escolha entre oito cores de destaque, e o app inteiro acompanha — do brilho do fundo aos botões. As telas ganharam superfícies de vidro, que deixam a luz passar por trás. E o filtro "Todas" em Fotos, que voltava sozinho para "Esperando curtida", parou de voltar.',
+    data: '2026-09-07',
+  },
+  {
     versao: '1.4.0',
     titulo: 'O painel mostra, e você arruma',
     descricao: 'A tela inicial virou vitrine: os três últimos meses de gasto, os próximos filmes, as fotos liberadas passando sozinhas, a última música ouvida no espaço, o mapa da próxima viagem e os interesses em aberto. Pela engrenagem dá para reordenar, redimensionar e esconder cada cartão — e o conteúdo de cada um acompanha o tamanho que você deu.',
