@@ -254,6 +254,17 @@ async function onResgatar() {
                 <span v-if="membro.apelido" class="text-muted-foreground">· {{ membro.nome }}</span>
               </span>
 
+              <!--
+                Os Pins de cada um, ao lado do nome.
+
+                É aqui, e não em toda tela que mostra gente: esta é a lista de
+                QUEM É QUEM no espaço, e o saldo é uma propriedade da pessoa. Em
+                Filmes o nome responde "quem assistiu" e em Orçamentos "quem
+                pagou" — pendurar o placar nessas linhas seria mudar o assunto
+                delas no meio.
+              -->
+              <SeloDePins :de="membro.user_id" />
+
               <!-- O dono não muda de cargo por aqui: transferir posse é outra história. -->
               <span v-if="!souDono || membro.papel === 'dono'" class="text-xs text-muted-foreground">
                 {{ PAPEL_ROTULO[membro.papel] }}

@@ -6,6 +6,7 @@ import {
   LayoutDashboardIcon,
   MusicIcon,
   PlaneIcon,
+  SparklesIcon,
   TargetIcon,
   WalletIcon,
 } from '@lucide/vue'
@@ -23,6 +24,7 @@ const ICONES = {
   LayoutDashboardIcon,
   MusicIcon,
   PlaneIcon,
+  SparklesIcon,
   TargetIcon,
   WalletIcon,
 } as const

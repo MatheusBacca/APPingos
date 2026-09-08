@@ -39,6 +39,7 @@ export type TipoNotificacao =
   | 'lembrete_filmes'
   | 'foto_nova'
   | 'foto_aprovada'
+  | 'pins_ganhos'
   | 'app_atualizado'
 
 export interface Notificacao {
@@ -310,6 +311,31 @@ export function textoDaNotificacao(n: Notificacao): TextoNotificacao {
       }
 
     /*
+      Pins ganhos pela outra pessoa.
+
+      É o único tipo em que o agrupamento SOMA em vez de sobrescrever (o
+      `p_somar` de `notificar()`): `vezes` conta as conquistas e `pontos` traz o
+      total delas. Sem isso, dois ganhos de 10 dentro da janela virariam "2
+      vezes, 10 Pins" — a contagem certa e o número errado.
+
+      Por isso o corpo muda de assunto quando agrupa: com uma conquista só, o
+      rótulo dela É a explicação ("Foto curtida"); com várias, o que importa é
+      quantas foram, e o rótulo vira só a mais recente.
+    */
+    case 'pins_ganhos': {
+      const pontos = Math.trunc(Number(d.pontos))
+      const quantos = Number.isFinite(pontos) && pontos > 0 ? pontos : 0
+      return {
+        titulo: `${quem} ganhou ${quantos} ${quantos === 1 ? 'Pin' : 'Pins'}`,
+        corpo: vezes > 1
+          ? `${vezes} conquistas — a última: ${texto(d, 'rotulo', 'no APPingos')}`
+          : texto(d, 'rotulo'),
+        rota: n.rota ?? '/pins',
+        icone: 'SparklesIcon',
+      }
+    }
+
+    /*
       A versão nova do app.
 
       Único tipo em que o texto vem INTEIRO do `dados`, e não montado a partir de
@@ -478,10 +504,11 @@ export type CategoriaNotificacao =
   | 'fotos'
   | 'edicoes'
   | 'lembretes'
+  | 'pins'
   | 'app'
 
 /**
- * Dezesseis tipos em sete interruptores.
+ * Dezessete tipos em oito interruptores.
  *
  * A tabela do banco é por TIPO, e a tela é por CATEGORIA: uma caixa com
  * dezesseis chaves é uma caixa que ninguém configura. O agrupamento vive aqui, e
@@ -503,6 +530,7 @@ export const TIPOS_DA_CATEGORIA: Record<CategoriaNotificacao, TipoNotificacao[]>
   fotos: ['foto_nova', 'foto_aprovada'],
   edicoes: ['gasto_editado', 'gasto_removido', 'roteiro_editado'],
   lembretes: ['lembrete_filmes', 'viagem_perto', 'viagem_terminou'],
+  pins: ['pins_ganhos'],
   app: ['app_atualizado'],
 }
 
@@ -515,6 +543,7 @@ export const CATEGORIA_ROTULO: Record<CategoriaNotificacao, string> = {
   fotos: 'Fotos',
   edicoes: 'Edições e remoções',
   lembretes: 'Lembretes',
+  pins: 'Pins',
   app: 'Novidades do app',
 }
 
@@ -525,6 +554,7 @@ export const CATEGORIA_DESCRICAO: Record<CategoriaNotificacao, string> = {
   fotos: 'Foto nova esperando o seu coração, e quando os dois curtiram.',
   edicoes: 'Quando o outro mexe ou apaga algo que já existia.',
   lembretes: 'Domingo de filmes, a viagem que se aproxima e a que acabou de terminar.',
+  pins: 'Quando a outra pessoa conquista Pins, e por quê.',
   app: 'Quando uma versão nova entra no ar, com o que ela trouxe.',
 }
 

@@ -4,6 +4,7 @@ import { useAvisoEspacoDeletado } from '~/composables/useAvisoEspacoDeletado'
 import { useConvitePendente } from '~/composables/useConvitePendente'
 import { useEspacos } from '~/composables/useEspacos'
 import { useSidebar } from '~/composables/useSidebar'
+import { useUsuarioId } from '~/composables/useUsuarioId'
 import { useSpaceStore } from '~/stores/space'
 import {
   Dialog,
@@ -37,6 +38,9 @@ const { aviso, marcarLido } = useAvisoEspacoDeletado()
 
 // A sidebar decide a própria largura; aqui o conteúdo acompanha o recuo.
 const { aberta } = useSidebar()
+
+// Para o selo de Pins do cabeçalho do celular.
+const euId = useUsuarioId()
 </script>
 
 <template>
@@ -73,7 +77,24 @@ const { aberta } = useSidebar()
           <SpaceSwitcher />
         </div>
       </div>
-      <div class="flex items-center">
+      <div class="flex items-center gap-1">
+        <!--
+          O saldo de Pins, e é só aqui que ele mora fixo.
+
+          No desktop a barra lateral já desenha o resumo de Pins junto dos outros
+          módulos; um selo a mais ao lado do logo repetiria, na mesma coluna, o
+          número que está dois blocos abaixo. No celular não há barra lateral, e
+          sem isto os Pins só existiriam no cartão do painel — visíveis na tela
+          inicial e invisíveis nas outras sete.
+        -->
+        <NuxtLink
+          v-if="euId"
+          to="/pins"
+          class="rounded-full transition-opacity hover:opacity-80"
+          aria-label="Seus Pins"
+        >
+          <SeloDePins :de="euId" tamanho="md" />
+        </NuxtLink>
         <SinoDeNotificacoes />
         <BotaoDeAparencia />
       </div>

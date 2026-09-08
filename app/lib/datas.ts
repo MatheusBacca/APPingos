@@ -42,6 +42,20 @@ export function somarMeses(mesIso: string, n: number): string {
   return paraIso(d.getFullYear(), d.getMonth() + 1, 1)
 }
 
+/**
+ * Anda dias numa data de calendário.
+ *
+ * `new Date(ano, mes - 1, dia + n)` normaliza virada de mês e de ano sozinho,
+ * pelo mesmo motivo de `somarMeses`. E é construção local, nunca
+ * `new Date(iso)`, pela razão do cabeçalho: somar um dia via UTC devolveria o
+ * dia errado num fuso a oeste.
+ */
+export function somarDias(iso: string, n: number): string {
+  const { ano, mes, dia } = partesDaData(iso)
+  const d = new Date(ano, mes - 1, dia + n)
+  return paraIso(d.getFullYear(), d.getMonth() + 1, d.getDate())
+}
+
 /** Último dia do mês, para fechar intervalos `data_compra between mes and fim`. */
 export function ultimoDiaDoMes(mesIso: string): string {
   const { ano, mes } = partesDaData(mesIso)
