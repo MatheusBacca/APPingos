@@ -100,6 +100,60 @@ export function formatarMultiplicador(multiplicador: number): string {
   return `${multiplicador.toFixed(2).replace('.', ',')}×`
 }
 
+export interface SeloDoMultiplicador {
+  /** Falso = não há nada a mostrar, e o selo não deve existir na tela. */
+  aceso: boolean
+  /** `"1,35×"` — o número, já formatado. */
+  numero: string
+  /** `"Está rendendo 1,35× — Sequência · Fim de semana"`. */
+  explicacao: string
+}
+
+/**
+ * O selo de "está rendendo mais agora", pronto para desenhar.
+ *
+ * Mora aqui, e não dentro do componente, pelo motivo de sempre neste arquivo: é
+ * uma regra de leitura, é a parte que tende a mudar, e é a única testável sem
+ * subir o Nuxt nem o banco.
+ *
+ * APAGADO EM 1×, e não "1,00×". Um selo permanente dizendo "nada acontecendo" é
+ * ruído fixo na tela inicial, e gasta a atenção que o fogo precisa ter quando de
+ * fato houver algo. Também apaga abaixo de 1 e em valor inválido: `multiplicador`
+ * chega de uma RPC, e um `NaN` virando "NaN×" na saudação seria o pior desfecho
+ * possível de um selo decorativo.
+ *
+ * A EXPLICAÇÃO CARREGA OS HOTSPOTS porque o número sozinho promete demais: nem
+ * todo hotspot vale para tudo (fim de semana só pega lazer, corujão só filme),
+ * então "1,35×" sem dizer de onde veio é uma conta que um gasto lançado não
+ * cumpre. Com "Sequência · Fim de semana" ao lado, quem quiser conferir sabe
+ * onde olhar.
+ *
+ * `rotuloDe` entra como função porque os rótulos vêm do banco (`pin_hotspot`),
+ * e uma cópia deles aqui seria a segunda fonte de verdade que `useRegrasDePins`
+ * recusou ser.
+ */
+export function seloDoMultiplicador(
+  multiplicador: number,
+  hotspots: string[],
+  rotuloDe: (chave: string) => string,
+): SeloDoMultiplicador {
+  const valor = Number.isFinite(multiplicador) ? multiplicador : 1
+  const numero = formatarMultiplicador(valor)
+
+  if (valor <= 1) {
+    return { aceso: false, numero, explicacao: 'Nada multiplicando agora.' }
+  }
+
+  const nomes = hotspots.map(rotuloDe).filter(Boolean)
+  const base = `Está rendendo ${numero}`
+
+  return {
+    aceso: true,
+    numero,
+    explicacao: nomes.length ? `${base} — ${nomes.join(' · ')}` : base,
+  }
+}
+
 /**
  * A conta que rendeu aqueles pontos: `"3 × 1,50 = 5"`.
  *

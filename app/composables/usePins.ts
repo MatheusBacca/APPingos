@@ -84,6 +84,54 @@ export function useSaldoDePins() {
 }
 
 /**
+ * O multiplicador que está valendo AGORA, para quem está olhando.
+ *
+ * O extrato responde "por que aquele Pin rendeu 5"; isto responde a pergunta que
+ * se faz antes de agir — "vale a pena registrar isso agora?". Quem calcula é o
+ * banco, pela mesma função que concede (ver
+ * 20260908130000_pins_multiplicador_agora.sql): somar os hotspots aqui no
+ * TypeScript seria a segunda fonte de verdade da economia, exatamente o que
+ * `useRegrasDePins()` recusou ser.
+ *
+ * `staleTime` de cinco minutos, e não uma hora como o das regras: as regras
+ * mudam por migration, este número muda com o RELÓGIO — às 22h nasce o corujão,
+ * na virada do sábado nasce o fim de semana, e a sequência muda a cada Pin novo.
+ * Cinco minutos é curto o bastante para a tela não mentir por muito tempo e
+ * longo o bastante para não virar uma consulta por navegação.
+ */
+export function useMultiplicadorAgora() {
+  const supabase = useSupabaseClient()
+
+  return useSpaceQuery(
+    ['pins', 'multiplicador'],
+    async (spaceId): Promise<{ multiplicador: number, hotspots: string[] }> => {
+      const { data, error } = await supabase.rpc('meu_multiplicador_de_pins', {
+        p_space: spaceId,
+      })
+      if (error) throw error
+
+      /*
+       * A RPC é `returns table`, então o PostgREST entrega um ARRAY de uma linha
+       * — e é por isso que o `[0]` não é defensivo, é o formato.
+       *
+       * Sem linha (ou com o campo nulo) o neutro é 1, nunca zero: zero apagaria
+       * os Pins da conta em vez de simplesmente não multiplicar nada. O `Number`
+       * existe porque `numeric` do Postgres chega como string quando passa da
+       * precisão de um double — não é o caso de um multiplicador de duas casas,
+       * mas o dia em que for, o selo mostraria "NaN×" no lugar do fogo.
+       */
+      const linha = data?.[0]
+
+      return {
+        multiplicador: Number(linha?.multiplicador ?? 1) || 1,
+        hotspots: linha?.hotspots ?? [],
+      }
+    },
+    { staleTime: 1000 * 60 * 5 },
+  )
+}
+
+/**
  * O que rende Pins, lido do banco.
  *
  * Não é uma constante em TypeScript porque a economia mora em `pin_regra` /

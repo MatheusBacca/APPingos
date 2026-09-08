@@ -345,11 +345,23 @@ function largarCanto(evento: PointerEvent) {
       </div>
 
       <!--
-        Ao lado do título: as linhas de resumo, uma legenda fixa, ou nada — quem
-        decide é o módulo (ver `CabecalhoDoCartao`). Só vale para quem tem
-        vitrine; sem ela, o resumo continua embaixo do título, como sempre.
+        Ao lado do título: um selo vivo, uma legenda fixa, as linhas de resumo,
+        ou nada — quem decide é o módulo (ver `CabecalhoDoCartao`).
+
+        O SELO É O ÚNICO QUE VALE SEM VITRINE, e é de propósito: Livros não tem
+        visual nenhum (o cartão é as linhas de resumo) e mesmo assim quer a
+        porcentagem da meta no canto. Os outros dois continuam presos à vitrine,
+        porque sem ela o resumo já ocupa o corpo do cartão e repeti-lo no canto
+        seria dizer a mesma coisa duas vezes na mesma caixa.
       -->
-      <template v-if="modulo.vitrine">
+      <SeloDoCartao
+        v-if="cabecalho.tipo === 'selo'"
+        :key="`selo-${modulo.slug}`"
+        :usar="cabecalho.usar"
+        :modulo="modulo.slug"
+      />
+
+      <template v-else-if="modulo.vitrine">
         <span
           v-if="cabecalho.tipo === 'legenda'"
           class="shrink-0 text-sm text-muted-foreground"

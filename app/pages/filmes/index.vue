@@ -20,6 +20,7 @@ import { RECORTES, RECORTE_ROTULO, avaliacaoDe, dataDoRecorte, itemNoRecorte, re
 import type { Recorte } from '@/lib/recortes'
 import type { ResultadoBusca } from '~~/server/utils/tmdb'
 import type { ItemDoEspaco, ItemParaAdicionar, MarcadorDia } from '~/types/catalogo'
+import { marcadoresDoCalendario } from '~/types/catalogo'
 import { useItens, useAdicionarItem, useAvaliar, usePlanejarFilme } from '~/composables/useCatalogo'
 import { useConvitesFilme, useResponderConvite } from '~/composables/useConvitesFilme'
 import { useMembros } from '~/composables/useMembros'
@@ -80,6 +81,13 @@ const jaNoEspaco = computed(() =>
   new Set((itens.value ?? []).map(i => `${i.media.tipo}:${i.media.titulo}:${i.media.ano ?? ''}`)),
 )
 
+/** O resultado cuja ficha está aberta. `null` = nenhuma. */
+const fichaAberta = ref<ResultadoBusca | null>(null)
+
+function jaNaLista(resultado: ResultadoBusca): boolean {
+  return jaNoEspaco.value.has(`${resultado.tipo}:${resultado.titulo}:${resultado.ano ?? ''}`)
+}
+
 async function onAdicionar(resultado: ResultadoBusca) {
   idsAdicionando.value.add(resultado.fonte_id)
   try {
@@ -96,6 +104,9 @@ async function onAdicionar(resultado: ResultadoBusca) {
     }
     await adicionar.mutateAsync(item)
     toast.success(`"${resultado.titulo}" adicionado à lista de interesse.`)
+    // A busca inteira sai de cena ao adicionar; deixar a ficha aberta sobre um
+    // resultado que não existe mais na tela seria um diálogo órfão.
+    fichaAberta.value = null
     termo.value = ''
   }
   catch (e) {
@@ -111,17 +122,9 @@ async function onAdicionar(resultado: ResultadoBusca) {
 const mes = ref(primeiroDoMes(hojeIso()))
 const diaSelecionado = ref<string | null>(null)
 
-const marcadores = computed<MarcadorDia[]>(() => {
-  const lista: MarcadorDia[] = []
-  for (const item of itens.value ?? []) {
-    for (const av of item.avaliacoes) {
-      const base = { entryId: item.id, titulo: item.media.titulo, quem: nomeDoMembro(av.user_id) }
-      if (av.planejado_para) lista.push({ ...base, data: av.planejado_para, tom: 'planejado' })
-      if (av.visto_em) lista.push({ ...base, data: av.visto_em, tom: 'visto' })
-    }
-  }
-  return lista
-})
+const marcadores = computed<MarcadorDia[]>(() =>
+  marcadoresDoCalendario(itens.value ?? [], nomeDoMembro),
+)
 
 /**
  * O recorte do dia/mês visível.
@@ -337,6 +340,19 @@ function confirmarData(semData = false) {
             :legenda="resultado.tipo === 'serie' ? 'Série' : 'Filme'"
           >
             <template #overlay>
+              <!--
+                O cartaz inteiro abre a ficha. Vem ANTES do botão de interesse na
+                ordem do DOM de propósito: os dois são absolutos na mesma caixa, e
+                é essa ordem que deixa o botão por cima — um `z-index` aqui
+                resolveria o mesmo com mais peça a manter.
+              -->
+              <button
+                type="button"
+                class="absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                :aria-label="`Ver a ficha de ${resultado.titulo}`"
+                @click="fichaAberta = resultado"
+              />
+
               <button
                 v-if="!jaNoEspaco.has(`${resultado.tipo}:${resultado.titulo}:${resultado.ano ?? ''}`)"
                 type="button"
@@ -448,6 +464,14 @@ function confirmarData(semData = false) {
         </div>
       </div>
     </section>
+
+    <MidiaDialogo
+      :resultado="fichaAberta"
+      :ja-na-lista="!!fichaAberta && jaNaLista(fichaAberta)"
+      :adicionando="!!fichaAberta && idsAdicionando.has(fichaAberta.fonte_id)"
+      @adicionar="onAdicionar"
+      @fechar="fichaAberta = null"
+    />
 
     <Dialog :open="!!dialogoData" @update:open="dialogoData = null">
       <DialogContent>

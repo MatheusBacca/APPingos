@@ -65,3 +65,18 @@ export type UsarResumo = () => ComputedRef<LinhaResumo[]>
 
 /** Três linhas é o teto do "de relance" — além disso vira uma tela pequena. */
 export const MAX_LINHAS = 3
+
+/**
+ * O selo do canto do cartão do painel: uma palavra que muda — "Na fila", "42%".
+ *
+ * Irmão de `UsarResumo`, e mora aqui pelo mesmo motivo, mais um: `app/modules.ts`
+ * importa os composables que o produzem, então declarar o contrato lá dentro
+ * faria cada composable importar de volta o arquivo que o importa. Tipo é
+ * apagado na compilação e o ciclo não existiria em runtime, mas um ciclo que só
+ * não morde por causa disso é um ciclo esperando a primeira constante ser
+ * movida para o lado errado.
+ *
+ * `null` = nada a dizer, e o canto fica vazio. Nunca um traço: um cartão sem
+ * selo não é um cartão com selo vazio.
+ */
+export type UsarSelo = () => ComputedRef<string | null>

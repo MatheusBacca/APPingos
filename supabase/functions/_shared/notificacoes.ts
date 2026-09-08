@@ -36,6 +36,7 @@ export type TipoNotificacao =
   | 'memoria_pronta'
   | 'interesse_novo'
   | 'marcado_assistiu'
+  | 'plano_expirado'
   | 'lembrete_filmes'
   | 'foto_nova'
   | 'foto_aprovada'
@@ -273,6 +274,23 @@ export function textoDaNotificacao(n: Notificacao): TextoNotificacao {
         icone: 'EyeIcon',
       }
 
+    /*
+      O plano que venceu (ver 20260908120000_filmes_plano_vencido.sql).
+
+      O texto não cobra e não lamenta: o filme continua na lista, e é isso que a
+      frase precisa deixar claro. "Voltou para Disponível" é a notícia; "vocês
+      não viram" seria o app dando bronca por uma sexta que não aconteceu.
+    */
+    case 'plano_expirado':
+      return {
+        titulo: `${texto(d, 'titulo', 'Um título')} voltou para Disponível`,
+        corpo: d.planejado_para
+          ? `A data marcada era ${formatarDataIso(d.planejado_para)}. Continua na lista — é só remarcar.`
+          : 'Continua na lista — é só remarcar.',
+        rota: n.rota ?? '/filmes',
+        icone: 'CalendarOffIcon',
+      }
+
     case 'lembrete_filmes':
       return {
         titulo: 'Viu algo essa semana?',
@@ -508,10 +526,10 @@ export type CategoriaNotificacao =
   | 'app'
 
 /**
- * Dezessete tipos em oito interruptores.
+ * Dezoito tipos em oito interruptores.
  *
  * A tabela do banco é por TIPO, e a tela é por CATEGORIA: uma caixa com
- * dezesseis chaves é uma caixa que ninguém configura. O agrupamento vive aqui, e
+ * dezoito chaves é uma caixa que ninguém configura. O agrupamento vive aqui, e
  * não numa coluna, para poder mudar sem migration no dia em que "Edições"
  * precisar ser partida ao meio.
  *
@@ -526,7 +544,7 @@ export type CategoriaNotificacao =
 export const TIPOS_DA_CATEGORIA: Record<CategoriaNotificacao, TipoNotificacao[]> = {
   orcamentos: ['gasto_novo', 'mes_fechado'],
   viagens: ['roteiro_novo', 'roteiro_liberado', 'memoria_pronta'],
-  filmes: ['interesse_novo', 'marcado_assistiu'],
+  filmes: ['interesse_novo', 'marcado_assistiu', 'plano_expirado'],
   fotos: ['foto_nova', 'foto_aprovada'],
   edicoes: ['gasto_editado', 'gasto_removido', 'roteiro_editado'],
   lembretes: ['lembrete_filmes', 'viagem_perto', 'viagem_terminou'],
@@ -550,7 +568,7 @@ export const CATEGORIA_ROTULO: Record<CategoriaNotificacao, string> = {
 export const CATEGORIA_DESCRICAO: Record<CategoriaNotificacao, string> = {
   orcamentos: 'Gastos novos e o mês acertado.',
   viagens: 'Roteiro novo, surpresa revelada e a memória da viagem fechada.',
-  filmes: 'Interesse novo e quando marcam que você assistiu.',
+  filmes: 'Interesse novo, quando marcam que você assistiu e o plano que venceu.',
   fotos: 'Foto nova esperando o seu coração, e quando os dois curtiram.',
   edicoes: 'Quando o outro mexe ou apaga algo que já existia.',
   lembretes: 'Domingo de filmes, a viagem que se aproxima e a que acabou de terminar.',

@@ -55,10 +55,25 @@ function selecionar(iso: string) {
   emit('update:diaSelecionado', props.diaSelecionado === iso ? null : iso)
 }
 
+/*
+ * O rótulo diz o TOM junto com o título, e não só a lista de nomes.
+ *
+ * Um mesmo filme marcado e assistido no mesmo dia são duas bolinhas de cores
+ * diferentes (ver `marcadoresDoCalendario`) — e sem o tom o leitor de tela
+ * anunciava "A Última Casa, A Última Casa", que soa como um bug em vez de dois
+ * eventos distintos sobre o mesmo filme.
+ */
+const VERBO_DO_TOM: Record<MarcadorDia['tom'], string> = {
+  planejado: 'marcado',
+  visto: 'assistido',
+}
+
 function resumoDoDia(iso: string): string {
+  const dia = `Dia ${partesDaData(iso).dia}`
   const itens = porDia.value.get(iso) ?? []
-  if (!itens.length) return `Dia ${partesDaData(iso).dia}`
-  return `Dia ${partesDaData(iso).dia}: ${itens.map(i => i.titulo).join(', ')}`
+  if (!itens.length) return dia
+
+  return `${dia}: ${itens.map(i => `${i.titulo} (${VERBO_DO_TOM[i.tom]})`).join(', ')}`
 }
 </script>
 

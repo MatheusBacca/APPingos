@@ -6,7 +6,7 @@
  * andamento é o que se quer retomar; a meta é contexto, não chamado.
  */
 import { MAX_LINHAS } from '~/types/resumo'
-import type { LinhaResumo, UsarResumo } from '~/types/resumo'
+import type { LinhaResumo, UsarResumo, UsarSelo } from '~/types/resumo'
 import type { ItemDoEspaco } from '~/types/catalogo'
 import type { MetaLeitura } from '~/types/livro'
 import { fraseDaMeta, porPrateleira, progressoDaLeitura, progressoDaMeta } from '~/types/livro'
@@ -55,10 +55,18 @@ export function linhasDeLivros(
   const progresso = progressoDaMeta(itens, userId, meta)
 
   if (progresso) {
+    /*
+     * SEM `valor`, e a ausência é deliberada: a porcentagem agora é o selo do
+     * canto do cartão (ver `useSeloLivros`), e mantê-la aqui a colocaria duas
+     * vezes na mesma caixa, a quarenta pixels de distância uma da outra.
+     *
+     * Nada se perde: `fraseDaMeta` já diz "0 de 3 · faltam 3", que é a mesma
+     * informação em contagem — e na sidebar, onde não há canto de cartão, a
+     * contagem é a leitura mais útil das duas.
+     */
     linhas.push({
       chave: `meta-${ano}`,
       rotulo: `Meta de ${ano}`,
-      valor: `${progresso.percentual}%`,
       nota: fraseDaMeta(progresso),
       // Meta batida é a única coisa aqui que merece um empurrão visual.
       destaque: progresso.cumprida,
@@ -80,4 +88,27 @@ export const useResumoLivros: UsarResumo = () => {
     usuarioId.value ?? null,
     ano,
   ))
+}
+
+/**
+ * O selo do canto do cartão: quanto da meta de leitura do ano já foi.
+ *
+ * Só o número — o contexto ("faltam 3 livros") continua na linha de resumo logo
+ * abaixo, que é onde ele cabe. `null` sem meta definida: um "0%" para quem nunca
+ * pôs meta seria cobrar uma promessa que a pessoa não fez.
+ *
+ * A meta é a SUA, como todo o resumo de Livros: no espaço de casal a prateleira
+ * é compartilhada, mas a meta do ano é de cada um.
+ */
+export const useSeloLivros: UsarSelo = () => {
+  const ano = new Date().getFullYear()
+  const { data: itens } = useItens(['livro'])
+  const { data: metas } = useMetasDeLeitura(ano)
+  const usuarioId = useUsuarioId()
+
+  return computed<string | null>(() => {
+    const meta = (metas.value ?? []).find(m => m.user_id === usuarioId.value && m.ano === ano)
+    const progresso = progressoDaMeta(itens.value ?? [], usuarioId.value ?? null, meta)
+    return progresso ? `${progresso.percentual}%` : null
+  })
 }

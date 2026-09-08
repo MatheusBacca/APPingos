@@ -7,8 +7,9 @@
  * duas vezes na mesma caixa de três linhas.
  */
 import { formatarDiaCurto, hojeIso } from '@/lib/datas'
+import { FILMES_DA_VITRINE, LEGENDA_DA_FASE, filmesDaVitrine } from '@/lib/vitrine'
 import { MAX_LINHAS } from '~/types/resumo'
-import type { LinhaResumo, UsarResumo } from '~/types/resumo'
+import type { LinhaResumo, UsarResumo, UsarSelo } from '~/types/resumo'
 import type { ItemDoEspaco } from '~/types/catalogo'
 import type { ConviteFilme } from '~/composables/useConvitesFilme'
 import type { Membro } from '~/composables/useMembros'
@@ -87,4 +88,21 @@ export const useResumoFilmes: UsarResumo = () => {
   return computed<LinhaResumo[]>(() =>
     linhasDeFilmes(convites.value ?? [], itens.value ?? [], membros.value ?? [], hojeIso()),
   )
+}
+
+/**
+ * O selo do canto do cartão: em que pé a vitrine de Filmes está.
+ *
+ * Lê a MESMA `filmesDaVitrine` que o cartaz desenha, e não uma segunda regra
+ * própria — senão o canto diria "Na fila" enquanto os cartazes mostram o que já
+ * foi visto. A quantidade passada é o piso (`FILMES_DA_VITRINE`) porque a fase é
+ * a do primeiro cartaz, e ela não muda quando cabem mais.
+ */
+export const useSeloFilmes: UsarSelo = () => {
+  const { data: itens } = useItens(['filme', 'serie'])
+
+  return computed<string | null>(() => {
+    const vitrine = filmesDaVitrine(itens.value ?? [], hojeIso(), FILMES_DA_VITRINE)
+    return vitrine ? LEGENDA_DA_FASE[vitrine.fase] : null
+  })
 }

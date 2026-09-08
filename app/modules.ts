@@ -22,23 +22,50 @@
  */
 import { defineAsyncComponent } from 'vue'
 import type { Component } from 'vue'
-import type { UsarResumo } from '~/types/resumo'
+import type { UsarResumo, UsarSelo } from '~/types/resumo'
+/*
+ * Os composables entram por import explícito, e não pelo auto-import.
+ *
+ * É a regra de `scripts/verificar-imports.mjs`, e este arquivo é o pior lugar
+ * possível para desobedecê-la: ele é lido pela sidebar e pela bottom bar em
+ * TODA página, então um registro de auto-import remontado no meio de um
+ * transform do Vite derrubaria o app inteiro no boot — o incidente de
+ * 05/08/2026, de novo. O verificador não pegava isto porque aqui os composables
+ * são passados como referência, e ele só enxerga chamada.
+ */
+import { useResumoOrcamentos } from '~/composables/useResumoOrcamentos'
+import { useResumoFilmes, useSeloFilmes } from '~/composables/useResumoFilmes'
+import { useResumoFotos } from '~/composables/useResumoFotos'
+import { useResumoMusicas } from '~/composables/useResumoMusicas'
+import { useResumoLivros, useSeloLivros } from '~/composables/useResumoLivros'
+import { useResumoViagens } from '~/composables/useResumoViagens'
+import { useResumoInteresses } from '~/composables/useResumoInteresses'
+import { useResumoPins } from '~/composables/useResumoPins'
 
 /**
  * O que o cartão do painel mostra ao lado do título.
  *
  * O padrão é `resumo`: as linhas de número do módulo, que é o que o painel
- * sempre deu. As outras duas existem porque a vitrine mudou a conta — quando o
- * visual já diz aquilo, repetir em texto é ocupar a única linha de cabeçalho com
- * a informação que a pessoa acabou de ler logo abaixo.
+ * sempre deu. As outras existem porque a vitrine mudou a conta — quando o visual
+ * já diz aquilo, repetir em texto é ocupar a única linha de cabeçalho com a
+ * informação que a pessoa acabou de ler logo abaixo.
  *
- *   `nada`     — Filmes: cada cartaz já traz o título e a data embaixo dele.
- *   `legenda`  — Fotos: a linha vira o nome da coisa ("Nossas memórias"), porque
- *                contar quantas fotos estão liberadas não é o assunto do cartão.
+ *   `nada`     — o canto fica vazio de propósito.
+ *   `legenda`  — texto fixo: Fotos vira o nome da coisa ("Nossas memórias"),
+ *                Músicas vira o convite ("Bora ouvir"). Nos dois casos contar
+ *                quantidade não é o assunto do cartão.
+ *   `selo`     — uma palavra que MUDA: o estado dos filmes em cena, a
+ *                porcentagem da meta de leitura. É o que substituiu as linhas
+ *                de legenda que a vitrine escrevia dentro do próprio corpo, e
+ *                que competiam com o visual logo abaixo delas.
+ *
+ * `selo` é o único que vale também para módulo SEM vitrine — é como Livros, que
+ * é só resumo em texto, ganha a porcentagem no canto.
  */
 export type CabecalhoDoCartao =
   | { tipo: 'resumo' }
   | { tipo: 'legenda', texto: string }
+  | { tipo: 'selo', usar: UsarSelo }
   | { tipo: 'nada' }
 
 export interface AppModule {
@@ -80,9 +107,11 @@ export const MODULOS: AppModule[] = [
     naBarra: true,
     resumo: useResumoFilmes,
     vitrine: defineAsyncComponent(() => import('~/components/VitrineFilmes.vue')),
-    // A data de cada filme aparece embaixo do cartaz dele; no topo era a mesma
-    // lista, duas vezes, na mesma caixa.
-    cabecalho: { tipo: 'nada' },
+    // O canto diz em que pé a vitrine está ("Na fila"), e nada mais: a data de
+    // cada filme já aparece embaixo do cartaz dele, e a frase que a vitrine
+    // escrevia no corpo ("Na fila, ainda sem data") competia com os cartazes
+    // logo abaixo dela.
+    cabecalho: { tipo: 'selo', usar: useSeloFilmes },
   },
   {
     slug: 'fotos',
@@ -111,6 +140,11 @@ export const MODULOS: AppModule[] = [
     naBarra: false,
     resumo: useResumoMusicas,
     vitrine: defineAsyncComponent(() => import('~/components/VitrineMusicas.vue')),
+    // O convite no canto, e o corpo só com a faixa. A legenda que ficava ali
+    // ("Ana está ouvindo agora", "A última que entrou na lista") explicava a
+    // procedência do dado — informação de bastidor, num cartão cujo assunto é a
+    // música. O ponto pulsando continua dizendo o que é ao vivo.
+    cabecalho: { tipo: 'legenda', texto: 'Bora ouvir' },
   },
   {
     slug: 'livros',
@@ -121,6 +155,10 @@ export const MODULOS: AppModule[] = [
     ativo: true,
     naBarra: false,
     resumo: useResumoLivros,
+    // Livros não tem vitrine: o cartão É as linhas de resumo. O canto ganha a
+    // porcentagem da meta do ano, que é o número que se olha de relance — as
+    // linhas embaixo continuam com o contexto ("faltam 3 livros").
+    cabecalho: { tipo: 'selo', usar: useSeloLivros },
   },
   {
     slug: 'viagens',

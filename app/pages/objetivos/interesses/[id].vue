@@ -30,7 +30,6 @@ import {
   paraQuemDoInteresse,
   produtosDoInteresse,
   rotuloDestino,
-  rotuloEstado,
   somaDoAgrupamento,
   valorDoInteresse,
 } from '~/types/interesse'
@@ -289,7 +288,21 @@ async function onApagar() {
 
           <div class="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <Badge variant="secondary">{{ rotuloDestino(interesse.destino) }}</Badge>
-            <Badge variant="outline">{{ rotuloEstado(interesse.estado) }}</Badge>
+
+            <!--
+              O selo do estado É o seletor. Antes ele era só um rótulo e o único
+              caminho para mudá-lo passava pelo diálogo de edição — que é do
+              dono. Quem assumiu o presente e acabou de comprá-lo não tinha como
+              mover o card para "Convertido", ainda que o banco sempre tenha
+              permitido (ver `EstadoDoInteresse`).
+            -->
+            <EstadoDoInteresse
+              :id="interesse.id"
+              :estado="interesse.estado"
+              :titulo="interesse.titulo"
+              variante="rotulo"
+            />
+
             <span v-if="paraQuem">para {{ paraQuem }}</span>
             <!--
               De onde ele vem, quando é de fora: sem isso um interesse do casal

@@ -191,10 +191,18 @@ export const FILMES_DA_VITRINE = 2
 /** A fila de prioridade do card, na ordem em que ele desce por ela. */
 export type FaseDoFilme = 'planejado' | 'disponivel' | 'visto'
 
+/**
+ * O rótulo curto da fase — o selo no canto do cartão do painel.
+ *
+ * Curto porque ele divide a linha do topo com o nome do módulo, e porque a
+ * frase longa que ficava dentro do corpo ("Na fila, ainda sem data") explicava
+ * o que os próprios cartazes logo abaixo já mostram: eles não têm data escrita.
+ * Duas palavras bastam para dizer em que pé a vitrine está.
+ */
 export const LEGENDA_DA_FASE: Record<FaseDoFilme, string> = {
   planejado: 'Bora assistir',
-  disponivel: 'Na fila, ainda sem data',
-  visto: 'Os últimos que vocês viram',
+  disponivel: 'Na fila',
+  visto: 'Já vimos',
 }
 
 export interface FilmeDaVitrine {
@@ -300,11 +308,13 @@ export function filmesDaVitrine(
  */
 export const FOTOS_DA_VITRINE = 8
 
-export type FaseDaFoto = 'liberada' | 'esperando'
+export type FaseDaFoto = 'liberada' | 'esperando' | 'postada' | 'todas'
 
 export const LEGENDA_DA_FOTO: Record<FaseDaFoto, string> = {
   liberada: 'Vocês curtiram — pode postar',
   esperando: 'Esperando o seu coração',
+  postada: 'Já postadas',
+  todas: 'Todas as fotos',
 }
 
 export interface VitrineDeFotos {
@@ -314,43 +324,75 @@ export interface VitrineDeFotos {
 }
 
 /**
- * As que já podem ser postadas; sem nenhuma, as que esperam o SEU coração.
+ * Qual grupo o carrossel mostra.
  *
- * A ordem inverte a do resumo em texto de propósito. Lá a tarefa vem primeiro,
- * porque a linha é um chamado. Aqui o card é uma vitrine: o que ele mostra bem é
- * a foto que já passou pelos dois, e a pendência entra como o segundo melhor
- * assunto — não como a chamada principal.
+ * `auto` é o comportamento de sempre e continua sendo o padrão — ver
+ * `fotosDaVitrine`. Os outros quatro são a escolha explícita de quem quer o card
+ * apontado para uma gaveta só: rever o que já foi postado, por exemplo, é uma
+ * vontade legítima que o automático nunca atenderia (ele nunca chega lá, porque
+ * sempre há algo mais urgente na frente).
+ */
+export type GrupoDaVitrine = 'auto' | 'esperando' | 'liberada' | 'postada' | 'todas'
+
+/**
+ * Os rótulos do seletor, na ordem em que aparecem.
  *
- * Só imagens: um vídeo em rodízio automático dentro do painel ou fica congelado
- * no primeiro quadro, ou começa a baixar sozinho no celular de quem abriu o app
- * com dados móveis.
+ * "Esperando curtida" e não "Esperando o seu coração": escolhido à mão, o grupo é
+ * o MESMO da galeria — tudo que ainda não fechou o par, inclusive o que já
+ * espera só pela outra pessoa. No automático o recorte é mais estreito (só o que
+ * espera por VOCÊ), porque lá a linha é um chamado à ação e não um filtro.
+ */
+export const GRUPOS_DA_VITRINE: { valor: GrupoDaVitrine, rotulo: string }[] = [
+  { valor: 'auto', rotulo: 'Automático' },
+  { valor: 'esperando', rotulo: 'Esperando curtida' },
+  { valor: 'liberada', rotulo: 'Pode postar' },
+  { valor: 'postada', rotulo: 'Já postadas' },
+  { valor: 'todas', rotulo: 'Todas' },
+]
+
+export function ehGrupoDaVitrine(valor: unknown): valor is GrupoDaVitrine {
+  return typeof valor === 'string' && GRUPOS_DA_VITRINE.some(g => g.valor === valor)
+}
+
+/**
+ * As fotos do carrossel — pelo grupo escolhido, ou pelo automático.
+ *
+ * NO AUTOMÁTICO: as que já podem ser postadas; sem nenhuma, as que esperam o SEU
+ * coração. A ordem inverte a do resumo em texto de propósito. Lá a tarefa vem
+ * primeiro, porque a linha é um chamado. Aqui o card é uma vitrine: o que ele
+ * mostra bem é a foto que já passou pelos dois, e a pendência entra como o
+ * segundo melhor assunto — não como a chamada principal.
+ *
+ * COM GRUPO ESCOLHIDO não há segunda tentativa: um grupo vazio devolve `null` e
+ * o card diz que não há nada ali. Cair para outro grupo seria o card ignorar em
+ * silêncio a escolha que a pessoa acabou de fazer, e ela não teria como saber
+ * que o filtro não pegou.
+ *
+ * Só imagens, em qualquer grupo: um vídeo em rodízio automático dentro do painel
+ * ou fica congelado no primeiro quadro, ou começa a baixar sozinho no celular de
+ * quem abriu o app com dados móveis.
  */
 export function fotosDaVitrine(
   fotos: Foto[],
   euId: string | null,
   totalDeMembros: number,
+  grupo: GrupoDaVitrine = 'auto',
 ): VitrineDeFotos | null {
   const imagens = fotos.filter(f => f.tipo === 'imagem')
 
-  const liberadas = imagens.filter(f => situacaoDaFoto(f, totalDeMembros) === 'liberada')
-  if (liberadas.length) {
-    return {
-      fase: 'liberada',
-      legenda: LEGENDA_DA_FOTO.liberada,
-      fotos: liberadas.slice(0, FOTOS_DA_VITRINE),
-    }
+  function comFase(fase: FaseDaFoto, lista: Foto[]): VitrineDeFotos | null {
+    if (!lista.length) return null
+    return { fase, legenda: LEGENDA_DA_FOTO[fase], fotos: lista.slice(0, FOTOS_DA_VITRINE) }
   }
 
-  const minhas = esperandoPorMim(imagens, euId, totalDeMembros)
-  if (minhas.length) {
-    return {
-      fase: 'esperando',
-      legenda: LEGENDA_DA_FOTO.esperando,
-      fotos: minhas.slice(0, FOTOS_DA_VITRINE),
-    }
+  if (grupo === 'todas') return comFase('todas', imagens)
+
+  if (grupo !== 'auto') {
+    return comFase(grupo, imagens.filter(f => situacaoDaFoto(f, totalDeMembros) === grupo))
   }
 
-  return null
+  return comFase('liberada', imagens.filter(f => situacaoDaFoto(f, totalDeMembros) === 'liberada'))
+    ?? comFase('esperando', esperandoPorMim(imagens, euId, totalDeMembros))
 }
 
 // ---------------------------------------------------------------------------

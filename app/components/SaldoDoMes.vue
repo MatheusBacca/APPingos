@@ -1,23 +1,30 @@
 <script setup lang="ts">
 /**
- * O acerto de contas do mês — a conta que hoje é feita à mão no WhatsApp.
+ * O acerto de contas do mês, agora como uma LINHA da barra do mês.
  *
- * Com duas pessoas a resposta é uma frase só, e é isso que a tela mostra em
- * destaque: os saldos são simétricos, então quem tem saldo negativo deve
- * exatamente esse valor a quem tem saldo positivo. Com mais gente não existe
- * uma frase única (o acerto vira um problema de quem paga quem), então a tela
- * cai para a lista de saldos por pessoa em vez de inventar um caminho errado.
+ * Ele já foi um card próprio, com título, tabela e botão — e o card dizia em
+ * quatro blocos o que cabe numa frase. A frase é a resposta ("Fulano deve X a
+ * Beltrano"), e é ela que a pessoa veio buscar; o resto é conferência, e
+ * conferência não precisa estar aberta o tempo todo.
+ *
+ * Com duas pessoas a resposta é uma frase só: os saldos são simétricos, então
+ * quem tem saldo negativo deve exatamente esse valor a quem tem saldo positivo.
+ * Com mais gente não existe uma frase única (o acerto vira um problema de quem
+ * paga quem), e aí a tabela abre sozinha em vez de a tela inventar um caminho
+ * errado — ela deixa de ser detalhe e passa a ser a única resposta que existe.
+ *
+ * O botão de marcar como pago NÃO mora aqui: ele é uma ação sobre o mês, e vive
+ * no alto da barra, junto do mês a que se refere (ver `AcertoBotao.vue`). Os
+ * dois leem o mesmo `useAcertos()` — é uma query compartilhada, não dois estados.
  */
 import { toast } from 'vue-sonner'
-import { CheckIcon, CopyIcon, Undo2Icon } from '@lucide/vue'
-import { Button } from '@/components/ui/button'
+import { CheckIcon, ChevronDownIcon, CopyIcon } from '@lucide/vue'
 import { formatarDia } from '@/lib/datas'
 import { formatarDinheiro, valorParaCopiar } from '@/lib/dinheiro'
-import { mensagemDeErro } from '@/lib/utils'
 import { saldoDoMes } from '~/types/orcamento'
 import type { CompraDoMes } from '~/types/orcamento'
 import type { Membro } from '~/composables/useMembros'
-import { useAcertos, useMarcarAcerto } from '~/composables/useOrcamento'
+import { useAcertos } from '~/composables/useOrcamento'
 
 const props = defineProps<{
   compras: CompraDoMes[]
@@ -26,8 +33,6 @@ const props = defineProps<{
   competencia: string
   /** Competência já fechada muda o texto de "parcial" para "final". */
   fechado: boolean
-  /** Mês que ainda não começou não oferece o botão de acerto. */
-  futuro: boolean
 }>()
 
 const saldos = computed(() =>
@@ -57,30 +62,20 @@ const acerto = computed(() => {
   return { quitado: false, valor, credor, devedor }
 })
 
-// ---- Pendente | Pago --------------------------------------------------------
-
-/*
- * O acerto é o único estado do mês que não vem do calendário: "fechado" é a
- * passagem do tempo, "pago" é uma decisão de gente. Qualquer membro marca e
- * qualquer membro desmarca — quem paga costuma ser quem deve, mas quem confirma
- * é quem recebe.
- */
 const { data: acertos } = useAcertos()
-const marcar = useMarcarAcerto()
 
 const pagamento = computed(() =>
   (acertos.value ?? []).find(a => a.competencia === props.competencia) ?? null,
 )
 
-async function alternarAcerto(pago: boolean) {
-  try {
-    await marcar.mutateAsync({ competencia: props.competencia, pago })
-    toast.success(pago ? 'Mês marcado como pago.' : 'O mês voltou para pendente.')
-  }
-  catch (e) {
-    toast.error(mensagemDeErro(e, 'Não deu para mudar o acerto do mês.'))
-  }
-}
+/*
+ * A conta fica fechada por padrão — e não fica quando não há frase que a
+ * substitua. Com três pessoas ou mais, esconder a tabela seria esconder a
+ * resposta inteira atrás de um clique.
+ */
+const aberta = ref(!acerto.value)
+
+watch(acerto, (a) => { if (!a) aberta.value = true })
 
 /*
  * Copiar o valor cru para colar no app do banco.
@@ -105,31 +100,17 @@ async function copiarValor(valor: number) {
 </script>
 
 <template>
-  <section class="space-y-3 rounded-lg border bg-card p-4">
-    <div class="flex items-baseline justify-between gap-2">
-      <h2 class="text-sm font-medium">Acerto do mês</h2>
-
-      <span
-        v-if="pagamento"
-        class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100"
-      >
-        Pago
-      </span>
-      <span v-else class="text-xs text-muted-foreground">
-        {{ fechado ? 'Pendente — fechou e ainda não foi acertado' : 'Parcial — o mês ainda está aberto' }}
-      </span>
-    </div>
-
-    <p v-if="!compras.length" class="text-sm text-muted-foreground">
-      Nada lançado neste mês.
-    </p>
-
-    <template v-else>
-      <!-- A resposta, quando ela cabe numa frase -->
-      <p v-if="acerto?.quitado" class="text-lg font-semibold">
+  <!--
+    Mês sem lançamento nenhum não tem acerto, e a linha some inteira: o total da
+    barra logo acima já mostra R$ 0,00, e "nada lançado" escrito embaixo dele
+    seria a mesma notícia duas vezes.
+  -->
+  <div v-if="compras.length" class="border-t px-3 py-2">
+    <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+      <p v-if="acerto?.quitado" class="font-medium">
         Está quitado — ninguém deve nada.
       </p>
-      <p v-else-if="acerto" class="text-lg font-semibold">
+      <p v-else-if="acerto" class="font-medium">
         {{ nomeDoMembro(acerto.devedor.user_id) }} deve
         <!--
           O valor é o botão: um clique copia `283,33` — sem "R$" e sem separador
@@ -137,20 +118,50 @@ async function copiarValor(valor: number) {
         -->
         <button
           type="button"
-          class="group inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          class="group inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           :title="`Copiar ${valorParaCopiar(acerto.valor)}`"
           @click="copiarValor(acerto.valor)"
         >
           {{ formatarDinheiro(acerto.valor) }}
           <component
             :is="copiado ? CheckIcon : CopyIcon"
-            class="size-4 opacity-40 transition-opacity group-hover:opacity-100"
+            class="size-3.5 opacity-40 transition-opacity group-hover:opacity-100"
           />
         </button>
         a {{ nomeDoMembro(acerto.credor.user_id) }}.
       </p>
+      <p v-else class="font-medium">
+        O acerto entre {{ membros.length }} pessoas — os saldos estão na conta abaixo.
+      </p>
 
-      <!-- De onde o número saiu -->
+      <span class="text-xs text-muted-foreground">
+        <template v-if="pagamento">
+          · pago em {{ formatarDia(pagamento.pago_em.slice(0, 10)) }}
+          por {{ nomeDoMembro(pagamento.pago_por) }}
+        </template>
+        <template v-else>
+          · {{ fechado ? 'o mês fechou e ainda não foi acertado' : 'parcial — o mês ainda está aberto' }}
+        </template>
+      </span>
+
+      <!--
+        A conta que sustenta a frase continua a um clique — e não mais ocupando
+        um card inteiro. Só existe botão quando existe frase para esconder: ver
+        `aberta` no script.
+      -->
+      <button
+        v-if="acerto"
+        type="button"
+        class="ml-auto flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        :aria-expanded="aberta"
+        @click="aberta = !aberta"
+      >
+        {{ aberta ? 'Esconder a conta' : 'Ver a conta' }}
+        <ChevronDownIcon class="size-3.5 transition-transform" :class="aberta ? 'rotate-180' : ''" />
+      </button>
+    </div>
+
+    <div v-if="aberta" class="mt-2">
       <table class="w-full text-sm">
         <thead>
           <tr class="border-b text-left text-xs text-muted-foreground">
@@ -175,49 +186,10 @@ async function copiarValor(valor: number) {
         </tbody>
       </table>
 
-      <p class="text-xs text-muted-foreground">
+      <p class="mt-1.5 text-xs text-muted-foreground">
         Saldo positivo significa que essa pessoa adiantou mais do que a parte dela.
+        Marque como pago quando o dinheiro for transferido — qualquer um de vocês pode.
       </p>
-
-      <!--
-        O botão que fecha o ciclo do módulo: até aqui o mês só sabia que tinha
-        fechado (calendário), não que já tinha sido pago (gente). É esta marca
-        que faz o painel de resumos parar de cobrar a competência e passar a
-        mostrar o mês seguinte. Mês que ainda nem começou não oferece o botão —
-        não há o que acertar.
-      -->
-      <div v-if="!futuro" class="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
-        <p class="text-xs text-muted-foreground">
-          <template v-if="pagamento">
-            Pago em {{ formatarDia(pagamento.pago_em.slice(0, 10)) }} por {{ nomeDoMembro(pagamento.pago_por) }}.
-          </template>
-          <template v-else>
-            Marque quando o dinheiro for transferido — qualquer um de vocês pode.
-          </template>
-        </p>
-
-        <Button
-          v-if="!pagamento"
-          size="sm"
-          class="gap-1.5"
-          :disabled="marcar.isPending.value"
-          @click="alternarAcerto(true)"
-        >
-          <CheckIcon class="size-4" />
-          Marcar como pago
-        </Button>
-        <Button
-          v-else
-          variant="ghost"
-          size="sm"
-          class="gap-1.5"
-          :disabled="marcar.isPending.value"
-          @click="alternarAcerto(false)"
-        >
-          <Undo2Icon class="size-4" />
-          Desfazer
-        </Button>
-      </div>
-    </template>
-  </section>
+    </div>
+  </div>
 </template>

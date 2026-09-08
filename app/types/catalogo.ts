@@ -82,9 +82,67 @@ export interface MarcadorDia {
   data: string
   entryId: string
   titulo: string
-  /** Nome de quem marcou — no espaço de casal, a mesma data pode ser de um só. */
+  /** Quem marcou, já reunido: "Ana e Bruno" quando os dois marcaram o mesmo dia. */
   quem: string
   tom: 'planejado' | 'visto'
+}
+
+/**
+ * Os marcadores do calendário: UM POR ITEM E POR TOM, e não um por pessoa.
+ *
+ * A bolinha responde "aconteceu alguma coisa neste dia", e o que acontece é com
+ * o filme, não com cada membro do espaço. Uma linha por avaliação — que é o
+ * formato cru do banco — punha duas bolinhas verdes no dia em que o casal viu um
+ * filme JUNTO, e o calendário passava a contar pessoas: dois filmes marcados e
+ * um filme assistido a dois davam o mesmo desenho, que é exatamente a confusão
+ * que a bolinha existe para evitar.
+ *
+ * Reunir aqui, e não no componente do calendário, é o que faz a regra ser
+ * testável fora do Nuxt e valer igual para o rótulo de leitor de tela — que
+ * antes repetia o mesmo título uma vez por membro.
+ */
+export function marcadoresDoCalendario(
+  itens: ItemDoEspaco[],
+  nomeDe: (userId: string) => string,
+): MarcadorDia[] {
+  const porChave = new Map<string, MarcadorDia & { nomes: string[] }>()
+
+  const somar = (item: ItemDoEspaco, data: string, tom: MarcadorDia['tom'], userId: string) => {
+    const chave = `${data}|${item.id}|${tom}`
+    const existente = porChave.get(chave)
+
+    if (existente) {
+      if (!existente.nomes.includes(nomeDe(userId))) existente.nomes.push(nomeDe(userId))
+      return
+    }
+
+    porChave.set(chave, {
+      data,
+      entryId: item.id,
+      titulo: item.media.titulo,
+      quem: '',
+      tom,
+      nomes: [nomeDe(userId)],
+    })
+  }
+
+  for (const item of itens) {
+    for (const av of item.avaliacoes) {
+      if (av.planejado_para) somar(item, av.planejado_para, 'planejado', av.user_id)
+      if (av.visto_em) somar(item, av.visto_em, 'visto', av.user_id)
+    }
+  }
+
+  return [...porChave.values()].map(({ nomes, ...marcador }) => ({
+    ...marcador,
+    quem: juntarNomes(nomes),
+  }))
+}
+
+/** "Ana", "Ana e Bruno", "Ana, Bruno e Carla" — a vírgula de lista em português. */
+function juntarNomes(nomes: string[]): string {
+  if (nomes.length <= 1) return nomes[0] ?? ''
+  return `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}`
 }
 
 /** Payload aceito pela RPC adicionar_item. */

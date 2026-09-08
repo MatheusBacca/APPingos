@@ -20,6 +20,7 @@ import {
   formatarConta,
   formatarMultiplicador,
   pinsEmTexto,
+  seloDoMultiplicador,
   sequenciaDeDias,
   totalDe,
 } from '~/types/pin'
@@ -60,6 +61,49 @@ describe('formatarMultiplicador', () => {
   it('sempre com duas casas, para a lista não desalinhar', () => {
     expect(formatarMultiplicador(1.5)).toBe('1,50×')
     expect(formatarMultiplicador(1.15)).toBe('1,15×')
+  })
+})
+
+/*
+  O selo da tela inicial. O risco aqui não é a conta — é ele APARECER quando não
+  deveria: um "1,00×" fixo ao lado do "Oi, Fulano" seria ruído permanente, e um
+  "NaN×" vindo de uma RPC que respondeu torto seria pior.
+*/
+describe('seloDoMultiplicador', () => {
+  const ROTULOS: Record<string, string> = {
+    sequencia: 'Sequência',
+    fim_de_semana: 'Fim de semana',
+  }
+  const rotuloDe = (chave: string) => ROTULOS[chave] ?? chave
+
+  it('apaga em 1× — sem hotspot não há selo', () => {
+    expect(seloDoMultiplicador(1, [], rotuloDe).aceso).toBe(false)
+  })
+
+  it('apaga em valor inválido, em vez de escrever NaN na saudação', () => {
+    expect(seloDoMultiplicador(Number.NaN, ['sequencia'], rotuloDe).aceso).toBe(false)
+  })
+
+  it('acende acima de 1 e diz de onde o número veio', () => {
+    const selo = seloDoMultiplicador(1.35, ['sequencia', 'fim_de_semana'], rotuloDe)
+
+    expect(selo.aceso).toBe(true)
+    expect(selo.numero).toBe('1,35×')
+    expect(selo.explicacao).toBe('Está rendendo 1,35× — Sequência · Fim de semana')
+  })
+
+  /*
+    Hotspot que a tela ainda não sabe nomear (o banco ganhou um novo, o app
+    instalado no celular é de antes) cai na chave crua em vez de sumir: um selo
+    aceso sem explicação nenhuma seria o número mágico que ele existe para evitar.
+  */
+  it('usa a chave crua quando o rótulo ainda não é conhecido', () => {
+    expect(seloDoMultiplicador(1.2, ['hotspot_novo'], rotuloDe).explicacao)
+      .toBe('Está rendendo 1,20× — hotspot_novo')
+  })
+
+  it('acende sem lista quando o banco não disse quais hotspots entraram', () => {
+    expect(seloDoMultiplicador(1.1, [], rotuloDe).explicacao).toBe('Está rendendo 1,10×')
   })
 })
 

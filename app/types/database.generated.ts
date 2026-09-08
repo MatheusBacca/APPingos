@@ -1853,6 +1853,7 @@ export type Database = {
         Args: { p_interesse: string; p_space: string }
         Returns: undefined
       }
+      devolver_planos_vencidos: { Args: never; Returns: number }
       escolher_agrupamento: {
         Args: { p_agrupamento: string }
         Returns: undefined
@@ -1878,6 +1879,13 @@ export type Database = {
       }
       marcar_notificacoes_lidas: { Args: { p_ids?: string[] }; Returns: number }
       marcar_roteiro_visto: { Args: { p_roteiro: string }; Returns: undefined }
+      meu_multiplicador_de_pins: {
+        Args: { p_space?: string }
+        Returns: {
+          hotspots: string[]
+          multiplicador: number
+        }[]
+      }
       nome_para_notificacao: { Args: { p_user: string }; Returns: string }
       notificar: {
         Args: {

@@ -3,12 +3,14 @@ import { useMediaQuery } from '@vueuse/core'
 import { LayoutGridIcon, SlidersHorizontalIcon } from '@lucide/vue'
 import { usePainel } from '~/composables/usePainel'
 import { usePerfil } from '~/composables/usePerfil'
+import { useUsuarioId } from '~/composables/useUsuarioId'
 import { useSpaceStore } from '~/stores/space'
 
 useHead({ title: 'Início · APPingos' })
 
 const store = useSpaceStore()
 const user = useSupabaseUser()
+const usuarioId = useUsuarioId()
 const { data: perfil } = usePerfil()
 
 /*
@@ -73,9 +75,31 @@ function soltar(slug: string) {
   <div class="space-y-8">
     <header class="flex items-start justify-between gap-3">
       <div class="min-w-0">
-        <h1 class="text-2xl font-semibold tracking-tight">
-          {{ primeiroNome ? `Oi, ${primeiroNome}` : 'Oi' }}
-        </h1>
+        <!--
+          O saudar e o placar na mesma linha: os Pins são a única coisa do app
+          que fala de VOCÊ, e não do espaço, então o lugar deles é junto do seu
+          nome. O fogo só acende quando há hotspot — ver `SeloDeMultiplicador`.
+
+          `items-center` e não `items-baseline`: os dois selos são pílulas com
+          altura própria, e alinhá-los pela linha de base do título de 24px os
+          jogaria para baixo do texto.
+        -->
+        <div class="flex flex-wrap items-center gap-2">
+          <h1 class="text-2xl font-semibold tracking-tight">
+            {{ primeiroNome ? `Oi, ${primeiroNome}` : 'Oi' }}
+          </h1>
+
+          <NuxtLink
+            v-if="usuarioId"
+            to="/pins"
+            class="rounded-full transition-opacity hover:opacity-80"
+            aria-label="Seus Pins"
+          >
+            <SeloDePins :de="usuarioId" tamanho="md" />
+          </NuxtLink>
+
+          <SeloDeMultiplicador />
+        </div>
         <p class="mt-1 text-sm text-muted-foreground">
           Você está em <strong class="text-foreground">{{ store.espacoAtivo?.nome }}</strong>.
         </p>

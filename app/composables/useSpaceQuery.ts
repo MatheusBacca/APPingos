@@ -18,12 +18,18 @@ export function useEspacoQuery<T>(
   espaco: MaybeRefOrGetter<string | null | undefined>,
   chave: MaybeRefOrGetter<unknown[]>,
   fn: (spaceId: string) => Promise<T>,
-  opcoes: { enabled?: MaybeRefOrGetter<boolean> } = {},
+  /**
+   * `staleTime` fica exposto porque nem todo dado do espaço envelhece igual: o
+   * multiplicador de Pins muda com o relógio e pede uma janela própria, contra o
+   * padrão global que serve a compras, filmes e fotos.
+   */
+  opcoes: { enabled?: MaybeRefOrGetter<boolean>, staleTime?: number } = {},
 ) {
   return useQuery({
     queryKey: computed(() => ['space', toValue(espaco), ...toValue(chave)]),
     enabled: computed(() => !!toValue(espaco) && (toValue(opcoes.enabled) ?? true)),
     queryFn: () => fn(toValue(espaco)!),
+    ...(opcoes.staleTime === undefined ? {} : { staleTime: opcoes.staleTime }),
   })
 }
 
@@ -38,7 +44,7 @@ export function useEspacoQuery<T>(
 export function useSpaceQuery<T>(
   chave: MaybeRefOrGetter<unknown[]>,
   fn: (spaceId: string) => Promise<T>,
-  opcoes: { enabled?: MaybeRefOrGetter<boolean> } = {},
+  opcoes: { enabled?: MaybeRefOrGetter<boolean>, staleTime?: number } = {},
 ) {
   const store = useSpaceStore()
 

@@ -56,7 +56,13 @@ const vitrine = computed(() => filmesDaVitrine(itens.value ?? [], hojeIso(), cab
     </p>
 
     <template v-else>
-      <p class="text-sm text-muted-foreground">{{ vitrine.legenda }}</p>
+      <!--
+        Sem a linha de legenda que ficava aqui: o estado da vitrine ("Na fila")
+        subiu para o canto do cartão, junto do nome do módulo (ver
+        `useSeloFilmes` e o `cabecalho` de Filmes em `app/modules.ts`). Uma frase
+        de largura inteira logo acima dos cartazes disputava com eles a primeira
+        leitura — e os cartazes é que são o assunto.
+      -->
 
       <!--
         Colunas contadas, e não `auto-fit`: com um cartaz só, a coluna vazia é o
@@ -64,7 +70,7 @@ const vitrine = computed(() => filmesDaVitrine(itens.value ?? [], hojeIso(), cab
         inteira faria um filme parecer um banner.
       -->
       <div
-        class="mt-2 grid gap-3"
+        class="grid gap-3"
         :style="{ gridTemplateColumns: `repeat(${cabem.colunas}, minmax(0, 1fr))` }"
       >
         <PosterCard

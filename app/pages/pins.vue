@@ -118,13 +118,16 @@ function comoPercentual(fator: number): string {
   <div class="space-y-6">
     <header class="flex flex-wrap items-start justify-between gap-3">
       <div>
+        <!--
+          Sem subtítulo. "A moeda do APPingos — registrar rende, e o combinado
+          rende mais" é exatamente o que a aba "Como ganhar" existe para dizer, e
+          com números em vez de promessa. Repeti-lo aqui era uma linha de
+          publicidade em cima do extrato de quem já entendeu o jogo.
+        -->
         <h1 class="flex items-center gap-2 text-2xl font-semibold tracking-tight">
           <PingoIcone class="size-6 text-primary" />
           Pins
         </h1>
-        <p class="mt-1 text-sm text-muted-foreground">
-          A moeda do APPingos — registrar rende, e o combinado rende mais.
-        </p>
       </div>
 
       <nav class="flex gap-1 rounded-lg border bg-card p-1 text-sm">
@@ -147,30 +150,51 @@ function comoPercentual(fator: number): string {
       </nav>
     </header>
 
-    <!-- O placar -->
-    <div v-if="placar.length" class="grid gap-3 sm:grid-cols-2">
-      <Card v-for="saldo in placar" :key="saldo.user_id">
-        <CardContent class="flex items-baseline justify-between gap-3">
-          <div class="min-w-0">
-            <p class="truncate text-sm font-medium">
-              {{ saldo.user_id === usuarioId ? 'Você' : nomeDe(saldo.user_id) }}
-            </p>
-            <p class="text-xs text-muted-foreground">
-              {{ saldo.conquistas === 1 ? '1 conquista' : `${saldo.conquistas} conquistas` }}
-              <template v-if="saldo.user_id === usuarioId && minhaSequencia > 0">
-                · {{ minhaSequencia === 1 ? '1 dia seguido' : `${minhaSequencia} dias seguidos` }}
-              </template>
-            </p>
-          </div>
+    <!--
+      O placar.
 
+      Cápsula (`rounded-full`) e não retângulo com cantos suaves: o card é uma
+      pessoa e um número, e a forma segue a linha — o círculo do membro na
+      esquerda define a altura, e as pontas arredondadas fecham em volta dele em
+      vez de deixá-lo boiando dentro de uma caixa alta demais para o conteúdo.
+
+      O NOME NÃO É ESCRITO, e é uma escolha: quem diz de quem é o card é o
+      círculo, que é o mesmo componente de pessoa do resto do app (o rodapé do
+      cartaz em Filmes, o dono do interesse em Objetivos). Repetir o nome ao lado
+      da inicial dele seria dizer duas vezes, no espaço em que os Pins — que são
+      o assunto — precisam caber grandes. O nome inteiro continua no `title` e no
+      leitor de tela.
+    -->
+    <div v-if="placar.length" class="grid gap-3 sm:grid-cols-2">
+      <div
+        v-for="saldo in placar"
+        :key="saldo.user_id"
+        class="flex items-center gap-3 rounded-full border bg-card py-2 pl-2 pr-5"
+      >
+        <PilhaMembros
+          :membros="[{
+            user_id: saldo.user_id,
+            exibicao: saldo.user_id === usuarioId ? 'Você' : nomeDe(saldo.user_id),
+          }]"
+          :rotulo="saldo.user_id === usuarioId ? 'Você' : nomeDe(saldo.user_id)"
+          tamanho="md"
+        />
+
+        <div class="min-w-0">
           <!-- A gota é a moeda; ver o cabeçalho de SeloDePins.vue. -->
-          <p class="flex shrink-0 items-center gap-1.5 text-2xl font-semibold tabular-nums text-primary">
+          <p class="flex items-center gap-1.5 text-2xl font-semibold leading-none tabular-nums text-primary">
             <PingoIcone class="size-5" />
             {{ saldo.pontos }}
             <span class="sr-only">{{ pinsEmTexto(saldo.pontos) }}</span>
           </p>
-        </CardContent>
-      </Card>
+          <p class="mt-1 truncate text-xs text-muted-foreground">
+            {{ saldo.conquistas === 1 ? '1 conquista' : `${saldo.conquistas} conquistas` }}
+            <template v-if="saldo.user_id === usuarioId && minhaSequencia > 0">
+              · {{ minhaSequencia === 1 ? '1 dia seguido' : `${minhaSequencia} dias seguidos` }}
+            </template>
+          </p>
+        </div>
+      </div>
     </div>
 
     <!-- Extrato -->
@@ -205,22 +229,34 @@ function comoPercentual(fator: number): string {
 
         <Card>
           <CardContent class="divide-y p-0">
+            <!--
+              De quem foi a conquista vira o CÍRCULO da esquerda, e sai do texto.
+              O extrato é do espaço inteiro, então cada linha precisa dizer de
+              quem ela é — mas como terceira linha de um bloco de texto isso era
+              a informação mais fácil de pular justamente numa lista em que ela
+              se alterna a cada item. Na esquerda, centralizada, ela vira a
+              coluna que se lê de relance, e o nome inteiro continua no `title`.
+            -->
             <div
               v-for="pin in dia.pins"
               :key="pin.id"
-              class="flex items-start justify-between gap-3 px-4 py-3"
+              class="flex items-center gap-3 px-4 py-3"
             >
-              <div class="min-w-0 space-y-1">
+              <PilhaMembros
+                :membros="[{
+                  user_id: pin.user_id,
+                  exibicao: pin.user_id === usuarioId ? 'Você' : nomeDe(pin.user_id),
+                }]"
+                :rotulo="pin.user_id === usuarioId ? 'Você' : nomeDe(pin.user_id)"
+              />
+
+              <div class="min-w-0 flex-1 space-y-1">
                 <p class="text-sm font-medium">
                   {{ rotuloDaRegra.get(pin.regra) ?? pin.regra }}
                 </p>
 
                 <p v-if="assuntoDoPin(pin)" class="truncate text-sm text-muted-foreground">
                   {{ assuntoDoPin(pin) }}
-                </p>
-
-                <p class="text-xs text-muted-foreground">
-                  {{ pin.user_id === usuarioId ? 'Você' : nomeDe(pin.user_id) }}
                 </p>
 
                 <!--

@@ -135,6 +135,21 @@
   --sidebar-accent-foreground: oklch(0.28 calc(var(--croma) * 0.37) var(--matiz));
   --sidebar-border: oklch(0.915 0.008 245);
   --sidebar-ring: oklch(0.57 var(--croma) var(--matiz));
+
+  /*
+    A barra de rolagem.
+
+    Preta nos dois temas, e não derivada de `--foreground`: no escuro um polegar
+    claro é o que o navegador já fazia por conta — a lasca branca que aparecia
+    encostada na sidebar e brigava com tudo. Preto com alfa vira um SULCO, mais
+    escuro que a superfície embaixo dele em qualquer um dos dois temas, que é o
+    que "discreto" quer dizer aqui.
+
+    A opacidade sobe no escuro porque lá o fundo já é escuro: os mesmos 28%
+    sumiriam, e uma barra invisível não é discreta, é ausente.
+  */
+  --barra-rolagem: oklch(0 0 0 / 28%);
+  --barra-rolagem-ativa: oklch(0 0 0 / 48%);
 }
 
 .dark {
@@ -202,6 +217,9 @@
   --sidebar-accent-foreground: oklch(0.95 calc(var(--croma) * 0.18) var(--matiz));
   --sidebar-border: oklch(1 0 0 / 12%);
   --sidebar-ring: oklch(0.72 var(--croma) var(--matiz));
+
+  --barra-rolagem: oklch(0 0 0 / 45%);
+  --barra-rolagem-ativa: oklch(0 0 0 / 65%);
 }
 
 /*
@@ -291,6 +309,61 @@
 
   html {
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /*
+    A barra de rolagem, em toda superfície que rola.
+
+    Global, e não uma classe aplicada caso a caso, porque a barra padrão aparece
+    em lugares que ninguém lembra de marcar: a lista de módulos da sidebar, um
+    diálogo alto, uma tabela larga, o próprio documento. Bastava um esquecido
+    para a lasca clara do navegador reaparecer no meio de um app escuro — e o
+    defeito só se via na tela esquecida.
+
+    As duas sintaxes existem porque são dois motores, e nenhuma cobre a outra:
+    `scrollbar-width`/`scrollbar-color` é o padrão (Firefox, e Chromium moderno),
+    `::-webkit-scrollbar` é o que dá controle fino no Safari e no Chromium — e é
+    ele que permite o polegar arredondado e afastado da borda.
+
+    O truque do `border` transparente com `background-clip: padding-box` é o que
+    afina a barra sem afinar a ÁREA de arraste: a pista continua com 10px (alvo
+    de mouse decente), o desenho fica com 4px encostado no canto. Reduzir o
+    `width` faria as duas coisas encolherem juntas, e uma barra de 4px é uma
+    barra que ninguém consegue pegar.
+  */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--barra-rolagem) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--barra-rolagem);
+    border: 3px solid transparent;
+    background-clip: padding-box;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--barra-rolagem-ativa);
+  }
+
+  /*
+    Sem os botõezinhos de seta das pontas: eles são do Windows, ninguém os usa, e
+    são o que fazia a barra parecer um controle de sistema operacional colado
+    dentro do app.
+  */
+  ::-webkit-scrollbar-button {
+    display: none;
   }
 
   body {

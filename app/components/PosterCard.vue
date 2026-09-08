@@ -11,8 +11,16 @@ const props = withDefaults(defineProps<{
   capaUrl?: string | null
   legenda?: string | null
   proporcao?: 'cartaz' | 'quadrada'
+  /**
+   * Falso quando o título já está escrito ao lado — é o caso da ficha em
+   * `MidiaDialogo`, onde ele é o título do diálogo logo acima da capa. A capa
+   * composta continua desenhando o título DENTRO dela: lá ele é a arte, e é o
+   * que distingue uma capa inventada da outra.
+   */
+  mostrarTitulo?: boolean
 }>(), {
   proporcao: 'cartaz',
+  mostrarTitulo: true,
 })
 
 /*
@@ -81,11 +89,13 @@ const semente = computed(() => `${props.titulo}${props.legenda ?? ''}`)
       </div>
     </div>
 
-    <p class="mt-2 line-clamp-2 text-sm font-medium leading-snug">
-      {{ props.titulo }}
-    </p>
-    <p v-if="props.ano || props.legenda" class="text-xs text-muted-foreground">
-      {{ [props.ano, props.legenda].filter(Boolean).join(' · ') }}
-    </p>
+    <template v-if="props.mostrarTitulo">
+      <p class="mt-2 line-clamp-2 text-sm font-medium leading-snug">
+        {{ props.titulo }}
+      </p>
+      <p v-if="props.ano || props.legenda" class="text-xs text-muted-foreground">
+        {{ [props.ano, props.legenda].filter(Boolean).join(' · ') }}
+      </p>
+    </template>
   </div>
 </template>

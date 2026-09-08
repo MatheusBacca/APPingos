@@ -31,10 +31,17 @@
  * As URLs são assinadas em lote pelo mesmo composable da galeria — o painel pede
  * as oito de uma vez, e não uma por troca de foto.
  */
-import { ImageOffIcon } from '@lucide/vue'
-import { useDocumentVisibility, usePreferredReducedMotion } from '@vueuse/core'
+import { ChevronDownIcon, ImageOffIcon } from '@lucide/vue'
+import { useDocumentVisibility, useLocalStorage, usePreferredReducedMotion } from '@vueuse/core'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ESPACO_DA_VITRINE, ESPACO_INDEFINIDO, fotosDaVitrine } from '@/lib/vitrine'
+import { ESPACO_DA_VITRINE, ESPACO_INDEFINIDO, GRUPOS_DA_VITRINE, fotosDaVitrine } from '@/lib/vitrine'
+import type { GrupoDaVitrine } from '@/lib/vitrine'
 import { useFotos, useUrlsDasFotos } from '~/composables/useFotos'
 import { useMembros } from '~/composables/useMembros'
 import { useUsuarioId } from '~/composables/useUsuarioId'
@@ -46,8 +53,20 @@ const { data: fotos, isPending } = useFotos()
 const { data: membros } = useMembros()
 const euId = useUsuarioId()
 
+/*
+ * O grupo escolhido mora no aparelho, como o resto do arranjo do painel (ver
+ * `usePainel`): é preferência de leitura de quem está olhando, não um dado do
+ * espaço — apontar o card para "Já postadas" no notebook não deve mudar o que a
+ * outra pessoa vê no celular dela.
+ */
+const grupo = useLocalStorage<GrupoDaVitrine>('appingos:fotos:vitrine', 'auto')
+
+const rotuloDoGrupo = computed(() =>
+  GRUPOS_DA_VITRINE.find(g => g.valor === grupo.value)?.rotulo ?? 'Automático',
+)
+
 const vitrine = computed(() =>
-  fotosDaVitrine(fotos.value ?? [], euId.value, membros.value?.length ?? 0),
+  fotosDaVitrine(fotos.value ?? [], euId.value, membros.value?.length ?? 0, grupo.value),
 )
 
 const lista = computed(() => vitrine.value?.fotos ?? [])
@@ -89,10 +108,51 @@ function avancar() {
 
 <template>
   <div class="mt-3 flex flex-col">
+    <!--
+      O seletor de grupo, no topo à direita do conteúdo do card.
+
+      `relative z-10` e `.stop.prevent` nos dois: o cartão inteiro do painel é um
+      link (o `after:absolute after:inset-0` do título, em `CartaoDoPainel`), e
+      sem isso escolher um grupo abriria o módulo de Fotos em vez de trocar o
+      filtro. É a mesma armadilha do menu de mover em `CartazDoEspaco`.
+    -->
+    <div class="relative z-10 -mt-4 mb-2 flex justify-end">
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <button
+            type="button"
+            class="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            :aria-label="`Grupo de fotos: ${rotuloDoGrupo}. Trocar.`"
+            @click.stop.prevent
+          >
+            {{ rotuloDoGrupo }}
+            <ChevronDownIcon class="size-3.5" />
+          </button>
+        </DropdownMenuTrigger>
+
+        <DropdownMenuContent align="end" class="w-44" @click.stop.prevent>
+          <DropdownMenuItem
+            v-for="opcao in GRUPOS_DA_VITRINE"
+            :key="opcao.valor"
+            class="gap-2"
+            @select="grupo = opcao.valor"
+          >
+            <span class="flex-1">{{ opcao.rotulo }}</span>
+            <span v-if="opcao.valor === grupo" class="text-primary">•</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+
     <Skeleton v-if="isPending" class="aspect-video w-full rounded-lg" />
 
+    <!--
+      O vazio fala do grupo escolhido: com um filtro na mão, "nenhuma foto
+      esperando por vocês" seria a resposta a uma pergunta que não foi feita.
+    -->
     <p v-else-if="!vitrine" class="text-sm text-muted-foreground">
-      Nenhuma foto esperando por vocês.
+      <template v-if="grupo === 'auto'">Nenhuma foto esperando por vocês.</template>
+      <template v-else>Nenhuma foto em "{{ rotuloDoGrupo }}".</template>
     </p>
 
     <template v-else>

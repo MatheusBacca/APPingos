@@ -219,7 +219,7 @@ describe('filmesDaVitrine', () => {
     ], HOJE)
 
     expect(vitrine!.fase).toBe('visto')
-    expect(vitrine!.legenda).toBe('Os últimos que vocês viram')
+    expect(vitrine!.legenda).toBe('Já vimos')
   })
 
   it('sem nada na lista, não há vitrine', () => {
@@ -280,6 +280,43 @@ describe('fotosDaVitrine', () => {
   it('o rodízio tem teto', () => {
     const muitas = Array.from({ length: 20 }, (_, i) => foto(`f${i}`, [EU, ELA]))
     expect(fotosDaVitrine(muitas, EU, 2)!.fotos).toHaveLength(FOTOS_DA_VITRINE)
+  })
+
+  /*
+   * O grupo escolhido à mão. O que ele muda em relação ao automático não é só o
+   * filtro: é a ausência do plano B — ver o cabeçalho de `fotosDaVitrine`.
+   */
+  describe('com grupo escolhido', () => {
+    const postada = foto('p', [EU, ELA], { postada_em: '2026-09-02T10:00:00Z' })
+    const liberada = foto('l', [EU, ELA])
+    const esperando = foto('e', [ELA])
+    const todas = [postada, liberada, esperando]
+
+    it('"postada" mostra o que já saiu, que o automático nunca alcança', () => {
+      const vitrine = fotosDaVitrine(todas, EU, 2, 'postada')
+
+      expect(vitrine!.fase).toBe('postada')
+      expect(vitrine!.fotos.map(f => f.id)).toEqual(['p'])
+    })
+
+    it('"esperando" é o grupo da galeria, não só o que espera por mim', () => {
+      const minha = foto('m', [EU])
+      const vitrine = fotosDaVitrine([esperando, minha], EU, 2, 'esperando')
+
+      expect(vitrine!.fotos.map(f => f.id)).toEqual(['e', 'm'])
+    })
+
+    it('"todas" ignora a situação, mas não deixa de ignorar vídeo', () => {
+      const video = foto('v', [EU, ELA], { tipo: 'video', mime: 'video/mp4' })
+      const vitrine = fotosDaVitrine([...todas, video], EU, 2, 'todas')
+
+      expect(vitrine!.fotos.map(f => f.id)).toEqual(['p', 'l', 'e'])
+    })
+
+    it('grupo vazio devolve nulo em vez de cair para outro', () => {
+      // Com "liberada" existindo, o automático teria algo a mostrar aqui.
+      expect(fotosDaVitrine([liberada], EU, 2, 'postada')).toBeNull()
+    })
   })
 })
 

@@ -108,16 +108,19 @@ function creditosDo(item: (typeof extras.value)[number]): string {
     </p>
 
     <template v-else>
-      <p class="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <!--
-          O ponto pulsando diz "isto é agora". Sozinho não bastaria — cor não
-          chega a quem usa leitor de tela —, por isso a frase ao lado o repete.
-        -->
-        <span v-if="musica.aoVivo" aria-hidden="true" class="size-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500" />
-        {{ legenda }}
-      </p>
+      <!--
+        Sem a linha de legenda que ficava aqui ("Ana está ouvindo agora", "A
+        última que entrou na lista"): o cartão passou a ser só a faixa, e o
+        convite fixo "Bora ouvir" mora no canto do cabeçalho (ver o `cabecalho`
+        de Músicas em `app/modules.ts`). Aquela linha explicava a PROCEDÊNCIA do
+        dado — bastidor, num cartão cujo assunto é a música.
 
-      <div class="mt-2 flex items-center gap-3">
+        O que ela carregava de essencial — "isto está tocando AGORA" — sobrevive
+        no ponto verde pulsando ao lado do título. A frase que dizia isso em
+        palavras continua existindo em `sr-only`: cor e movimento não chegam a
+        quem usa leitor de tela, e essa parte não é decoração.
+      -->
+      <div class="flex items-center gap-3">
         <span class="size-20 shrink-0 overflow-hidden rounded-lg border bg-muted">
           <img
             v-if="musica.capaUrl"
@@ -132,7 +135,15 @@ function creditosDo(item: (typeof extras.value)[number]): string {
         </span>
 
         <div class="min-w-0 flex-1">
-          <p class="truncate font-medium leading-snug">{{ musica.titulo }}</p>
+          <p class="flex items-center gap-1.5 font-medium leading-snug">
+            <span
+              v-if="musica.aoVivo"
+              aria-hidden="true"
+              class="size-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500"
+            />
+            <span class="truncate">{{ musica.titulo }}</span>
+            <span class="sr-only">{{ legenda }}</span>
+          </p>
           <p v-if="linhaDeCreditos" class="truncate text-sm text-muted-foreground">
             {{ linhaDeCreditos }}
           </p>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { toast } from 'vue-sonner'
-import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, UserIcon } from '@lucide/vue'
+import { useLocalStorage } from '@vueuse/core'
+import { ChevronLeftIcon, ChevronRightIcon, ListIcon, PlusIcon, TableIcon, UserIcon } from '@lucide/vue'
 import { mensagemDeErro } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -224,6 +225,26 @@ function podeEditar(compra: CompraDoMes): boolean {
 
 const fatias = computed(() => gastoPorCategoria(comprasVisiveis.value))
 
+/**
+ * Duas leituras do mesmo mês, e duas perguntas diferentes.
+ *
+ * "Tabela" é a quebra por categoria com as barras — responde "em que a gente
+ * gastou", que é a pergunta de quem está avaliando o mês. "Lista" é a fila de
+ * compras na ordem do tempo — a pergunta de quem está conferindo a fatura do
+ * cartão contra o app, linha a linha, e para quem abrir uma categoria de cada
+ * vez é o atrito inteiro.
+ *
+ * Guardado em `useLocalStorage` como o alternador de gastos pessoais: quem
+ * escolheu conferir a fatura vai passear por vários meses fazendo isso, e perder
+ * o modo a cada navegação seria pedir o clique de novo toda vez.
+ */
+const MODOS = [
+  { valor: 'tabela' as const, rotulo: 'Tabela', icone: TableIcon },
+  { valor: 'lista' as const, rotulo: 'Lista', icone: ListIcon },
+]
+
+const modo = useLocalStorage<'tabela' | 'lista'>('appingos:orcamentos:modo', 'tabela')
+
 /** Só a chave: a fatia em si é derivada, para acompanhar edições e remoções. */
 const categoriaAberta = ref<string | null>(null)
 
@@ -289,78 +310,113 @@ async function onRemover(compra: CompraDoMes) {
       </template>
     </OrcamentosAbas>
 
-    <!-- Navegação de mês -->
-    <section class="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3">
-      <div class="flex items-center gap-1">
-        <Button variant="ghost" size="icon" aria-label="Mês anterior" @click="competencia = somarMeses(competencia, -1)">
-          <ChevronLeftIcon class="size-4" />
+    <!--
+      A barra do mês, e o acerto dentro dela.
+
+      O acerto já foi um card à parte, com título e tabela, logo abaixo desta
+      barra — dois blocos falando do mesmo mês, um em cima do outro. Agora a ação
+      ("Marcar como pago") fica no alto, ao lado do total a que se refere, e a
+      resposta ("Fulano deve X a Beltrano") ocupa uma linha embaixo do mês. A
+      conferência continua existindo, recolhida dentro de `SaldoDoMes`.
+    -->
+    <section class="rounded-lg border bg-card">
+      <div class="flex flex-wrap items-center gap-3 p-3">
+        <div class="flex items-center gap-1">
+          <Button variant="ghost" size="icon" aria-label="Mês anterior" @click="competencia = somarMeses(competencia, -1)">
+            <ChevronLeftIcon class="size-4" />
+          </Button>
+          <span class="min-w-40 text-center text-sm font-medium">{{ formatarMes(competencia) }}</span>
+          <Button variant="ghost" size="icon" aria-label="Próximo mês" @click="competencia = somarMeses(competencia, 1)">
+            <ChevronRightIcon class="size-4" />
+          </Button>
+        </div>
+
+        <!--
+          Sem badge para o mês corrente — "em aberto" é óbvio quando é o mês que
+          você já está vendo. O selo só aparece para dizer algo que não é óbvio:
+          que este mês já fechou, ou que ainda nem começou.
+        -->
+        <span
+          v-if="situacao !== 'aberto'"
+          class="rounded-full px-2 py-0.5 text-xs"
+          :class="situacao === 'fechado'
+            ? 'bg-muted text-muted-foreground'
+            : 'bg-amber-100 text-amber-900 dark:bg-amber-900 dark:text-amber-100'"
+        >
+          {{ situacao === 'fechado' ? 'Fechado' : 'Já comprometido' }}
+        </span>
+
+        <!-- Só aparece quando você navegou para longe de hoje — o caminho de volta. -->
+        <button
+          v-if="situacao !== 'aberto'"
+          type="button"
+          class="rounded-full border px-2 py-0.5 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+          @click="competencia = mesCorrente"
+        >
+          Hoje
+        </button>
+
+        <!--
+          O alternador do plano: liga a segunda gaveta em paralelo, sem sair da
+          tela. Não aparece dentro do próprio espaço pessoal — lá a lista já é
+          essa, e um botão que não muda nada é pior que a ausência dele.
+        -->
+        <Button
+          v-if="temGavetaPessoal"
+          type="button"
+          size="sm"
+          class="gap-1.5"
+          :variant="mostrandoPessoais ? 'default' : 'outline'"
+          :aria-pressed="mostrandoPessoais"
+          @click="mostrandoPessoais = !mostrandoPessoais"
+        >
+          <UserIcon class="size-4" />
+          Gastos pessoais
         </Button>
-        <span class="min-w-40 text-center text-sm font-medium">{{ formatarMes(competencia) }}</span>
-        <Button variant="ghost" size="icon" aria-label="Próximo mês" @click="competencia = somarMeses(competencia, 1)">
-          <ChevronRightIcon class="size-4" />
-        </Button>
+
+        <!--
+          A ação e os números, juntos à direita. O botão vem antes por ser o único
+          alvo clicável do grupo — encostá-lo na borda o deixaria disputando o
+          canto com o número, que é o que a pessoa está lendo.
+
+          `compras`, e nunca `comprasVisiveis`: o acerto é a dívida entre vocês, e
+          a outra pessoa não deve nada de um gasto pessoal — nem poderia vê-lo.
+        -->
+        <div class="ml-auto flex flex-wrap items-center gap-3">
+          <AcertoBotao
+            :competencia="competencia"
+            :futuro="situacao === 'futuro'"
+            :tem-lancamentos="!!compras?.length"
+          />
+
+          <!--
+            Sem `tabular-nums`: são dois números lado a lado, não uma coluna.
+            Dígitos de largura fixa só ajudam quando os números se alinham na
+            vertical.
+          -->
+          <div class="text-right">
+            <p class="text-xs text-muted-foreground">Gasto do espaço</p>
+            <p class="text-lg font-semibold">{{ formatarDinheiro(total) }}</p>
+          </div>
+
+          <!--
+            A segunda leitura só aparece quando há a segunda gaveta. Os dois
+            números não se somam, e ficam separados por uma régua para não
+            convidar a isso.
+          -->
+          <div v-if="mostrandoPessoais" class="border-l pl-4 text-right">
+            <p class="text-xs text-muted-foreground">Meu bolso</p>
+            <p class="text-lg font-semibold">{{ formatarDinheiro(bolso) }}</p>
+          </div>
+        </div>
       </div>
 
-      <!--
-        Sem badge para o mês corrente — "em aberto" é óbvio quando é o mês que
-        você já está vendo. O selo só aparece para dizer algo que não é óbvio:
-        que este mês já fechou, ou que ainda nem começou.
-      -->
-      <span
-        v-if="situacao !== 'aberto'"
-        class="rounded-full px-2 py-0.5 text-xs"
-        :class="situacao === 'fechado'
-          ? 'bg-muted text-muted-foreground'
-          : 'bg-amber-100 text-amber-900 dark:bg-amber-900 dark:text-amber-100'"
-      >
-        {{ situacao === 'fechado' ? 'Fechado' : 'Já comprometido' }}
-      </span>
-
-      <!-- Só aparece quando você navegou para longe de hoje — o caminho de volta. -->
-      <button
-        v-if="situacao !== 'aberto'"
-        type="button"
-        class="rounded-full border px-2 py-0.5 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
-        @click="competencia = mesCorrente"
-      >
-        Hoje
-      </button>
-
-      <!--
-        O alternador do plano: liga a segunda gaveta em paralelo, sem sair da
-        tela. Não aparece dentro do próprio espaço pessoal — lá a lista já é
-        essa, e um botão que não muda nada é pior que a ausência dele.
-      -->
-      <Button
-        v-if="temGavetaPessoal"
-        type="button"
-        size="sm"
-        class="gap-1.5"
-        :variant="mostrandoPessoais ? 'default' : 'outline'"
-        :aria-pressed="mostrandoPessoais"
-        @click="mostrandoPessoais = !mostrandoPessoais"
-      >
-        <UserIcon class="size-4" />
-        Gastos pessoais
-      </Button>
-
-      <!--
-        Sem `tabular-nums`: são dois números lado a lado, não uma coluna. Dígitos
-        de largura fixa só ajudam quando os números se alinham na vertical.
-      -->
-      <div class="ml-auto text-right">
-        <p class="text-xs text-muted-foreground">Gasto do espaço</p>
-        <p class="text-lg font-semibold">{{ formatarDinheiro(total) }}</p>
-      </div>
-
-      <!--
-        A segunda leitura só aparece quando há a segunda gaveta. Os dois números
-        não se somam, e ficam separados por uma régua para não convidar a isso.
-      -->
-      <div v-if="mostrandoPessoais" class="border-l pl-4 text-right">
-        <p class="text-xs text-muted-foreground">Meu bolso</p>
-        <p class="text-lg font-semibold">{{ formatarDinheiro(bolso) }}</p>
-      </div>
+      <SaldoDoMes
+        :compras="compras ?? []"
+        :membros="membros ?? []"
+        :competencia="competencia"
+        :fechado="situacao === 'fechado'"
+      />
     </section>
 
     <p v-if="mostrandoPessoais" class="-mt-3 text-xs text-muted-foreground">
@@ -368,19 +424,6 @@ async function onRemover(compra: CompraDoMes) {
       usa. <strong>Meu bolso</strong> é a sua parte disso mais os seus gastos pessoais — que só
       você vê.
     </p>
-
-    <!--
-      `compras`, e nunca `comprasVisiveis`: o acerto é a dívida entre vocês, e a
-      outra pessoa não deve nada de um gasto pessoal — nem poderia vê-lo. É a
-      invariante mais fácil de quebrar sem ninguém perceber.
-    -->
-    <SaldoDoMes
-      :compras="compras ?? []"
-      :membros="membros ?? []"
-      :competencia="competencia"
-      :fechado="situacao === 'fechado'"
-      :futuro="situacao === 'futuro'"
-    />
 
     <p v-if="situacao === 'futuro'" class="text-sm text-muted-foreground">
       Estes são os valores já comprometidos por parcelas de compras anteriores — o mês ainda vai receber lançamentos.
@@ -425,22 +468,72 @@ async function onRemover(compra: CompraDoMes) {
       um trabalho de somar de cabeça. As compras continuam a um clique — dentro
       da categoria a que pertencem, que é onde elas querem dizer alguma coisa.
     -->
-    <section class="rounded-lg border bg-card p-4">
-      <h2 class="text-sm font-medium">Em que foi</h2>
-      <p class="mt-0.5 text-xs text-muted-foreground">
-        Quanto cada categoria pesou em {{ formatarMes(competencia) }} — pela parcela do mês. Clique para ver as compras.
-      </p>
+    <!--
+      `relative` + o alternador `absolute`: ele fica no canto de cima à direita
+      SEMPRE, e não "à direita quando couber". Num flex com `justify-between` a
+      descrição longa empurrava os botões para uma segunda linha no celular, e o
+      controle mudava de lugar conforme o texto — que é o oposto de um alternador
+      de vista, cuja utilidade depende de ele estar sempre no mesmo canto. O
+      `pr-20` do cabeçalho é o espaço reservado para ele.
+    -->
+    <section class="relative rounded-lg border bg-card p-4">
+      <div class="pr-20">
+        <h2 class="text-sm font-medium">Em que foi</h2>
+        <p class="mt-0.5 text-xs text-muted-foreground">
+          <template v-if="modo === 'tabela'">
+            Quanto cada categoria pesou em {{ formatarMes(competencia) }} — pela parcela do mês. Clique para ver as compras.
+          </template>
+          <template v-else>
+            Cada compra de {{ formatarMes(competencia) }}, da mais recente para a mais antiga. Clique para editar.
+          </template>
+        </p>
+      </div>
+
+      <!--
+        Só o ícone: são duas vistas dos mesmos números, e o desenho da grade e o
+        da lista dizem isso mais rápido que as palavras "Tabela" e "Lista" — que
+        além de tudo ocupavam largura num canto de card. O nome continua existindo
+        no `title` e no rótulo de leitor de tela, que é onde ele faz falta.
+      -->
+      <nav class="absolute right-4 top-4 flex gap-1 rounded-lg border bg-background p-1">
+        <button
+          v-for="opcao in MODOS"
+          :key="opcao.valor"
+          type="button"
+          class="grid size-7 place-items-center rounded-md transition-colors"
+          :class="modo === opcao.valor
+            ? 'bg-primary text-primary-foreground'
+            : 'text-muted-foreground hover:text-foreground'"
+          :aria-pressed="modo === opcao.valor"
+          :title="opcao.rotulo"
+          @click="modo = opcao.valor"
+        >
+          <component :is="opcao.icone" class="size-4" />
+          <span class="sr-only">{{ opcao.rotulo }}</span>
+        </button>
+      </nav>
 
       <div v-if="isPending" class="mt-3 space-y-3">
         <Skeleton v-for="i in 4" :key="i" class="h-10 w-full rounded-lg" />
       </div>
 
       <GraficoCategorias
-        v-else
+        v-else-if="modo === 'tabela'"
         class="mt-3"
         :fatias="fatias"
         :vazio="`Nenhuma compra em ${formatarMes(competencia)}.`"
         @selecionar="categoriaAberta = $event"
+      />
+
+      <ListaDeCompras
+        v-else
+        class="mt-3"
+        :compras="comprasVisiveis"
+        :pode-editar="podeEditar"
+        :detalhe="detalheDe"
+        :vazio="`Nenhuma compra em ${formatarMes(competencia)}.`"
+        @selecionar="editar"
+        @remover="onRemover"
       />
     </section>
 

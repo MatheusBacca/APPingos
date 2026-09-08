@@ -155,6 +155,24 @@ describe('textoDaNotificacao', () => {
 
     expect(t.corpo).toBe('Começa em 1 de janeiro')
   })
+
+  /*
+    O plano que venceu. O texto não pode soar como cobrança — ninguém deve nada
+    ao app por não ter visto o filme na sexta —, e precisa dizer que o item
+    continua na lista, senão a pessoa vai procurá-lo achando que sumiu.
+  */
+  it('diz que o plano venceu sem cobrar, e que o filme continua na lista', () => {
+    const t = textoDaNotificacao(notificacao({
+      tipo: 'plano_expirado',
+      dados: { titulo: 'Duna', planejado_para: '2026-09-10' },
+      rota: '/filmes/e1',
+    }))
+
+    expect(t.titulo).toBe('Duna voltou para Disponível')
+    expect(t.corpo).toContain('10 de setembro')
+    expect(t.corpo).toContain('remarcar')
+    expect(t.rota).toBe('/filmes/e1')
+  })
 })
 
 describe('textoDoBadge', () => {

@@ -31,7 +31,7 @@ import {
 } from '~/types/interesse'
 import type { EstadoInteresse, InteresseComAgrupamentos } from '~/types/interesse'
 import { useInteresses, useVista } from '~/composables/useInteresses'
-import { usePessoas } from '~/composables/useMembros'
+import { nomeDaPessoa, usePessoas } from '~/composables/useMembros'
 import { useUsuarioId } from '~/composables/useUsuarioId'
 import { useSpaceStore } from '~/stores/space'
 
@@ -75,6 +75,19 @@ function deOnde(interesse: InteresseComAgrupamentos): string | null {
 /** Quem assumiu o presente — só o fato de estar assumido interessa na lista. */
 function assumido(interesse: InteresseComAgrupamentos): boolean {
   return !!interesse.assumido_por
+}
+
+/**
+ * Como chamar o dono do interesse no ícone do card.
+ *
+ * "Você" para os seus, e o nome para os dos outros: num espaço de casal metade
+ * dos cards é sua, e ler o próprio nome repetido vinte vezes é ruído. A inicial
+ * do círculo sai daí, então os seus ficam com "V" — que é o que faz um relance
+ * separar as duas metades da lista.
+ */
+function donoDo(interesse: InteresseComAgrupamentos): string {
+  if (interesse.criado_por === euId.value) return 'Você'
+  return nomeDaPessoa(pessoas.value, interesse.criado_por) ?? 'Alguém'
 }
 
 function euAssumi(interesse: InteresseComAgrupamentos): boolean {
@@ -157,9 +170,28 @@ async function onCriado(id: string) {
           >
             <div class="flex items-start justify-between gap-2">
               <p class="min-w-0 flex-1 font-medium leading-snug">{{ interesse.titulo }}</p>
-              <Badge v-if="interesse.estado !== 'rascunho'" variant="secondary" class="shrink-0">
-                {{ rotuloEstado(interesse.estado) }}
-              </Badge>
+
+              <!--
+                O canto de cima à direita responde "de quem é isto e em que pé
+                está": o dono, o estado e o menu que o move. O dono aparece
+                sempre, e não só quando é de outra pessoa — no espaço do casal a
+                lista mistura as vontades dos dois, e "de quem é este card" é a
+                primeira pergunta de quem varre a tela.
+              -->
+              <div class="flex shrink-0 items-center gap-1.5">
+                <PilhaMembros
+                  :membros="[{ user_id: interesse.criado_por, exibicao: donoDo(interesse) }]"
+                  :rotulo="`Interesse de ${donoDo(interesse)}`"
+                />
+                <Badge v-if="interesse.estado !== 'rascunho'" variant="secondary">
+                  {{ rotuloEstado(interesse.estado) }}
+                </Badge>
+                <EstadoDoInteresse
+                  :id="interesse.id"
+                  :estado="interesse.estado"
+                  :titulo="interesse.titulo"
+                />
+              </div>
             </div>
 
             <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
@@ -169,7 +201,20 @@ async function onCriado(id: string) {
               <span v-if="deOnde(interesse)" class="rounded-full border px-1.5">
                 de {{ deOnde(interesse) }}
               </span>
+
+              <!--
+                Quem se ofereceu para dar entra como ícone, e não só como texto:
+                é a informação que evita os dois comprarem o mesmo presente, e
+                numa lista de vinte cards um rosto se acha antes de uma frase.
+              -->
               <span v-if="assumido(interesse)" class="flex items-center gap-1 text-primary">
+                <PilhaMembros
+                  :membros="[{
+                    user_id: interesse.assumido_por!,
+                    exibicao: nomeDaPessoa(pessoas, interesse.assumido_por) ?? 'Alguém',
+                  }]"
+                  :rotulo="`${nomeDaPessoa(pessoas, interesse.assumido_por)} vai dar de presente`"
+                />
                 <GiftIcon class="size-3" />
                 {{ euAssumi(interesse) ? 'você dá' : 'já tem quem dê' }}
               </span>
