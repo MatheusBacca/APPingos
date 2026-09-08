@@ -469,6 +469,44 @@
 }
 
 /*
+  ---------------------------------------------------------------------------
+  A moldura fixa — barra inferior e cabeçalho do celular
+  ---------------------------------------------------------------------------
+
+  MESMO DESENHO, FUNDO DENSO, E A RAZÃO NÃO É ESTÉTICA.
+
+  O `vidro` de card tem 6% de opacidade no escuro e conta com o desfoque para
+  separar a superfície do que está atrás. Isso é seguro num card, que fica sobre
+  o fundo da página — mas não numa barra fixa, que fica sobre o CONTEÚDO
+  rolando. Onde o desfoque não renderiza, sobram 6% de branco por cima de texto
+  em movimento: a barra some e o rodapé vira uma sopa ilegível.
+
+  E "onde o desfoque não renderiza" não é hipótese: aconteceu num Android, com o
+  rodapé saindo só transparente. `backdrop-filter` é a primeira coisa que o
+  Chrome desliga em modo de economia de bateria e em aparelho marcado como
+  low-end, e ele faz isso SEM deixar de reportar suporte — então nem `@supports`
+  pega o caso.
+
+  A saída é não depender dele: com fundo denso a barra é legível com ou sem
+  desfoque, e o desfoque vira o bônus que era para ser desde o início.
+*/
+@utility vidro-barra {
+  background-color: color-mix(in oklch, var(--background) 78%, transparent);
+  border: 1px solid var(--vidro-borda);
+  backdrop-filter: blur(var(--desfoque)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--desfoque)) saturate(180%);
+  box-shadow: inset 0 1px 0 var(--vidro-realce);
+
+  /*
+    Sem `backdrop-filter` de verdade, o fundo fecha quase por completo.
+    Translucidez sem desfoque não é estilo — é só texto atravessando texto.
+  */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    background-color: color-mix(in oklch, var(--background) 94%, transparent);
+  }
+}
+
+/*
   A mesma lâmina, sem o desfoque.
 
   Para superfícies que rolam com muito conteúdo por baixo: `backdrop-filter`
