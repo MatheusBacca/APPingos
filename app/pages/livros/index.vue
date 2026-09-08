@@ -424,12 +424,14 @@ function autoresDe(item: ItemDoEspaco): string | null {
 
           <div class="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-6">
             <div v-for="item in sugestoes" :key="item.id" class="space-y-1.5">
-              <PosterCard
-                :titulo="item.media.titulo"
-                :ano="item.media.ano"
-                :capa-url="item.media.capa_url"
-                :legenda="autoresDe(item)"
-              />
+              <NuxtLink :to="`/livros/${item.id}`">
+                <PosterCard
+                  :titulo="item.media.titulo"
+                  :ano="item.media.ano"
+                  :capa-url="item.media.capa_url"
+                  :legenda="autoresDe(item)"
+                />
+              </NuxtLink>
               <button
                 type="button"
                 class="w-full rounded-md border py-1 text-[11px] font-medium hover:border-primary/50 disabled:opacity-60"
@@ -459,21 +461,28 @@ function autoresDe(item: ItemDoEspaco): string | null {
             class="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-6"
           >
             <div v-for="item in estante[prateleira.valor]" :key="item.id" class="space-y-1.5">
-              <PosterCard
-                :titulo="item.media.titulo"
-                :ano="item.media.ano"
-                :capa-url="item.media.capa_url"
-                :legenda="autoresDe(item)"
-              >
-                <template v-if="prateleira.valor === 'vendo' && progressoDaLeitura(item, euId ?? null) !== null" #rodape>
-                  <div class="h-1 overflow-hidden rounded-full bg-white/30">
-                    <div
-                      class="h-full rounded-full bg-white"
-                      :style="{ width: `${progressoDaLeitura(item, euId ?? null)}%` }"
-                    />
-                  </div>
-                </template>
-              </PosterCard>
+              <!--
+                A capa leva ao detalhe — resumo, resenha e a saída da estante.
+                O link envolve só a capa: os botões abaixo dela mudam a
+                prateleira sem sair da tela, que é o gesto rápido do dia a dia.
+              -->
+              <NuxtLink :to="`/livros/${item.id}`">
+                <PosterCard
+                  :titulo="item.media.titulo"
+                  :ano="item.media.ano"
+                  :capa-url="item.media.capa_url"
+                  :legenda="autoresDe(item)"
+                >
+                  <template v-if="prateleira.valor === 'vendo' && progressoDaLeitura(item, euId ?? null) !== null" #rodape>
+                    <div class="h-1 overflow-hidden rounded-full bg-white/30">
+                      <div
+                        class="h-full rounded-full bg-white"
+                        :style="{ width: `${progressoDaLeitura(item, euId ?? null)}%` }"
+                      />
+                    </div>
+                  </template>
+                </PosterCard>
+              </NuxtLink>
 
               <!-- "Lendo" ganha a linha da página; as outras, o próximo passo -->
               <button
