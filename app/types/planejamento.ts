@@ -109,3 +109,87 @@ export function valorDaContribuicao(
   if (!salario) return null
   return centavos((salario * contribuicao.valor) / 100)
 }
+
+// ---- Projeção do mês ----------------------------------------------------------
+
+/**
+ * Uma projeção é sempre a mesma conta em duas colunas:
+ *
+ *   PLANEJADO  — o que o mês tem para gastar (no pessoal: salário − contribuição;
+ *                no casal: o valor central);
+ *   REALIZADO  — o que já saiu dele (gastos e aportes em metas daquela gaveta);
+ *   SOBRA      — planejado − realizado. Negativa = o mês passou do plano.
+ *
+ * Aporte entra como saída, e resgate como devolução — é a soma com sinal dos
+ * aportes do mês. Ele não é compra (não entra no gasto nem no acerto), mas o
+ * dinheiro reservado deixa de estar disponível, e ignorá-lo mostraria uma sobra
+ * que não existe (decisão D5 do levantamento).
+ */
+export interface Projecao {
+  planejado: number
+  gastos: number
+  aportes: number
+  realizado: number
+  sobra: number
+  /** Quanto do planejado já foi usado, de 0 em diante (passa de 1 quando estoura). */
+  uso: number
+}
+
+function projetar(planejado: number, gastos: number, aportes: number): Projecao {
+  const realizado = centavos(gastos + aportes)
+  return {
+    planejado: centavos(planejado),
+    gastos: centavos(gastos),
+    aportes: centavos(aportes),
+    realizado,
+    sobra: centavos(planejado - realizado),
+    uso: planejado > 0 ? realizado / planejado : (realizado > 0 ? Infinity : 0),
+  }
+}
+
+export interface ProjecaoPessoal extends Projecao {
+  salario: number
+  /** A soma das suas contribuições, em todos os espaços compartilhados. */
+  contribuicao: number
+}
+
+/**
+ * O MEU mês: salário − contribuição − gastos pessoais − aportes em metas pessoais.
+ *
+ * Usa só a renda de quem olha — a projeção de uma pessoa nunca lê o salário da
+ * outra (invariante 5). A parte dela nos gastos do casal NÃO entra aqui: ela já
+ * saiu como contribuição, e é do valor central que as compras do casal são pagas.
+ * Somar as duas seria contar o mesmo dinheiro duas vezes.
+ *
+ * `null` sem salário cadastrado: sem a base, qualquer "sobra" seria inventada.
+ */
+export function projecaoPessoal(dados: {
+  salario: number | null | undefined
+  contribuicoes: ReadonlyArray<number | null>
+  gastosPessoais: number
+  aportesPessoais: number
+}): ProjecaoPessoal | null {
+  if (!dados.salario) return null
+  const contribuicao = centavos(dados.contribuicoes.reduce<number>((t, c) => t + (c ?? 0), 0))
+  return {
+    ...projetar(dados.salario - contribuicao, dados.gastosPessoais, dados.aportesPessoais),
+    salario: centavos(dados.salario),
+    contribuicao,
+  }
+}
+
+/**
+ * O mês do casal: valor central − parcelas do mês − aportes em metas do casal.
+ *
+ * As parcelas são o "gasto do espaço" de Chico Moedas — o que cai naquela
+ * competência, não o valor cheio das compras. Sem contribuição declarada, o
+ * valor central é zero e a projeção continua existindo: mostra quanto o mês
+ * custou, e que não há plano para cobrir.
+ */
+export function projecaoDoCasal(dados: {
+  valorCentral: number
+  parcelas: number
+  aportes: number
+}): Projecao {
+  return projetar(dados.valorCentral, dados.parcelas, dados.aportes)
+}

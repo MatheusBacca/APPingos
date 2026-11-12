@@ -43,3 +43,8 @@ export interface MetaAporte {
   competencia: string
   origem: OrigemLancamento
 }
+
+/** A soma com sinal dos aportes — aporte sai, resgate volta. É o progresso de uma meta e o que a projeção do mês subtrai. */
+export function somaDosAportes(aportes: ReadonlyArray<{ valor: number }> | undefined): number {
+  return Math.round((aportes ?? []).reduce((t, a) => t + a.valor, 0) * 100) / 100
+}

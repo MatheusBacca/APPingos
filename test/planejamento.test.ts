@@ -8,6 +8,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   diaMaximoDoRecebimento,
+  projecaoDoCasal,
+  projecaoPessoal,
   recebimentoValido,
   valorCentral,
   valorDaContribuicao,
@@ -57,5 +59,66 @@ describe('recebimentoValido', () => {
 
   it('recusa dia quebrado', () => {
     expect(recebimentoValido('dia_fixo', 5.5)).toBe(false)
+  })
+})
+
+describe('projecaoPessoal', () => {
+  it('salário − contribuição − gastos pessoais − aportes', () => {
+    const p = projecaoPessoal({
+      salario: 5000,
+      contribuicoes: [1500],
+      gastosPessoais: 820.5,
+      aportesPessoais: 300,
+    })
+    expect(p).toMatchObject({
+      salario: 5000,
+      contribuicao: 1500,
+      planejado: 3500,
+      realizado: 1120.5,
+      sobra: 2379.5,
+    })
+    expect(p!.uso).toBeCloseTo(1120.5 / 3500)
+  })
+
+  it('soma as contribuições de mais de um espaço e ignora as sem base', () => {
+    const p = projecaoPessoal({ salario: 5000, contribuicoes: [1000, 500, null], gastosPessoais: 0, aportesPessoais: 0 })
+    expect(p?.contribuicao).toBe(1500)
+    expect(p?.planejado).toBe(3500)
+  })
+
+  it('resgate devolve dinheiro ao mês', () => {
+    const p = projecaoPessoal({ salario: 1000, contribuicoes: [], gastosPessoais: 200, aportesPessoais: -100 })
+    expect(p?.realizado).toBe(100)
+    expect(p?.sobra).toBe(900)
+  })
+
+  it('sobra negativa quando o mês passa do plano', () => {
+    const p = projecaoPessoal({ salario: 1000, contribuicoes: [800], gastosPessoais: 300, aportesPessoais: 0 })
+    expect(p?.sobra).toBe(-100)
+    expect(p!.uso).toBeGreaterThan(1)
+  })
+
+  it('sem salário, não há projeção', () => {
+    expect(projecaoPessoal({ salario: null, contribuicoes: [], gastosPessoais: 100, aportesPessoais: 0 })).toBeNull()
+  })
+})
+
+describe('projecaoDoCasal', () => {
+  it('valor central − parcelas − aportes do casal', () => {
+    expect(projecaoDoCasal({ valorCentral: 2700, parcelas: 1900, aportes: 200 })).toMatchObject({
+      planejado: 2700,
+      realizado: 2100,
+      sobra: 600,
+    })
+  })
+
+  it('sem contribuição declarada, mostra o mês sem plano para cobrir', () => {
+    const p = projecaoDoCasal({ valorCentral: 0, parcelas: 500, aportes: 0 })
+    expect(p.sobra).toBe(-500)
+    expect(p.uso).toBe(Infinity)
+  })
+
+  it('mês vazio e sem plano não estoura nada', () => {
+    expect(projecaoDoCasal({ valorCentral: 0, parcelas: 0, aportes: 0 }).uso).toBe(0)
   })
 })
