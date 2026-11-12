@@ -127,3 +127,9 @@ describe('dono do item', () => {
     expect(itemPodeSerDe({}, 'eu')).toBe(true)
   })
 })
+
+describe('conexão apagada na Pluggy', () => {
+  it('diz o que fazer em vez de oferecer um reconectar que não funcionaria', () => {
+    expect(situacaoDaConexao(conexao({ status: 'DELETED' }), '2026-11-12')).toMatchObject({ tom: 'erro', reconectar: false })
+  })
+})

@@ -13,6 +13,8 @@ import {
   contextoDasContas,
   dataLocal,
   descricaoDaCompra,
+  janelaDeSincronizacao,
+  linhasDaConta,
   deduplicar,
   normalizarDescricao,
   normalizarTransacao,
@@ -20,6 +22,7 @@ import {
   planoDaCompra,
   somarMesesCompetencia,
   tipoDaConta,
+  vencimentosDasFaturas,
 } from '~/lib/importacao-bancaria'
 import type { ContextoImportacao, TransacaoNormalizada } from '~/lib/importacao-bancaria'
 import {
@@ -342,5 +345,34 @@ describe('contexto da pessoa', () => {
 
   it('documento mascarado não entra (casaria por acidente)', () => {
     expect(contextoDasContas([{ owner: null, taxNumber: '***.456.789-**' }]).documentosProprios).toEqual([])
+  })
+})
+
+describe('janela de sincronização', () => {
+  it('na primeira vez, busca 90 dias para trás', () => {
+    expect(janelaDeSincronizacao(null, '2026-11-12')).toEqual({ de: '2026-08-14', ate: '2026-11-12' })
+  })
+
+  it('depois, sobrepõe 10 dias à última sincronização — em data de Brasília', () => {
+    // 01h UTC de 05/11 é 22h de 04/11 em Brasília
+    expect(janelaDeSincronizacao('2026-11-05T01:00:00.000Z', '2026-11-12')).toEqual({ de: '2026-10-25', ate: '2026-11-12' })
+  })
+
+  it('atravessa a virada do ano', () => {
+    expect(janelaDeSincronizacao('2027-01-03T15:00:00Z', '2027-01-04').de).toBe('2026-12-24')
+  })
+})
+
+describe('o lote de uma conta', () => {
+  it('normaliza, deduplica e leva a competência da fatura', () => {
+    const vencimentos = vencimentosDasFaturas([{ id: 'bill-2', dueDate: '2026-10-10T00:00:00.000Z' }])
+    const lote = linhasDaConta(
+      [parcela(2, 10), parcela(2, 10), transacao({ providerId: 'X', status: 'PENDING' }), transacao({ providerId: 'X' })],
+      NO_CARTAO,
+      { ...contexto, vencimentoDasFaturas: vencimentos },
+    )
+    expect(lote).toHaveLength(2)
+    expect(lote.find(t => t.parcela_numero === 2)!.competencia).toBe('2026-10-01')
+    expect(lote.find(t => t.provider_id === 'X')!.pendente).toBe(false)
   })
 })

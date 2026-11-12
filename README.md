@@ -257,7 +257,50 @@ falha em vez de publicar um pacote que não conecta.
 Detalhes de uso, das quatro fontes que a raspagem tenta e de como publicar na Web Store:
 [`extensao/README.md`](./extensao/README.md).
 
-### 8. Rodar
+### 8. Open Finance com a Pluggy (módulo Orçamentos)
+
+Lê o extrato dos bancos de cada um pelo Open Finance e transforma em compras. O plano completo,
+com as decisões e as pegadinhas, está em [`docs/notion-plano-open-finance.md`](./docs/notion-plano-open-finance.md).
+**Sem os passos abaixo o app funciona normalmente**: a aba Orçamentos › Contas explica que falta
+configurar, e o lançamento manual continua sendo o caminho.
+
+**O relógio do trial.** Criar a conta em [dashboard.pluggy.ai](https://dashboard.pluggy.ai) inicia
+um trial de ~15 dias, e **só dá para ligar contas ao MeuPluggy enquanto ele dura** — depois a lista
+trava. Decida o dia antes de criar a conta, com os dois prontos para conectar os bancos.
+
+1. Cada um cria conta em [meu.pluggy.ai](https://meu.pluggy.ai) e conecta os próprios bancos.
+2. No dashboard, crie a Application com o conector **MeuPluggy** e copie client id e secret.
+3. Preencha `NUXT_PLUGGY_CLIENT_ID` e `NUXT_PLUGGY_CLIENT_SECRET` no `.env` e no Vercel. Ficam só no
+   servidor: ao navegador chega apenas o connect token, de 30 minutos.
+4. Publique a função e defina os segredos dela (Project Settings › Edge Functions › Secrets):
+   `PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET` e, se for usar o webhook, `PLUGGY_WEBHOOK_SECRET`.
+
+   ```bash
+   npx supabase functions deploy sincronizar-pluggy
+   ```
+
+5. No **SQL Editor**, uma vez, o endereço da função e a chave que o banco usa para chamá-la (a
+   mesma `service_role` legada da seção 6):
+
+   ```sql
+   select vault.create_secret(
+     'https://SEU-PROJETO.supabase.co/functions/v1/sincronizar-pluggy',
+     'pluggy_sincronizar_url'
+   );
+   select vault.create_secret('SUA-SERVICE-ROLE-KEY', 'pluggy_sincronizar_token');
+   ```
+
+   O `pg_cron` chama a função todo dia às 7h de Brasília (`appingos-sincronizar-pluggy`). Sem
+   os dois segredos a tarefa roda e não faz nada.
+
+6. Opcional: um webhook da Pluggy (`transactions/created`, `transactions/deleted`, `item/updated`)
+   apontando para a mesma URL, com o header `x-appingos-webhook: <PLUGGY_WEBHOOK_SECRET>`.
+
+Cada um conecta o próprio banco em **Orçamentos › Contas** e escolhe, por cartão, para onde vão
+as compras: *perguntar*, *pessoal* ou *do casal*. O extrato é só de quem conectou — a RLS de
+`transacao_bancaria` é `user_id = auth.uid()`, sem exceção.
+
+### 9. Rodar
 
 ```bash
 npm run dev
@@ -353,7 +396,8 @@ GitHub). O preset Nuxt é autodetectado — nada a mudar em `nuxt.config.ts`.
 
 Variáveis de ambiente a configurar no Vercel (Settings → Environment Variables, em
 **Production** e **Preview**): `SUPABASE_URL`, `SUPABASE_KEY`, `NUXT_TMDB_API_KEY`,
-`NUXT_GOOGLE_PLACES_API_KEY`, `NUXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY` — os mesmos valores do
+`NUXT_GOOGLE_PLACES_API_KEY`, `NUXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY`, `NUXT_PLUGGY_CLIENT_ID`,
+`NUXT_PLUGGY_CLIENT_SECRET` — os mesmos valores do
 `.env` local.
 
 **Não esquecer**, os dois pela mesma razão — funcionam em `localhost` e quebram só em produção:
@@ -389,7 +433,8 @@ supabase/
   migrations/         # schema versionado — fonte da verdade do banco
   functions/
     enviar-emails/    # Edge Function que drena a fila e envia pelo SMTP do Gmail
-    _shared/          # código lido pelo Deno E pelo app (o texto das notificações)
+    sincronizar-pluggy/ # Edge Function que importa o extrato da Pluggy (Open Finance)
+    _shared/          # código lido pelo Deno E pelo app (notificações, regras da importação)
 extensao/             # extensão do Chrome — JS puro, sem build (ver seção 7)
   lib/raspagem.js     # raspar(): uma função autocontida, injetada na aba ativa
   lib/api.js          # Auth + PostgREST sobre fetch, com renovação de token

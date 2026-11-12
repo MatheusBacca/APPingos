@@ -1818,6 +1818,128 @@ export type Database = {
           },
         ]
       }
+      transacao_bancaria: {
+        Row: {
+          atualizada_em: string
+          categoria_pluggy: string | null
+          chave_compra: string | null
+          classificada_em: string | null
+          competencia: string
+          compra_id: string | null
+          conexao_id: string
+          conta_id: string
+          contraparte_documento: string | null
+          contraparte_nome: string | null
+          data: string
+          data_compra: string | null
+          descricao: string
+          destino: string | null
+          fatura_id: string | null
+          id: string
+          importada_em: string
+          metodo: string | null
+          motivo_exclusao: string | null
+          parcela_numero: number | null
+          parcelas_total: number | null
+          pendente: boolean
+          pluggy_id: string
+          provider_id: string
+          sentido: string
+          user_id: string
+          valor: number
+          valor_total_compra: number | null
+        }
+        Insert: {
+          atualizada_em?: string
+          categoria_pluggy?: string | null
+          chave_compra?: string | null
+          classificada_em?: string | null
+          competencia: string
+          compra_id?: string | null
+          conexao_id: string
+          conta_id: string
+          contraparte_documento?: string | null
+          contraparte_nome?: string | null
+          data: string
+          data_compra?: string | null
+          descricao: string
+          destino?: string | null
+          fatura_id?: string | null
+          id?: string
+          importada_em?: string
+          metodo?: string | null
+          motivo_exclusao?: string | null
+          parcela_numero?: number | null
+          parcelas_total?: number | null
+          pendente?: boolean
+          pluggy_id: string
+          provider_id: string
+          sentido: string
+          user_id: string
+          valor: number
+          valor_total_compra?: number | null
+        }
+        Update: {
+          atualizada_em?: string
+          categoria_pluggy?: string | null
+          chave_compra?: string | null
+          classificada_em?: string | null
+          competencia?: string
+          compra_id?: string | null
+          conexao_id?: string
+          conta_id?: string
+          contraparte_documento?: string | null
+          contraparte_nome?: string | null
+          data?: string
+          data_compra?: string | null
+          descricao?: string
+          destino?: string | null
+          fatura_id?: string | null
+          id?: string
+          importada_em?: string
+          metodo?: string | null
+          motivo_exclusao?: string | null
+          parcela_numero?: number | null
+          parcelas_total?: number | null
+          pendente?: boolean
+          pluggy_id?: string
+          provider_id?: string
+          sentido?: string
+          user_id?: string
+          valor?: number
+          valor_total_compra?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transacao_bancaria_compra_id_fkey"
+            columns: ["compra_id"]
+            isOneToOne: false
+            referencedRelation: "compra"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transacao_bancaria_compra_id_fkey"
+            columns: ["compra_id"]
+            isOneToOne: false
+            referencedRelation: "parcela_mensal"
+            referencedColumns: ["compra_id"]
+          },
+          {
+            foreignKeyName: "transacao_bancaria_conexao_id_fkey"
+            columns: ["conexao_id"]
+            isOneToOne: false
+            referencedRelation: "conexao_bancaria"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transacao_bancaria_conta_id_fkey"
+            columns: ["conta_id"]
+            isOneToOne: false
+            referencedRelation: "conta_bancaria"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       parcela_mensal: {

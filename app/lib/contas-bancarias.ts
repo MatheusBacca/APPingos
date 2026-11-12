@@ -64,6 +64,11 @@ export function situacaoDaConexao(
     }
   }
 
+  // Marcado pela sincronização quando a Pluggy responde 404 para o item.
+  if (conexao.status === 'DELETED') {
+    return { tom: 'erro', texto: 'Esta conexão não existe mais na Pluggy. Desconecte e conecte de novo.', reconectar: false }
+  }
+
   if (STATUS_QUE_PEDEM_RECONEXAO.has(conexao.status)) {
     return { tom: 'erro', texto: 'O banco pediu para conectar de novo.', reconectar: true }
   }

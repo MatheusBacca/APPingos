@@ -412,3 +412,10 @@ enabled = true
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# Open Finance — a Edge Function que sincroniza o extrato da Pluggy.
+# Sem JWT do gateway: quem chama é o pg_cron (Bearer service_role) ou o webhook
+# da Pluggy (header secreto), e a função confere os dois por conta própria.
+# Ver supabase/functions/sincronizar-pluggy/index.ts.
+[functions.sincronizar-pluggy]
+verify_jwt = false
