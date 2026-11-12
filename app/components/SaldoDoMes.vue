@@ -25,6 +25,7 @@ import { saldoDoMes } from '~/types/orcamento'
 import type { CompraDoMes } from '~/types/orcamento'
 import type { Membro } from '~/composables/useMembros'
 import { useAcertos } from '~/composables/useOrcamento'
+import { useUsuarioId } from '~/composables/useUsuarioId'
 
 const props = defineProps<{
   compras: CompraDoMes[]
@@ -63,6 +64,7 @@ const acerto = computed(() => {
 })
 
 const { data: acertos } = useAcertos()
+const usuarioId = useUsuarioId()
 
 const pagamento = computed(() =>
   (acertos.value ?? []).find(a => a.competencia === props.competencia) ?? null,
@@ -129,6 +131,14 @@ async function copiarValor(valor: number) {
           />
         </button>
         a {{ nomeDoMembro(acerto.credor.user_id) }}.
+        <!-- Só para quem deve, e só enquanto o mês não foi pago: ver PagarComPix.vue. -->
+        <PagarComPix
+          v-if="!pagamento && acerto.devedor.user_id === usuarioId"
+          :credor-id="acerto.credor.user_id"
+          :credor-nome="nomeDoMembro(acerto.credor.user_id)"
+          :valor="acerto.valor"
+          :competencia="competencia"
+        />
       </p>
       <p v-else class="font-medium">
         O acerto entre {{ membros.length }} pessoas — os saldos estão na conta abaixo.

@@ -1570,6 +1570,8 @@ export type Database = {
         Row: {
           apelido: string | null
           avatar_url: string | null
+          chave_pix: string | null
+          chave_pix_tipo: string | null
           created_at: string
           id: string
           nome: string
@@ -1577,6 +1579,8 @@ export type Database = {
         Insert: {
           apelido?: string | null
           avatar_url?: string | null
+          chave_pix?: string | null
+          chave_pix_tipo?: string | null
           created_at?: string
           id: string
           nome: string
@@ -1584,6 +1588,8 @@ export type Database = {
         Update: {
           apelido?: string | null
           avatar_url?: string | null
+          chave_pix?: string | null
+          chave_pix_tipo?: string | null
           created_at?: string
           id?: string
           nome?: string

@@ -415,6 +415,8 @@ async function onResgatar() {
       </CardContent>
     </Card>
 
+    <ChavePixCampo />
+
     <Dialog v-model:open="dialogExcluir">
       <DialogContent>
         <DialogHeader>
