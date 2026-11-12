@@ -6,7 +6,7 @@
  * quando, no minuto errado.
  */
 import { describe, expect, it } from 'vitest'
-import { tempoRelativo } from '~/lib/datas'
+import { formatarListaDeMeses, tempoRelativo } from '~/lib/datas'
 
 /** Um instante fixo, e tudo medido a partir dele. */
 const AGORA = new Date('2026-08-13T12:00:00Z').getTime()
@@ -60,5 +60,23 @@ describe('tempoRelativo', () => {
   it('data no futuro não vira tempo negativo', () => {
     const daquiAPouco = new Date(AGORA + 3_600_000).toISOString()
     expect(tempoRelativo(daquiAPouco, AGORA)).toBe('agora há pouco')
+  })
+})
+
+describe('formatarListaDeMeses', () => {
+  it('um mês só', () => {
+    expect(formatarListaDeMeses(['2026-07-01'])).toBe('julho de 2026')
+  })
+
+  it('mesmo ano: o ano aparece uma vez, e a lista sai em ordem', () => {
+    expect(formatarListaDeMeses(['2026-08-01', '2026-07-01', '2026-09-01'])).toBe('julho, agosto e setembro de 2026')
+  })
+
+  it('anos diferentes: cada mês com o seu', () => {
+    expect(formatarListaDeMeses(['2026-12-01', '2027-01-01'])).toBe('dezembro de 2026 e janeiro de 2027')
+  })
+
+  it('vazia, nada', () => {
+    expect(formatarListaDeMeses([])).toBe('')
   })
 })

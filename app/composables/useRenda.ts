@@ -10,7 +10,8 @@
  * não deve refazer nem mudar nada aqui.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import type { RecebimentoTipo, Renda } from '~/types/planejamento'
+import type { MaybeRefOrGetter } from 'vue'
+import type { RecebimentoTipo, Renda, RendaRecebida } from '~/types/planejamento'
 import { useUsuarioId } from '~/composables/useUsuarioId'
 
 export interface NovaRenda {
@@ -146,5 +147,68 @@ export function useCompartilharRenda() {
     },
     // Abrir o salário muda o que o espaço vê das contribuições (o percentual).
     onSuccess: () => invalidarPlanejamento(queryClient),
+  })
+}
+
+/** O salário de uma competência já caiu? `null` = ainda não marcado. */
+export function useRendaRecebida(competencia: MaybeRefOrGetter<string>) {
+  const supabase = useSupabaseClient()
+  const usuarioId = useUsuarioId()
+
+  return useQuery({
+    queryKey: ['renda', 'recebida', usuarioId, computed(() => toValue(competencia))],
+    enabled: computed(() => !!usuarioId.value),
+    queryFn: async (): Promise<RendaRecebida | null> => {
+      const { data, error } = await supabase
+        .from('renda_recebida')
+        .select('user_id, competencia, valor, recebido_em, origem, transacao_id')
+        .eq('user_id', usuarioId.value!)
+        .eq('competencia', toValue(competencia))
+        .maybeSingle()
+
+      if (error) throw error
+      if (!data) return null
+      return { ...data, valor: Number(data.valor) } as RendaRecebida
+    },
+  })
+}
+
+/**
+ * Marcar o salário do mês como recebido (com o valor que caiu de fato) ou
+ * desmarcar. Marcar é upsert: corrigir o valor depois de marcado é a mesma ação.
+ *
+ * Desmarcar apaga também uma marcação da Pluggy — quem está olhando a tela sabe
+ * mais do que a conciliação automática.
+ */
+export function useMarcarRendaRecebida() {
+  const supabase = useSupabaseClient()
+  const queryClient = useQueryClient()
+  const usuarioId = useUsuarioId()
+
+  return useMutation({
+    mutationFn: async (vars: { competencia: string, recebido: true, valor: number, recebido_em: string }
+      | { competencia: string, recebido: false }) => {
+      if (!usuarioId.value) throw new Error('Não autenticado')
+
+      if (vars.recebido) {
+        const { error } = await supabase.from('renda_recebida').upsert({
+          user_id: usuarioId.value,
+          competencia: vars.competencia,
+          valor: vars.valor,
+          recebido_em: vars.recebido_em,
+          origem: 'manual',
+        }, { onConflict: 'user_id,competencia' })
+        if (error) throw error
+        return
+      }
+
+      const { error } = await supabase
+        .from('renda_recebida')
+        .delete()
+        .eq('user_id', usuarioId.value)
+        .eq('competencia', vars.competencia)
+      if (error) throw error
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['renda', 'recebida'] }),
   })
 }

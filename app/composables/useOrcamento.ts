@@ -414,3 +414,38 @@ export function useDefinirCorCategoria() {
     [['orcamento']],
   )
 }
+
+/**
+ * Mover uma compra entre o pessoal e o compartilhado (`mover_compra`).
+ *
+ * A RPC apaga e recria — o id muda, e por isso a mutation devolve o novo. As
+ * duas gavetas são invalidadas: a compra some de uma e aparece na outra, e limpar
+ * só a de destino deixaria a cópia velha na tela até um F5.
+ *
+ * `participantes` aponta para membros do DESTINO: `rateioIgual()` para o espaço,
+ * você com peso 1 para o pessoal.
+ */
+export function useMoverCompra() {
+  const supabase = useSupabaseClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ compra, destino, participantes }: {
+      compra: Pick<CompraDoMes, 'id' | 'space_id'>
+      destino: string
+      participantes: Participante[]
+    }) => {
+      const { data, error } = await supabase.rpc('mover_compra', {
+        p_compra: compra.id,
+        p_space_destino: destino,
+        p_participantes: participantes as unknown as Json,
+      })
+      if (error) throw error
+      return data as unknown as string
+    },
+    onSuccess: (_novo, { compra, destino }) => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['space', compra.space_id, 'orcamento'] }),
+      queryClient.invalidateQueries({ queryKey: ['space', destino, 'orcamento'] }),
+    ]),
+  })
+}

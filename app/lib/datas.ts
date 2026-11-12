@@ -176,3 +176,22 @@ export function tempoRelativo(iso: string, agora: number = Date.now()): string |
 
   return null
 }
+
+/**
+ * "julho de 2026" · "julho e agosto de 2026" · "dezembro de 2026 e janeiro de 2027".
+ *
+ * Para listas curtas de meses numa frase — o aviso de mês já acertado. O ano só
+ * aparece uma vez quando todos são do mesmo ano; repetido, a frase vira tabela.
+ */
+export function formatarListaDeMeses(meses: string[]): string {
+  const ordenados = [...meses].sort()
+  const anos = new Set(ordenados.map(m => partesDaData(m).ano))
+  const mesmoAno = anos.size === 1
+
+  const nomes = ordenados.map(m => (mesmoAno ? nomeDoMes(m) : formatarMes(m)).toLowerCase())
+  const texto = nomes.length <= 1
+    ? (nomes[0] ?? '')
+    : `${nomes.slice(0, -1).join(', ')} e ${nomes.at(-1)}`
+
+  return mesmoAno && nomes.length ? `${texto} de ${[...anos][0]}` : texto
+}

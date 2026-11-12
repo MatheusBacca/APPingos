@@ -267,6 +267,10 @@ O que mudou em relação ao rascunho, para a Frente B não descobrir lendo SQL:
 8. **`rateioIgual` devolve percentual**, e `dividirIgualmente` passou a ser exportada.
 9. **GRANTs explícitos** nas tabelas novas para `authenticated` — o banco local novo não expõe
    tabela sem GRANT; no remoto é redundante e inofensivo.
-10. **`app/types/database.generated.ts` foi atualizado à mão** a partir de
+10. **Depois do contrato (W4, sem mudar assinatura):** `20261112130000_metas_pins.sql` liga a regra
+    de Pins `objetivo_cumprido` (gatilho em `meta`) e `20261112130100_meta_aporte_saldo.sql`
+    recusa apagar um aporte quando o guardado ficaria negativo. Um aporte da Pluggy apagado
+    depois de um resgate esbarra nessa trava — apague o resgate antes.
+11. **`app/types/database.generated.ts` foi atualizado à mão** a partir de
     `supabase gen types --local` (o `npm run db:types` lê o projeto remoto, onde as migrations não
     foram aplicadas). Ao integrar as branches, regerar.

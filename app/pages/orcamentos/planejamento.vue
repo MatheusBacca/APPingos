@@ -193,7 +193,14 @@ const situacao = computed(() => {
         rotulo-planejado="Para o seu mês"
         rotulo-gastos="Gastos pessoais"
         rotulo-aportes="Guardado nas suas metas"
-      />
+      >
+        <SalarioDoMes
+          v-if="dataDoSalario"
+          :competencia="competencia"
+          :previsto="meuMes.salario"
+          :data-prevista="dataDoSalario"
+        />
+      </ProjecaoCartao>
 
       <section v-else class="space-y-2 rounded-lg border border-dashed bg-card p-4">
         <h2 class="text-sm font-medium">Meu mês</h2>
