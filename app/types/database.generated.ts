@@ -236,6 +236,38 @@ export type Database = {
           },
         ]
       }
+      contribuicao: {
+        Row: {
+          modo: string
+          space_id: string
+          updated_at: string
+          user_id: string
+          valor: number
+        }
+        Insert: {
+          modo: string
+          space_id: string
+          updated_at?: string
+          user_id: string
+          valor: number
+        }
+        Update: {
+          modo?: string
+          space_id?: string
+          updated_at?: string
+          user_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contribuicao_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       convite_filme: {
         Row: {
           aceito: boolean | null
@@ -959,6 +991,107 @@ export type Database = {
           },
         ]
       }
+      meta: {
+        Row: {
+          created_at: string
+          criado_por: string
+          cumprida_em: string | null
+          estado: string
+          id: string
+          interesse_id: string | null
+          prazo: string | null
+          space_id: string
+          titulo: string
+          updated_at: string
+          valor_alvo: number
+        }
+        Insert: {
+          created_at?: string
+          criado_por: string
+          cumprida_em?: string | null
+          estado?: string
+          id?: string
+          interesse_id?: string | null
+          prazo?: string | null
+          space_id: string
+          titulo: string
+          updated_at?: string
+          valor_alvo: number
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string
+          cumprida_em?: string | null
+          estado?: string
+          id?: string
+          interesse_id?: string | null
+          prazo?: string | null
+          space_id?: string
+          titulo?: string
+          updated_at?: string
+          valor_alvo?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_interesse_id_fkey"
+            columns: ["interesse_id"]
+            isOneToOne: false
+            referencedRelation: "interesse"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_aporte: {
+        Row: {
+          competencia: string | null
+          created_at: string
+          data: string
+          id: string
+          meta_id: string
+          origem: string
+          transacao_id: string | null
+          user_id: string
+          valor: number
+        }
+        Insert: {
+          competencia?: never
+          created_at?: string
+          data?: string
+          id?: string
+          meta_id: string
+          origem?: string
+          transacao_id?: string | null
+          user_id: string
+          valor: number
+        }
+        Update: {
+          competencia?: never
+          created_at?: string
+          data?: string
+          id?: string
+          meta_id?: string
+          origem?: string
+          transacao_id?: string | null
+          user_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_aporte_meta_id_fkey"
+            columns: ["meta_id"]
+            isOneToOne: false
+            referencedRelation: "meta"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_leitura: {
         Row: {
           alvo: number
@@ -1485,6 +1618,86 @@ export type Database = {
         }
         Relationships: []
       }
+      renda: {
+        Row: {
+          recebimento_dia: number
+          recebimento_tipo: string
+          updated_at: string
+          user_id: string
+          valor_liquido: number
+        }
+        Insert: {
+          recebimento_dia: number
+          recebimento_tipo: string
+          updated_at?: string
+          user_id: string
+          valor_liquido: number
+        }
+        Update: {
+          recebimento_dia?: number
+          recebimento_tipo?: string
+          updated_at?: string
+          user_id?: string
+          valor_liquido?: number
+        }
+        Relationships: []
+      }
+      renda_compartilhamento: {
+        Row: {
+          created_at: string
+          space_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          space_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          space_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "renda_compartilhamento_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      renda_recebida: {
+        Row: {
+          competencia: string
+          created_at: string
+          origem: string
+          recebido_em: string
+          transacao_id: string | null
+          user_id: string
+          valor: number
+        }
+        Insert: {
+          competencia: string
+          created_at?: string
+          origem?: string
+          recebido_em?: string
+          transacao_id?: string | null
+          user_id: string
+          valor: number
+        }
+        Update: {
+          competencia?: string
+          created_at?: string
+          origem?: string
+          recebido_em?: string
+          transacao_id?: string | null
+          user_id?: string
+          valor?: number
+        }
+        Relationships: []
+      }
       rating: {
         Row: {
           entry_id: string
@@ -1830,12 +2043,31 @@ export type Database = {
       }
       conceder_pins_viagens_concluidas: { Args: never; Returns: number }
       concluir_memoria: { Args: { p_memoria: string }; Returns: undefined }
+      contribuicoes_do_espaco: {
+        Args: { p_space: string }
+        Returns: {
+          modo: string
+          percentual: number
+          user_id: string
+          valor_efetivo: number
+        }[]
+      }
       create_space: {
         Args: { p_nome: string; p_tipo?: string }
         Returns: string
       }
       criar_agrupamento: {
         Args: { p_interesse: string; p_nome?: string }
+        Returns: string
+      }
+      criar_meta: {
+        Args: {
+          p_interesse?: string
+          p_prazo?: string
+          p_space: string
+          p_titulo: string
+          p_valor_alvo: number
+        }
         Returns: string
       }
       criar_convite: { Args: { p_space: string }; Returns: string }
@@ -1885,6 +2117,14 @@ export type Database = {
           hotspots: string[]
           multiplicador: number
         }[]
+      }
+      mover_compra: {
+        Args: {
+          p_compra: string
+          p_participantes: Json
+          p_space_destino: string
+        }
+        Returns: string
       }
       nome_para_notificacao: { Args: { p_user: string }; Returns: string }
       notificar: {
@@ -1941,6 +2181,16 @@ export type Database = {
       pode_ver_memoria: { Args: { p_memoria: string }; Returns: boolean }
       pode_ver_roteiro: { Args: { p_roteiro: string }; Returns: boolean }
       reabrir_memoria: { Args: { p_memoria: string }; Returns: undefined }
+      registrar_aporte: {
+        Args: {
+          p_data?: string
+          p_meta: string
+          p_origem?: string
+          p_transacao?: string
+          p_valor: number
+        }
+        Returns: string
+      }
       registrar_compra: {
         Args: {
           p_categoria_cor?: string
@@ -1982,6 +2232,7 @@ export type Database = {
         }
         Returns: Json
       }
+      renda_visivel: { Args: { p_user: string }; Returns: boolean }
       resgatar_convite: { Args: { p_codigo: string }; Returns: string }
       responder_convite: {
         Args: { p_aceito: boolean; p_convite: string }

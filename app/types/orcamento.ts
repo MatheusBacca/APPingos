@@ -4,6 +4,7 @@
  * Ver supabase/migrations/20260804180000_orcamento_compras.sql para o schema e
  * o porquê de o rateio ser peso, e não percentual.
  */
+import { primeiroDoMes, somarMeses } from '@/lib/datas'
 import type { CorCategoria, InformadoComo } from './database.types'
 
 export interface Categoria {
@@ -68,6 +69,73 @@ export function fracaoDe(participantes: Participante[], userId: string): number 
   if (soma <= 0) return 0
   const meu = participantes.find(p => p.user_id === userId)
   return meu ? Number(meu.peso) / soma : 0
+}
+
+/**
+ * `total` em partes iguais entre `ids`, na precisão do peso no banco
+ * (`numeric(14,4)`). O primeiro absorve o resto, para a soma bater com o total
+ * exibido: 100 entre três vira 33,3334 / 33,3333 / 33,3333.
+ *
+ * É a conta do botão "Dividir igualmente" do `CompraDialogo`, tirada de lá para
+ * servir também a quem monta um rateio sem formulário nenhum — a entrada
+ * automática do cartão do casal (Frente B) e o mover de gaveta.
+ */
+export function dividirIgualmente(ids: string[], total: number): Record<string, number> {
+  const partes: Record<string, number> = {}
+  if (!ids.length) return partes
+
+  const fatia = Math.round((total / ids.length) * 10000) / 10000
+  ids.forEach((id, i) => {
+    partes[id] = i === 0
+      ? Math.round((total - fatia * (ids.length - 1)) * 10000) / 10000
+      : fatia
+  })
+  return partes
+}
+
+/**
+ * O rateio igual entre os membros, no formato que `registrar_compra` recebe.
+ *
+ * Em PERCENTUAL e não peso 1 para cada: é o que o diálogo grava ao abrir uma
+ * compra nova, e a compra que entrou sozinha (cartão do casal, Frente B) precisa
+ * voltar ao formulário como "50% / 50%" — com peso 1 ela abriria somando "2%" e o
+ * botão de salvar ficaria travado.
+ */
+export function rateioIgual(membrosIds: string[]): Participante[] {
+  const partes = dividirIgualmente(membrosIds, 100)
+  return membrosIds.map(user_id => ({
+    user_id,
+    peso: partes[user_id]!,
+    informado_como: 'percentual' as const,
+  }))
+}
+
+/**
+ * Os meses JÁ ACERTADOS que uma compra toca — da competência inicial à da última
+ * parcela —, em ordem.
+ *
+ * Alimenta o aviso "isso muda o saldo de um mês já acertado": no `CompraDialogo`
+ * e na importação da Pluggy, cujo recuo de parcelas (*k − 1* meses) cai em mês
+ * fechado com frequência. É aviso, não trava (decisão 7): o casal corrige o
+ * passado, e o acerto é decisão humana, não proibição.
+ *
+ * Os acertos são do espaço da compra — quem chama passa os do espaço certo. Uma
+ * compra pessoal nunca está em acerto nenhum, porque o acerto é a dívida do casal.
+ *
+ * Numa edição, o aviso vale para os meses de antes E de depois: tirar uma parcela
+ * de julho muda julho tanto quanto pôr uma. Quem chama une as duas listas.
+ */
+export function competenciasAcertadas(
+  compra: { competencia_inicial: string, parcelas: number },
+  acertos: ReadonlyArray<{ competencia: string }>,
+): string[] {
+  const inicio = primeiroDoMes(compra.competencia_inicial)
+  const n = Math.max(compra.parcelas || 1, 1)
+  const tocados = new Set(Array.from({ length: n }, (_, i) => somarMeses(inicio, i)))
+
+  return [...new Set(acertos.map(a => primeiroDoMes(a.competencia)))]
+    .filter(c => tocados.has(c))
+    .sort()
 }
 
 /** Quanto do valor cabe a alguém. Sem arredondar — quem arredonda é a tela. */

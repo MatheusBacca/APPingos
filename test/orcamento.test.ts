@@ -7,7 +7,17 @@
  * elas aparece o clássico "você tem +1.150,61 e ela −1.150,62", sem explicação.
  */
 import { describe, expect, it } from 'vitest'
-import { fracaoNaFatia, gastoPorCategoria, meuBolso, saldoDoMes, totalDoMes } from '~/types/orcamento'
+import {
+  competenciasAcertadas,
+  dividirIgualmente,
+  fracaoDe,
+  fracaoNaFatia,
+  gastoPorCategoria,
+  meuBolso,
+  rateioIgual,
+  saldoDoMes,
+  totalDoMes,
+} from '~/types/orcamento'
 import type { CompraDoMes } from '~/types/orcamento'
 
 const EU = 'eu'
@@ -215,5 +225,73 @@ describe('gastoPorCategoria', () => {
 
   it('não divide por zero num mês sem compras', () => {
     expect(gastoPorCategoria([])).toEqual([])
+  })
+})
+
+/*
+ * Contrato com a Frente B (docs/contrato-planejamento-open-finance.md, seção 8).
+ * `rateioIgual` é o 50/50 do cartão do casal; `competenciasAcertadas`, o aviso de
+ * mês já acertado — no diálogo e na importação com recuo de parcelas.
+ */
+describe('dividirIgualmente', () => {
+  it('fecha exatamente no total, com o primeiro absorvendo o resto', () => {
+    const partes = dividirIgualmente(['a', 'b', 'c'], 100)
+    expect(partes).toEqual({ a: 33.3334, b: 33.3333, c: 33.3333 })
+    expect(soma(Object.values(partes))).toBe(100)
+  })
+
+  it('divide reais do mesmo jeito', () => {
+    expect(dividirIgualmente(['a', 'b'], 99.99)).toEqual({ a: 49.995, b: 49.995 })
+  })
+
+  it('sem ninguém, nada', () => {
+    expect(dividirIgualmente([], 100)).toEqual({})
+  })
+})
+
+describe('rateioIgual', () => {
+  it('é o 50/50 em percentual, como o diálogo grava', () => {
+    expect(rateioIgual([EU, ELA])).toEqual([
+      { user_id: EU, peso: 50, informado_como: 'percentual' },
+      { user_id: ELA, peso: 50, informado_como: 'percentual' },
+    ])
+  })
+
+  it('divide o saldo do mês meio a meio', () => {
+    const c = compra(100, EU, {})
+    c.participantes = rateioIgual([EU, ELA])
+    expect(fracaoDe(c.participantes, ELA)).toBe(0.5)
+    expect(saldoDoMes([c], [EU, ELA]).find(s => s.user_id === ELA)?.saldo).toBe(-50)
+  })
+})
+
+describe('competenciasAcertadas', () => {
+  const acertos = [
+    { competencia: '2026-07-01' },
+    { competencia: '2026-08-01' },
+    { competencia: '2026-12-01' },
+  ]
+
+  it('devolve os meses acertados que as parcelas tocam, em ordem', () => {
+    expect(competenciasAcertadas({ competencia_inicial: '2026-06-01', parcelas: 3 }, acertos))
+      .toEqual(['2026-07-01', '2026-08-01'])
+  })
+
+  it('uma compra à vista só toca o próprio mês', () => {
+    expect(competenciasAcertadas({ competencia_inicial: '2026-08-01', parcelas: 1 }, acertos))
+      .toEqual(['2026-08-01'])
+    expect(competenciasAcertadas({ competencia_inicial: '2026-09-01', parcelas: 1 }, acertos))
+      .toEqual([])
+  })
+
+  it('atravessa a virada do ano', () => {
+    expect(competenciasAcertadas(
+      { competencia_inicial: '2026-11-01', parcelas: 4 },
+      [...acertos, { competencia: '2027-02-01' }],
+    )).toEqual(['2026-12-01', '2027-02-01'])
+  })
+
+  it('sem acerto nenhum, sem aviso', () => {
+    expect(competenciasAcertadas({ competencia_inicial: '2026-07-01', parcelas: 12 }, [])).toEqual([])
   })
 })
