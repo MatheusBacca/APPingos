@@ -39,6 +39,7 @@ import { formatarDinheiro } from '@/lib/dinheiro'
 import { ehAdmin } from '~/types/database.types'
 import type { CorCategoria, InformadoComo } from '~/types/database.types'
 import { formatarMes } from '@/lib/datas'
+import { dividirIgualmente as dividirEmPartesIguais } from '~/types/orcamento'
 import type { Categoria, CompraDoMes } from '~/types/orcamento'
 import type { Membro } from '~/composables/useMembros'
 import { useGastosPessoais } from '~/composables/useGastosPessoais'
@@ -123,20 +124,11 @@ watch(dataCompra, (nova) => {
   if (!competenciaTocada.value && nova) competencia.value = paraMesInput(primeiroDoMes(nova))
 })
 
+/** A conta mora em `app/types/orcamento.ts`, para servir também a quem não tem formulário. */
 function dividirIgualmente() {
-  const ativos = props.membros
-  if (!ativos.length) return
-
+  if (!props.membros.length) return
   const total = modoRateio.value === 'percentual' ? 100 : (valorTotal.value ?? 0)
-  const fatia = Math.round((total / ativos.length) * 10000) / 10000
-  const novo: Record<string, number> = {}
-  ativos.forEach((m, i) => {
-    // O primeiro absorve o resto para a soma bater com o total exibido.
-    novo[m.user_id] = i === 0
-      ? Math.round((total - fatia * (ativos.length - 1)) * 10000) / 10000
-      : fatia
-  })
-  partes.value = novo
+  partes.value = dividirEmPartesIguais(props.membros.map(m => m.user_id), total)
 }
 
 /**
@@ -146,20 +138,13 @@ function dividirIgualmente() {
  */
 function ajustar(userId: string, valor: number) {
   const total = modoRateio.value === 'percentual' ? 100 : (valorTotal.value ?? 0)
-  const outros = props.membros.filter(m => m.user_id !== userId)
-  const novo: Record<string, number> = { ...partes.value, [userId]: valor }
+  const outros = props.membros.filter(m => m.user_id !== userId).map(m => m.user_id)
 
-  if (outros.length) {
-    const sobra = Math.max(total - valor, 0)
-    const fatia = Math.round((sobra / outros.length) * 10000) / 10000
-    outros.forEach((m, i) => {
-      novo[m.user_id] = i === 0
-        ? Math.round((sobra - fatia * (outros.length - 1)) * 10000) / 10000
-        : fatia
-    })
+  partes.value = {
+    ...partes.value,
+    [userId]: valor,
+    ...dividirEmPartesIguais(outros, Math.max(total - valor, 0)),
   }
-
-  partes.value = novo
 }
 
 function reiniciar() {
