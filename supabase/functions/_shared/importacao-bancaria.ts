@@ -18,7 +18,7 @@
  * Só `import type` (apagado na compilação) — a regra de zero imports de runtime
  * de `_shared/` continua valendo.
  */
-import type { ContaPluggy, ParteDoPagamento, TransacaoPluggy } from './pluggy-api.ts'
+import type { ContaPluggy, ItemPluggy, ParteDoPagamento, TransacaoPluggy } from './pluggy-api.ts'
 
 export const FUSO = 'America/Sao_Paulo'
 
@@ -450,6 +450,96 @@ export function agruparParcelas(transacoes: TransacaoNormalizada[]): {
   })
 
   return { compras, avulsas }
+}
+
+// ---------------------------------------------------------------------------
+// A janela de cada sincronização
+// ---------------------------------------------------------------------------
+
+/** Na primeira vez, quanto do passado buscar. */
+export const JANELA_INICIAL_DIAS = 90
+
+/**
+ * Quanto voltar antes da última sincronização. O banco corrige transações dias
+ * depois (pendente → lançada, valor ajustado, descrição trocada) e o upsert por
+ * `provider_id` torna a releitura inócua — então sobra sobrepor.
+ */
+export const SOBREPOSICAO_DIAS = 10
+
+function somarDiasIso(data: string, n: number): string {
+  const d = new Date(Date.UTC(Number(data.slice(0, 4)), Number(data.slice(5, 7)) - 1, Number(data.slice(8, 10)) + n))
+  return d.toISOString().slice(0, 10)
+}
+
+/** De quando a quando pedir as transações, em datas de Brasília. */
+export function janelaDeSincronizacao(sincronizadoEm: string | null, hoje: string): { de: string, ate: string } {
+  const de = sincronizadoEm
+    ? somarDiasIso(dataLocal(sincronizadoEm), -SOBREPOSICAO_DIAS)
+    : somarDiasIso(hoje, -JANELA_INICIAL_DIAS)
+  return { de, ate: hoje }
+}
+
+/** `billId` → vencimento, para a competência sair da fatura (pegadinha 7). */
+export function vencimentosDasFaturas(faturas: Array<{ id: string, dueDate: string }>): Record<string, string> {
+  return Object.fromEntries(faturas.map(f => [f.id, f.dueDate]))
+}
+
+/** O lote de uma conta pronto para `ingerir_transacoes`: normalizado e sem repetição. */
+export function linhasDaConta(
+  transacoes: TransacaoPluggy[],
+  conta: ContaDaTransacao,
+  contexto: ContextoImportacao,
+): TransacaoNormalizada[] {
+  return deduplicar(transacoes.map(t => normalizarTransacao(t, conta, contexto)))
+}
+
+// ---------------------------------------------------------------------------
+// Conexão e contas — o mesmo mapeamento no cadastro (Nuxt) e na sincronização
+// ---------------------------------------------------------------------------
+
+/** As colunas de `conexao_bancaria` que vêm do item (sem `user_id`). */
+export function camposDaConexao(item: ItemPluggy) {
+  return {
+    item_id: item.id,
+    banco: item.connector?.name ?? '',
+    banco_logo_url: item.connector?.imageUrl ?? null,
+    status: item.status,
+    consentimento_expira_em: item.consentExpiresAt ?? null,
+  }
+}
+
+/**
+ * As colunas de `conta_bancaria` que vêm da Pluggy.
+ *
+ * `destino` e `space_id` NÃO estão aqui de propósito: são escolha da pessoa, e
+ * o upsert da sincronização reescreve só o que está no objeto. Pôr o destino
+ * aqui faria cada sincronização devolver o cartão do casal para "perguntar".
+ */
+export function camposDaConta(conta: ContaPluggy) {
+  const tipo = tipoDaConta(conta)
+  const numero = conta.number?.trim() || null
+  return {
+    pluggy_account_id: conta.id,
+    tipo,
+    nome: (conta.marketingName || conta.name || (tipo === 'cartao' ? 'Cartão' : 'Conta')).trim(),
+    // De cartão, só o fim: é o que a fatura e o app do banco mostram.
+    numero: tipo === 'cartao' && numero ? numero.replace(/\D/g, '').slice(-4) || numero : numero,
+    titular_nome: conta.owner?.trim() || null,
+    titular_documento: conta.taxNumber?.trim() || null,
+  }
+}
+
+/**
+ * Se o item pode ser registrado por esta pessoa.
+ *
+ * O item criado pelo widget volta com o `clientUserId` que a rota do connect
+ * token definiu — o id de quem conectou. Outro id ali é o item de outra pessoa.
+ * Item sem `clientUserId` (copiado do demo do dashboard, como a pegadinha 1 do
+ * plano permite) é aceito: num app de duas pessoas, quem cadastra é quem tem o
+ * id na mão, e o `item_id` único impede que o mesmo item tenha dois donos.
+ */
+export function itemPodeSerDe(item: { clientUserId?: string | null }, userId: string): boolean {
+  return !item.clientUserId || item.clientUserId === userId
 }
 
 /** O que a pessoa sabe dela mesma a partir das próprias contas. */

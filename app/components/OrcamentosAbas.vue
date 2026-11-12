@@ -18,6 +18,8 @@ defineProps<{ subtitulo: string }>()
 
 const ABAS = [
   { to: '/orcamentos', rotulo: 'Chico Moedas' },
+  // Os bancos de quem está logado (Open Finance). Só a própria pessoa vê.
+  { to: '/orcamentos/contas', rotulo: 'Contas' },
 ]
 
 const route = useRoute()

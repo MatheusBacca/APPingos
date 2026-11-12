@@ -233,6 +233,14 @@ export default defineNuxtConfig({
      * grande da migration 20260815180000_spotify_integracao.sql.
      */
     spotifyTokenSecret: '',
+    /*
+     * Pluggy (Open Finance) — ver docs/notion-plano-open-finance.md e
+     * `server/utils/pluggy.ts`. Os dois só servem para gerar a `apiKey` no
+     * servidor; ao navegador chega apenas o connect token, de 30 minutos.
+     * Vazios, a tela de Contas conectadas explica em vez de oferecer.
+     */
+    pluggyClientId: '',
+    pluggyClientSecret: '',
     public: {
       googleMapsEmbedKey: '',
     },

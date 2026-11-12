@@ -236,6 +236,111 @@ export type Database = {
           },
         ]
       }
+      conexao_bancaria: {
+        Row: {
+          atualizado_em: string
+          banco: string
+          banco_logo_url: string | null
+          conectado_em: string
+          consentimento_expira_em: string | null
+          erro_sincronizacao: string | null
+          id: string
+          item_id: string
+          sincronizado_em: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          banco?: string
+          banco_logo_url?: string | null
+          conectado_em?: string
+          consentimento_expira_em?: string | null
+          erro_sincronizacao?: string | null
+          id?: string
+          item_id: string
+          sincronizado_em?: string | null
+          status?: string
+          user_id?: string
+        }
+        Update: {
+          atualizado_em?: string
+          banco?: string
+          banco_logo_url?: string | null
+          conectado_em?: string
+          consentimento_expira_em?: string | null
+          erro_sincronizacao?: string | null
+          id?: string
+          item_id?: string
+          sincronizado_em?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      conta_bancaria: {
+        Row: {
+          atualizado_em: string
+          conexao_id: string
+          criado_em: string
+          destino: string
+          id: string
+          nome: string
+          numero: string | null
+          pluggy_account_id: string
+          space_id: string | null
+          tipo: string
+          titular_documento: string | null
+          titular_nome: string | null
+          user_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          conexao_id: string
+          criado_em?: string
+          destino?: string
+          id?: string
+          nome: string
+          numero?: string | null
+          pluggy_account_id: string
+          space_id?: string | null
+          tipo: string
+          titular_documento?: string | null
+          titular_nome?: string | null
+          user_id?: string
+        }
+        Update: {
+          atualizado_em?: string
+          conexao_id?: string
+          criado_em?: string
+          destino?: string
+          id?: string
+          nome?: string
+          numero?: string | null
+          pluggy_account_id?: string
+          space_id?: string | null
+          tipo?: string
+          titular_documento?: string | null
+          titular_nome?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conta_bancaria_conexao_id_fkey"
+            columns: ["conexao_id"]
+            isOneToOne: false
+            referencedRelation: "conexao_bancaria"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conta_bancaria_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       convite_filme: {
         Row: {
           aceito: boolean | null
