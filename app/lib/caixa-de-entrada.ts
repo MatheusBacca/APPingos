@@ -38,7 +38,8 @@ export interface TransacaoDaCaixa {
   contraparte_documento: string | null
   metodo: string | null
   categoria_pluggy: string | null
-  motivo_exclusao: MotivoExclusao | null
+  /** `acerto` é o Pix do acerto do mês, reconhecido pela conciliação (B5). */
+  motivo_exclusao: MotivoExclusao | 'acerto' | null
   destino: 'compra' | 'ignorada' | 'renda' | 'aporte' | null
   compra_id: string | null
   classificada_em: string | null
@@ -85,7 +86,8 @@ function comoNormalizada(t: TransacaoDaCaixa): TransacaoNormalizada & { id: stri
     metodo: t.metodo,
     categoria_pluggy: t.categoria_pluggy,
     chave_compra: t.chave_compra,
-    motivo_exclusao: t.motivo_exclusao,
+    // 'acerto' é da conciliação, não da importação; para agrupar parcelas, tanto faz.
+    motivo_exclusao: t.motivo_exclusao === 'acerto' ? null : t.motivo_exclusao,
   }
 }
 

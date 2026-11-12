@@ -2308,6 +2308,14 @@ export type Database = {
       }
       conceder_pins_viagens_concluidas: { Args: never; Returns: number }
       concluir_memoria: { Args: { p_memoria: string }; Returns: undefined }
+      conciliar_acerto: {
+        Args: {
+          p_competencia: string
+          p_space: string
+          p_transacao: string
+        }
+        Returns: undefined
+      }
       contribuicoes_do_espaco: {
         Args: { p_space: string }
         Returns: {

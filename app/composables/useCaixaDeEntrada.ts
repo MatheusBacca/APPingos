@@ -180,6 +180,7 @@ export type Classificacao =
   | { tipo: 'aporte', transacao: string, meta: string }
   | { tipo: 'devolver', transacao: string }
   | { tipo: 'reclassificar', compra: string, space: string, participantes: Participante[] }
+  | { tipo: 'acerto', transacao: string, space: string, competencia: string }
 
 /**
  * Um destino para uma transação — cada um é uma RPC da migration
@@ -219,6 +220,12 @@ export function useClassificar() {
             return supabase.rpc('classificar_aporte', { p_transacao: c.transacao, p_meta: c.meta })
           case 'devolver':
             return supabase.rpc('devolver_para_caixa', { p_transacao: c.transacao })
+          case 'acerto':
+            return supabase.rpc('conciliar_acerto', {
+              p_transacao: c.transacao,
+              p_space: c.space,
+              p_competencia: c.competencia,
+            })
           case 'reclassificar':
             return supabase.rpc('reclassificar_compra', {
               p_compra: c.compra,

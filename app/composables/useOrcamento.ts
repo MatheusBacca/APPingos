@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import type { MaybeRefOrGetter } from 'vue'
 import { partesDaData, somarMeses, ultimoDiaDoMes } from '@/lib/datas'
 import { parteDe } from '~/types/orcamento'
-import type { CorCategoria } from '~/types/database.types'
+import type { CorCategoria, Database } from '~/types/database.types'
 import type { Json } from '~/types/database.generated'
 import type { Categoria, CompraDoMes, NovaCompra, Participante } from '~/types/orcamento'
 import { useEspacoQuery, useEspacoMutation, useSpaceQuery, useSpaceMutation } from '~/composables/useSpaceQuery'
@@ -51,45 +51,53 @@ export function useComprasDoMes(competencia: MaybeRefOrGetter<string>, espaco?: 
   return useEspacoQuery(
     alvoOuAtivo(espaco),
     computed(() => ['orcamento', 'mes', toValue(competencia)]),
-    async (spaceId): Promise<CompraDoMes[]> => {
-      const mes = toValue(competencia)
-
-      const { data: parcelas, error: erroParcelas } = await supabase
-        .from('parcela_mensal')
-        .select('compra_id, numero, total, valor')
-        .eq('space_id', spaceId)
-        .eq('competencia', mes)
-
-      if (erroParcelas) throw erroParcelas
-      if (!parcelas?.length) return []
-
-      const porCompra = new Map(
-        parcelas
-          .filter(p => p.compra_id)
-          .map(p => [p.compra_id as string, { numero: p.numero ?? 1, valor: Number(p.valor ?? 0) }]),
-      )
-
-      const { data: compras, error: erroCompras } = await supabase
-        .from('compra')
-        .select(SELECT_COMPRA)
-        .in('id', [...porCompra.keys()])
-
-      if (erroCompras) throw erroCompras
-
-      return ((compras ?? []) as unknown as Array<Omit<CompraDoMes, 'numero' | 'valor'> & {
-        categoria: Categoria | null
-        participantes: Participante[]
-      }>)
-        .map(c => ({
-          ...c,
-          valor_total: Number(c.valor_total),
-          numero: porCompra.get(c.id)?.numero ?? 1,
-          valor: porCompra.get(c.id)?.valor ?? 0,
-        }))
-        // A data da compra é a ordem que faz sentido para conferir com o extrato.
-        .sort((a, b) => b.data_compra.localeCompare(a.data_compra))
-    },
+    spaceId => buscarComprasDoMes(supabase, spaceId, toValue(competencia)),
   )
+}
+
+/**
+ * A busca de `useComprasDoMes` sem o cache — para quem precisa de vários meses
+ * de uma vez (a conciliação do Pix confere o saldo de mais de um mês).
+ */
+export async function buscarComprasDoMes(
+  supabase: ReturnType<typeof useSupabaseClient<Database>>,
+  spaceId: string,
+  mes: string,
+): Promise<CompraDoMes[]> {
+  const { data: parcelas, error: erroParcelas } = await supabase
+    .from('parcela_mensal')
+    .select('compra_id, numero, total, valor')
+    .eq('space_id', spaceId)
+    .eq('competencia', mes)
+
+  if (erroParcelas) throw erroParcelas
+  if (!parcelas?.length) return []
+
+  const porCompra = new Map(
+    parcelas
+      .filter(p => p.compra_id)
+      .map(p => [p.compra_id as string, { numero: p.numero ?? 1, valor: Number(p.valor ?? 0) }]),
+  )
+
+  const { data: compras, error: erroCompras } = await supabase
+    .from('compra')
+    .select(SELECT_COMPRA)
+    .in('id', [...porCompra.keys()])
+
+  if (erroCompras) throw erroCompras
+
+  return ((compras ?? []) as unknown as Array<Omit<CompraDoMes, 'numero' | 'valor'> & {
+    categoria: Categoria | null
+    participantes: Participante[]
+  }>)
+    .map(c => ({
+      ...c,
+      valor_total: Number(c.valor_total),
+      numero: porCompra.get(c.id)?.numero ?? 1,
+      valor: porCompra.get(c.id)?.valor ?? 0,
+    }))
+    // A data da compra é a ordem que faz sentido para conferir com o extrato.
+    .sort((a, b) => b.data_compra.localeCompare(a.data_compra))
 }
 
 export interface PontoMensal {

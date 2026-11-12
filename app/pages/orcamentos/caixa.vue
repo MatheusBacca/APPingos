@@ -27,6 +27,7 @@ import {
   useTransacoesDaCaixa,
 } from '~/composables/useCaixaDeEntrada'
 import type { LinhaClassificada } from '~/composables/useCaixaDeEntrada'
+import { useConciliacaoPix } from '~/composables/useConciliacaoPix'
 import { useConexoesBancarias } from '~/composables/useContasBancarias'
 import { useUsuarioId } from '~/composables/useUsuarioId'
 import { useSpaceStore } from '~/stores/space'
@@ -41,6 +42,9 @@ const { data: conexoes } = useConexoesBancarias()
 const { data: transacoes, isPending } = useTransacoesDaCaixa()
 const { data: classificadas } = useClassificadasRecentes()
 const classificar = useClassificar()
+
+// O Pix do acerto marca o mês como pago sozinho — ver useConciliacaoPix.
+useConciliacaoPix(transacoes)
 
 const itens = computed(() => itensDaCaixa(transacoes.value ?? []))
 const nomeDaConta = (contaId: string) =>
@@ -114,6 +118,7 @@ const ROTULO_MOTIVO: Record<string, string> = {
   pagamento_fatura: 'pagamento de fatura',
   transferencia_propria: 'entre contas suas',
   valor_zero: 'valor zero',
+  acerto: 'Pix do acerto do mês',
 }
 
 const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome ?? 'espaço'
