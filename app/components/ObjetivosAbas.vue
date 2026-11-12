@@ -6,20 +6,19 @@
  * do módulo com a sua própria página em `app/pages/objetivos/`, e acrescentar uma
  * é uma entrada em `ABAS` mais o arquivo.
  *
- * A diferença é a segunda aba. **Metas** — o que dá nome ao módulo — ainda não
- * existe, e ela aparece aqui desabilitada em vez de ser omitida. Omitir faria o
- * módulo parecer ser só Interesses; mostrar como está diz a verdade, que é
- * "Interesses primeiro, metas depois", e deixa o lugar da segunda função visível.
- * Quando Metas nascer, ela troca de lista e o `redirect` de
- * `app/pages/objetivos/index.vue` sai junto.
+ * **Metas** — o que dá nome ao módulo — nasceu depois de Interesses e passou a ser
+ * a raiz (`/objetivos`). Até então ela aparecia aqui desabilitada, para o módulo
+ * não parecer ser só Interesses; quando chegou, saiu da lista de "em breve" e o
+ * `redirect` de `app/pages/objetivos/index.vue` saiu junto. Vem primeiro porque é a
+ * pergunta do módulo ("para onde estamos indo"); Interesses é a porta de entrada
+ * de muitas metas ("transformar em meta").
  */
 defineProps<{ subtitulo: string }>()
 
 const ABAS = [
+  { to: '/objetivos', rotulo: 'Metas' },
   { to: '/objetivos/interesses', rotulo: 'Interesses' },
 ]
-
-const EM_BREVE = ['Metas']
 
 const route = useRoute()
 </script>
@@ -42,16 +41,6 @@ const route = useRoute()
         >
           {{ aba.rotulo }}
         </NuxtLink>
-
-        <span
-          v-for="rotulo in EM_BREVE"
-          :key="rotulo"
-          class="cursor-not-allowed rounded-md px-3 py-1.5 font-medium text-muted-foreground/50"
-          title="Ainda não construímos esta aba."
-        >
-          {{ rotulo }}
-          <span class="sr-only">(em breve)</span>
-        </span>
       </nav>
 
       <!-- As ações são da função, não do módulo — por isso vêm da página. -->

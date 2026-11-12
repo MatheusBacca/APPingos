@@ -288,6 +288,30 @@ select pg_temp.esperar(
   (select estado = 'cumprida' and cumprida_em is not null from public.meta where id = (select id from meta_casal)),
   'o aporte que alcança o alvo cumpre a meta');
 
+-- Pins `objetivo_cumprido` (20261112130000_metas_pins.sql): a meta do casal com prazo
+-- rende para os dois membros; uma meta sem prazo não rende nada.
+reset role;
+select pg_temp.esperar(
+  (select count(*) = 2 from public.pin
+    where regra = 'objetivo_cumprido' and entidade_id = (select id from meta_casal)),
+  'meta do casal cumprida no prazo: Pins para os dois');
+set local role authenticated;
+
+create temp table meta_sem_prazo on commit drop as
+select public.criar_meta((select pessoal_ana from ids), 'Fundo de reserva', 50) as id;
+grant select on meta_sem_prazo to authenticated;
+select public.registrar_aporte((select id from meta_sem_prazo), 50);
+
+reset role;
+select pg_temp.esperar(
+  (select estado = 'cumprida' from public.meta where id = (select id from meta_sem_prazo)),
+  'a meta sem prazo também se cumpre');
+select pg_temp.esperar(
+  (select count(*) = 0 from public.pin where regra = 'objetivo_cumprido' and entidade_id = (select id from meta_sem_prazo)),
+  'meta sem prazo não rende Pins');
+set local role authenticated;
+select pg_temp.como((select ana from ids));
+
 select pg_temp.recusa($$select public.registrar_aporte((select id from meta_casal), 10)$$,
   'guardar numa meta cumprida');
 select public.registrar_aporte((select id from meta_casal), -1000);
@@ -297,6 +321,20 @@ select pg_temp.esperar(
 select pg_temp.esperar(
   (select sum(valor) = 0 from public.meta_aporte where meta_id = (select id from meta_casal)),
   'progresso é a soma dos aportes');
+
+-- 20261112130100: apagar o aporte de 600 deixaria −600 guardado (sobrou o resgate).
+select pg_temp.recusa(
+  $$delete from public.meta_aporte where meta_id = (select id from meta_casal) and valor = 600$$,
+  'apagar aporte que deixa o guardado negativo');
+
+-- Mas apagar a meta inteira leva os aportes juntos, sem esbarrar na trava.
+select pg_temp.como((select ana from ids));
+delete from public.meta where id = (select id from meta_casal);
+reset role;
+select pg_temp.esperar(
+  (select count(*) = 0 from public.meta_aporte where meta_id = (select id from meta_casal)),
+  'apagar a meta apaga os aportes');
+set local role authenticated;
 
 -- Interesse que vira meta: a conversão sai na mesma transação.
 create temp table interesse_casal on commit drop as
