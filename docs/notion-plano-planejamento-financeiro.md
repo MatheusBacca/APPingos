@@ -364,6 +364,23 @@ em [contrato-planejamento-open-finance.md](./contrato-planejamento-open-finance.
 Assumidas sem pergunta (podem ser revistas):
 
 6. Meta mora num espaço, como tudo no app: pessoal no pessoal, do casal no do casal (D4).
+   **Ajuste do usuário (12/11/2026) — PENDENTE, não implementado:** o dono pode **compartilhar
+   uma meta pessoal** com um ou mais espaços de que é membro, para os outros acompanharem e
+   comemorarem. A meta continua morando no pessoal. O desenho combinado:
+   - Tabela `meta_compartilhamento(meta_id, space_id, compartilhado_por, created_at)` e RPCs
+     `compartilhar_meta` / `descompartilhar_meta`, no molde de `interesse_compartilhamento`,
+     `pode_ver_interesse`, `compartilhar_interesse` e `descompartilhar_interesse`. Numa migration
+     nova (posterior a `20261112130100`), sem tocar nas do contrato.
+   - Quem vê pelo compartilhamento **só lê**: título, alvo, prazo, progresso e aportes. Não edita
+     nem aporta (a policy de update e a de insert em `meta_aporte` continuam exigindo ser membro
+     do espaço da meta).
+   - Na aba Metas do espaço conjunto, a meta compartilhada aparece com um selo de quem ela é.
+   - **Comemorar:** ao ser cumprida, os membros dos espaços com que ela está compartilhada recebem
+     uma notificação pelo motor (`notificar()` por espaço de compartilhamento, tipo novo com
+     interruptor em `TIPOS_DA_CATEGORIA`). Se couber, uma reação simples de comemoração.
+   - O aporte de uma meta pessoal compartilhada **não** entra na projeção do casal — só na do dono.
+     Já é o comportamento de hoje: `useAportesDoMes` filtra por `meta.space_id`.
+   - Sair do espaço apaga o compartilhamento (gatilho em `membership`, como o do salário).
 7. Mês já acertado: **avisa**, não bloqueia nem pede confirmação (D8).
 8. 13º, férias e PLR ficam fora da projeção no v1.
 9. A aba Planejamento funciona também no espaço pessoal de quem não está em casal.

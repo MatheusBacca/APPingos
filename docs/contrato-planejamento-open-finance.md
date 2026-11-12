@@ -188,6 +188,10 @@ por categoria. Progresso = soma dos aportes, nunca armazenado.
 `criar_meta` com `p_interesse` marca o interesse como `convertido`, `convertido_tipo = 'objetivo'`
 e `convertido_ref_id` = a meta, na mesma transação. A Frente B não precisa dela.
 
+Compartilhar uma meta pessoal com um espaço conjunto (ajuste de 12/11, ainda **pendente**) é só
+da Frente A e não muda nada para a Frente B: a meta continua no espaço pessoal, `registrar_aporte`
+e as colunas acima ficam iguais, e quem vê pelo compartilhamento só lê.
+
 ### 7. Mover compra entre gavetas — RPC
 
 ```
