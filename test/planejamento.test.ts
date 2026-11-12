@@ -6,7 +6,12 @@
  * digita mostraria um número e a do outro membro, outro.
  */
 import { describe, expect, it } from 'vitest'
-import { valorCentral, valorDaContribuicao } from '~/types/planejamento'
+import {
+  diaMaximoDoRecebimento,
+  recebimentoValido,
+  valorCentral,
+  valorDaContribuicao,
+} from '~/types/planejamento'
 
 describe('valorCentral', () => {
   it('é a soma do valor efetivo de cada um', () => {
@@ -34,5 +39,23 @@ describe('valorDaContribuicao', () => {
 
   it('percentual sem salário não tem base', () => {
     expect(valorDaContribuicao({ modo: 'percentual', valor: 30 }, null)).toBeNull()
+  })
+})
+
+describe('recebimentoValido', () => {
+  it('dia fixo vai de 1 a 31', () => {
+    expect(recebimentoValido('dia_fixo', 31)).toBe(true)
+    expect(recebimentoValido('dia_fixo', 32)).toBe(false)
+    expect(recebimentoValido('dia_fixo', 0)).toBe(false)
+  })
+
+  it('dia útil vai de 1 a 23 — um mês nunca tem mais que isso', () => {
+    expect(recebimentoValido('dia_util', 23)).toBe(true)
+    expect(recebimentoValido('dia_util', 24)).toBe(false)
+    expect(diaMaximoDoRecebimento('dia_util')).toBe(23)
+  })
+
+  it('recusa dia quebrado', () => {
+    expect(recebimentoValido('dia_fixo', 5.5)).toBe(false)
   })
 })

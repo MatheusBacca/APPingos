@@ -30,6 +30,20 @@ export interface Renda {
   updated_at: string
 }
 
+/**
+ * O maior dia que a regra aceita — espelha o CHECK `renda_recebimento_dia_valido`.
+ * Um mês tem no máximo 23 dias de segunda a sexta; acima disso o "N-ésimo dia
+ * útil" nunca existiria.
+ */
+export function diaMaximoDoRecebimento(tipo: RecebimentoTipo): number {
+  return tipo === 'dia_fixo' ? 31 : 23
+}
+
+/** A regra que o banco aceitaria — para o formulário barrar antes do erro de constraint. */
+export function recebimentoValido(tipo: RecebimentoTipo, dia: number): boolean {
+  return Number.isInteger(dia) && dia >= 1 && dia <= diaMaximoDoRecebimento(tipo)
+}
+
 /** "O salário de novembro caiu." A presença da linha é o fato. */
 export interface RendaRecebida {
   user_id: string

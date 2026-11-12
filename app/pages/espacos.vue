@@ -415,6 +415,8 @@ async function onResgatar() {
       </CardContent>
     </Card>
 
+    <SalarioCartao />
+
     <Dialog v-model:open="dialogExcluir">
       <DialogContent>
         <DialogHeader>
