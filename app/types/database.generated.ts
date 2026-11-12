@@ -283,6 +283,7 @@ export type Database = {
           atualizado_em: string
           conexao_id: string
           criado_em: string
+          designada_em: string
           destino: string
           id: string
           nome: string
@@ -298,6 +299,7 @@ export type Database = {
           atualizado_em?: string
           conexao_id: string
           criado_em?: string
+          designada_em?: string
           destino?: string
           id?: string
           nome: string
@@ -313,6 +315,7 @@ export type Database = {
           atualizado_em?: string
           conexao_id?: string
           criado_em?: string
+          designada_em?: string
           destino?: string
           id?: string
           nome?: string
@@ -2242,6 +2245,35 @@ export type Database = {
       avisar_viagens_proximas: { Args: never; Returns: number }
       can_access_entry: { Args: { p_entry: string }; Returns: boolean }
       can_access_playlist: { Args: { p_playlist: string }; Returns: boolean }
+      classificar_aporte: {
+        Args: {
+          p_meta: string
+          p_transacao: string
+        }
+        Returns: string
+      }
+      classificar_compra: {
+        Args: {
+          p_categoria_cor?: string
+          p_categoria_nome?: string
+          p_competencia_inicial: string
+          p_data_compra: string
+          p_descricao: string
+          p_parcelas: number
+          p_participantes: Json
+          p_space: string
+          p_transacao: string
+          p_valor_total: number
+        }
+        Returns: string
+      }
+      classificar_renda: {
+        Args: {
+          p_competencia: string
+          p_transacao: string
+        }
+        Returns: undefined
+      }
       compartilhar_interesse: {
         Args: { p_interesse: string; p_space: string }
         Returns: undefined
@@ -2319,6 +2351,12 @@ export type Database = {
         Returns: undefined
       }
       devolver_planos_vencidos: { Args: never; Returns: number }
+      devolver_para_caixa: {
+        Args: {
+          p_transacao: string
+        }
+        Returns: undefined
+      }
       escolher_agrupamento: {
         Args: { p_agrupamento: string }
         Returns: undefined
@@ -2331,6 +2369,14 @@ export type Database = {
       is_space_admin: { Args: { p_space: string }; Returns: boolean }
       is_space_member: { Args: { p_space: string }; Returns: boolean }
       is_space_owner: { Args: { p_space: string }; Returns: boolean }
+      ingerir_transacoes: {
+        Args: {
+          p_conta: string
+          p_desde: string
+          p_linhas: Json
+        }
+        Returns: number
+      }
       juntar_produto_ao_agrupamento: {
         Args: { p_agrupamento: string; p_produto: string }
         Returns: Json
@@ -2338,6 +2384,13 @@ export type Database = {
       lembrete_semanal_filmes: { Args: never; Returns: number }
       liberar_interesse: { Args: { p_interesse: string }; Returns: undefined }
       liberar_roteiro: { Args: { p_roteiro: string }; Returns: undefined }
+      lancar_compras_do_cartao: {
+        Args: {
+          p_compras: Json
+          p_conta: string
+        }
+        Returns: number
+      }
       marcar_assistiram_comigo: {
         Args: { p_entry: string; p_usuarios: string[] }
         Returns: number
@@ -2414,6 +2467,14 @@ export type Database = {
       pode_ver_memoria: { Args: { p_memoria: string }; Returns: boolean }
       pode_ver_roteiro: { Args: { p_roteiro: string }; Returns: boolean }
       reabrir_memoria: { Args: { p_memoria: string }; Returns: undefined }
+      reclassificar_compra: {
+        Args: {
+          p_compra: string
+          p_participantes: Json
+          p_space_destino: string
+        }
+        Returns: string
+      }
       registrar_aporte: {
         Args: {
           p_data?: string
@@ -2492,6 +2553,13 @@ export type Database = {
       sou_dono_do_interesse: { Args: { p_interesse: string }; Returns: boolean }
       status_do_email: { Args: never; Returns: Json }
       token_de_escuta: { Args: { p_user: string }; Returns: string }
+      vincular_transacao: {
+        Args: {
+          p_compra: string
+          p_transacao: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

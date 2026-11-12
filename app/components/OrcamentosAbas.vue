@@ -18,7 +18,9 @@ defineProps<{ subtitulo: string }>()
 
 const ABAS = [
   { to: '/orcamentos', rotulo: 'Chico Moedas' },
-  // Os bancos de quem está logado (Open Finance). Só a própria pessoa vê.
+  // O extrato esperando destino, e os bancos de quem está logado (Open
+  // Finance). As duas são só da própria pessoa.
+  { to: '/orcamentos/caixa', rotulo: 'Caixa de entrada' },
   { to: '/orcamentos/contas', rotulo: 'Contas' },
 ]
 

@@ -210,5 +210,15 @@ create policy conta_bancaria_dono on public.conta_bancaria
 -- Grants
 -- ----------------------------------------------------------------------------
 
+/*
+  GRANT explícito: o banco local novo não expõe tabela sem ele (a lição que a
+  Frente A registrou em 20261112120000_planejamento_renda.sql). No remoto, que
+  ainda expõe por padrão, é redundante e inofensivo.
+*/
+grant select, insert, update, delete on public.conexao_bancaria to authenticated;
+grant select, insert, update, delete on public.conta_bancaria   to authenticated;
+grant all on public.conexao_bancaria to service_role;
+grant all on public.conta_bancaria   to service_role;
+
 revoke all on function public.validar_conta_bancaria()            from public, anon, authenticated;
 revoke all on function public.soltar_cartoes_ao_sair_do_espaco()  from public, anon, authenticated;

@@ -43,6 +43,7 @@ import {
 import {
   camposDaConexao,
   camposDaConta,
+  comprasParaLancar,
   contextoDasContas,
   dataLocal,
   itemPodeSerDe,
@@ -196,10 +197,13 @@ async function sincronizarConexao(supabase: SupabaseClient, apiKey: string, cone
         contasPluggy.map(c => ({ ...camposDaConta(c), conexao_id: conexao.id, user_id: conexao.user_id })),
         { onConflict: 'pluggy_account_id' },
       )
-      .select('id, pluggy_account_id')
+      .select('id, pluggy_account_id, destino')
     if (erroContas) throw new Error(erroContas.message)
 
-    const idDaConta = new Map((contas ?? []).map(c => [c.pluggy_account_id as string, c.id as string]))
+    const contaDoApp = new Map((contas ?? []).map(c => [
+      c.pluggy_account_id as string,
+      { id: c.id as string, destino: c.destino as string },
+    ]))
 
     const faturas = (await Promise.all(
       contasPluggy.filter(c => tipoDaConta(c) === 'cartao').map(c => listarFaturas(apiKey, c.id)),
@@ -211,19 +215,32 @@ async function sincronizarConexao(supabase: SupabaseClient, apiKey: string, cone
 
     let total = 0
     for (const contaPluggy of contasPluggy) {
-      const contaId = idDaConta.get(contaPluggy.id)
-      if (!contaId) continue
+      const conta = contaDoApp.get(contaPluggy.id)
+      if (!conta) continue
 
       const transacoes = await listarTransacoes(apiKey, contaPluggy.id, de, ate)
       const linhas = linhasDaConta(transacoes, { pluggyId: contaPluggy.id, tipo: tipoDaConta(contaPluggy) }, contexto)
 
       const { data, error } = await supabase.rpc('ingerir_transacoes', {
-        p_conta: contaId,
+        p_conta: conta.id,
         p_desde: de,
         p_linhas: linhas,
       })
       if (error) throw new Error(error.message)
       total += Number(data ?? 0)
+
+      /*
+        O cartão designado (decisão nº 3 de 12/11/2026): as compras entram
+        sozinhas no espaço do casal (50/50) ou no pessoal. O resto fica na caixa
+        de entrada. A RPC decide o que é elegível; aqui vai só o plano.
+      */
+      if (conta.destino === 'casal' || conta.destino === 'pessoal') {
+        const { error: erroLancar } = await supabase.rpc('lancar_compras_do_cartao', {
+          p_conta: conta.id,
+          p_compras: comprasParaLancar(linhas),
+        })
+        if (erroLancar) throw new Error(erroLancar.message)
+      }
     }
 
     await supabase

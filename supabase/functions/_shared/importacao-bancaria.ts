@@ -452,6 +452,43 @@ export function agruparParcelas(transacoes: TransacaoNormalizada[]): {
   return { compras, avulsas }
 }
 
+/** Uma compra pronta para `lancar_compras_do_cartao` (o cartão designado). */
+export interface CompraParaLancar {
+  provider_ids: string[]
+  descricao: string
+  valor_total: number
+  parcelas: number
+  data_compra: string
+  competencia_inicial: string
+}
+
+/**
+ * As compras que o cartão designado ("do casal" ou "pessoal") lança sozinho.
+ *
+ * Só gasto lançado (não pendente) e que não é contagem dupla. As parcelas de uma
+ * mesma compra viram UMA, com o plano da menor parcela vista (recuo incluído).
+ * O banco ainda filtra o que já foi classificado e o que é de antes da
+ * designação — aqui é só o plano.
+ */
+export function comprasParaLancar(linhas: TransacaoNormalizada[]): CompraParaLancar[] {
+  const elegiveis = linhas.filter(t => t.sentido === 'saida' && !t.pendente && !t.motivo_exclusao && t.valor > 0)
+  const { compras, avulsas } = agruparParcelas(elegiveis)
+
+  const plano = (p: PlanoDaCompra, transacoes: TransacaoNormalizada[]): CompraParaLancar => ({
+    provider_ids: transacoes.map(t => t.provider_id),
+    descricao: p.descricao,
+    valor_total: p.valor_total,
+    parcelas: p.parcelas,
+    data_compra: p.data_compra,
+    competencia_inicial: p.competencia_inicial,
+  })
+
+  return [
+    ...compras.map(c => plano(c.plano, c.transacoes)),
+    ...avulsas.map(t => plano(planoDaCompra(t), [t])),
+  ]
+}
+
 // ---------------------------------------------------------------------------
 // A janela de cada sincronização
 // ---------------------------------------------------------------------------
