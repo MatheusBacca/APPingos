@@ -163,7 +163,7 @@ async function salvar() {
             </Button>
           </div>
           <p class="text-xs text-muted-foreground">
-            <template v-if="gaveta === 'pessoal'">Só você vê — serve para o presente surpresa.</template>
+            <template v-if="gaveta === 'pessoal'">Só você vê — serve para o presente surpresa. Dá para compartilhar depois, só para acompanharem.</template>
             <template v-else>Todo mundo do espaço vê e pode guardar nela.</template>
           </p>
         </div>

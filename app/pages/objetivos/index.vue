@@ -21,9 +21,10 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ehAdmin } from '~/types/database.types'
 import type { MetaComAportes } from '~/composables/useMetas'
-import { useMetas } from '~/composables/useMetas'
+import { useMetas, useMetasCompartilhadasCom } from '~/composables/useMetas'
 import { useGastosPessoais } from '~/composables/useGastosPessoais'
 import { usePessoas } from '~/composables/useMembros'
+import { useUsuarioId } from '~/composables/useUsuarioId'
 import { useSpaceStore } from '~/stores/space'
 
 useHead({ title: 'Metas · Objetivos · APPingos' })
@@ -50,6 +51,29 @@ const encerradas = computed(() =>
 )
 
 const ehDaGavetaPessoal = (m: MetaComAportes) => m.space_id === espacoPessoalId.value
+
+// ---- Compartilhadas ------------------------------------------------------------------
+
+/*
+ * As metas PESSOAIS que alguém emprestou a este espaço, para acompanhar e
+ * comemorar. As suas ficam de fora: você já as vê na sua gaveta, com o selo
+ * dizendo onde estão compartilhadas — repeti-las aqui as mostraria duas vezes.
+ *
+ * Uma seção à parte, e não misturadas às do espaço: são só leitura, e o aporte
+ * delas não entra na projeção do casal (continua sendo dinheiro de quem as criou).
+ * As cumpridas ficam visíveis aqui, e não recolhidas: comemorar é o ponto.
+ */
+const eu = useUsuarioId()
+const { data: compartilhadasCru } = useMetasCompartilhadasCom(computed(() => (ativoEhPessoal.value ? null : store.espacoAtivoId)))
+
+const compartilhadas = computed(() =>
+  (compartilhadasCru.value ?? []).filter(m => m.criado_por !== eu.value && m.estado !== 'abandonada'),
+)
+
+/** Onde o dono pode emprestar uma meta pessoal: os espaços conjuntos de que participa. */
+const espacosConjuntos = computed(() =>
+  store.espacos.filter(e => e.tipo !== 'pessoal').map(e => ({ id: e.id, nome: e.nome })),
+)
 
 // ---- Diálogos -------------------------------------------------------------------
 
@@ -111,6 +135,7 @@ function movimentar(meta: MetaComAportes, s: 'guardar' | 'resgatar') {
             :nomes="nomes"
             :pessoal="ativoEhPessoal"
             :admin="souAdmin"
+            :espacos-conjuntos="espacosConjuntos"
             @guardar="movimentar($event, 'guardar')"
             @resgatar="movimentar($event, 'resgatar')"
             @editar="editar"
@@ -120,7 +145,8 @@ function movimentar(meta: MetaComAportes, s: 'guardar' | 'resgatar') {
 
       <section v-if="!ativoEhPessoal && abertasPessoais.length" class="space-y-3">
         <h2 class="text-sm font-medium">
-          Suas metas pessoais <span class="font-normal text-muted-foreground">· só você vê</span>
+          Suas metas pessoais
+          <span class="font-normal text-muted-foreground">· só você vê, a menos que compartilhe pelo menu da meta</span>
         </h2>
         <div class="grid gap-4 sm:grid-cols-2">
           <MetaCartao
@@ -130,9 +156,28 @@ function movimentar(meta: MetaComAportes, s: 'guardar' | 'resgatar') {
             :nomes="nomes"
             pessoal
             admin
+            :espacos-conjuntos="espacosConjuntos"
             @guardar="movimentar($event, 'guardar')"
             @resgatar="movimentar($event, 'resgatar')"
             @editar="editar"
+          />
+        </div>
+      </section>
+
+      <section v-if="compartilhadas.length" class="space-y-3">
+        <h2 class="text-sm font-medium">
+          Compartilhadas com {{ store.espacoAtivo?.nome }}
+          <span class="font-normal text-muted-foreground">· metas pessoais de quem divide o espaço, para acompanhar</span>
+        </h2>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <MetaCartao
+            v-for="m in compartilhadas"
+            :key="m.id"
+            :meta="m"
+            :nomes="nomes"
+            :pessoal="false"
+            :admin="false"
+            somente-leitura
           />
         </div>
       </section>
@@ -149,6 +194,7 @@ function movimentar(meta: MetaComAportes, s: 'guardar' | 'resgatar') {
             :nomes="nomes"
             :pessoal="ehDaGavetaPessoal(m)"
             :admin="ehDaGavetaPessoal(m) || souAdmin"
+            :espacos-conjuntos="espacosConjuntos"
             @guardar="movimentar($event, 'guardar')"
             @resgatar="movimentar($event, 'resgatar')"
             @editar="editar"

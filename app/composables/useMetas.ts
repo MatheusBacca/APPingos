@@ -14,6 +14,7 @@ import type { MaybeRefOrGetter } from 'vue'
 import type { EstadoMeta, Meta, MetaAporte } from '~/types/meta'
 import type { OrigemLancamento } from '~/types/planejamento'
 import { useEspacoQuery } from '~/composables/useSpaceQuery'
+import { useUsuarioId } from '~/composables/useUsuarioId'
 
 type Espaco = MaybeRefOrGetter<string | null | undefined>
 
@@ -48,16 +49,45 @@ export function useAportesDoMes(espaco: Espaco, competencia: MaybeRefOrGetter<st
 export interface MetaComAportes extends Meta {
   /** Do mais recente para o mais antigo. */
   aportes: MetaAporte[]
+  /** Os espaços com que a meta pessoal foi compartilhada (só leitura lá). */
+  compartilhamentos: string[]
+  /** Quem comemorou a meta cumprida. */
+  comemoracoes: string[]
 }
 
 const SELECT_META = `
   id, space_id, criado_por, titulo, valor_alvo, prazo, interesse_id, estado, cumprida_em, created_at,
-  aportes:meta_aporte(id, meta_id, user_id, valor, data, competencia, origem)
+  aportes:meta_aporte(id, meta_id, user_id, valor, data, competencia, origem),
+  compartilhamentos:meta_compartilhamento(space_id),
+  comemoracoes:meta_comemoracao(user_id)
 `
+
+type MetaCrua = Omit<MetaComAportes, 'compartilhamentos' | 'comemoracoes'> & {
+  compartilhamentos: Array<{ space_id: string }> | null
+  comemoracoes: Array<{ user_id: string }> | null
+}
+
+function normalizar(m: MetaCrua): MetaComAportes {
+  return {
+    ...m,
+    estado: m.estado as EstadoMeta,
+    valor_alvo: Number(m.valor_alvo),
+    aportes: (m.aportes ?? [])
+      .map(a => ({ ...a, valor: Number(a.valor), origem: a.origem as OrigemLancamento }))
+      .sort((a, b) => b.data.localeCompare(a.data)),
+    compartilhamentos: (m.compartilhamentos ?? []).map(c => c.space_id),
+    comemoracoes: (m.comemoracoes ?? []).map(c => c.user_id),
+  }
+}
 
 /**
  * As metas de um espaço, com os aportes de cada uma. Os aportes vêm juntos porque
  * o progresso é a soma deles, e uma meta sem o progresso não diz nada na lista.
+ *
+ * São as metas que MORAM no espaço (`space_id`). As emprestadas a ele por
+ * compartilhamento vêm de `useMetasCompartilhadasCom`, à parte: elas são só
+ * leitura, e misturá-las aqui faria toda tela que usa esta lista precisar lembrar
+ * de não oferecer "Guardar" nelas.
  */
 export function useMetas(espaco: Espaco) {
   const supabase = useSupabaseClient()
@@ -70,21 +100,80 @@ export function useMetas(espaco: Espaco) {
       .order('created_at', { ascending: false })
 
     if (error) throw error
+    return ((data ?? []) as unknown as MetaCrua[]).map(normalizar)
+  })
+}
 
-    return ((data ?? []) as unknown as MetaComAportes[]).map(m => ({
-      ...m,
-      estado: m.estado as EstadoMeta,
-      valor_alvo: Number(m.valor_alvo),
-      aportes: (m.aportes ?? [])
-        .map(a => ({ ...a, valor: Number(a.valor), origem: a.origem as OrigemLancamento }))
-        .sort((a, b) => b.data.localeCompare(a.data)),
-    }))
+/**
+ * As metas PESSOAIS que alguém compartilhou com este espaço — de qualquer membro,
+ * inclusive as suas (a tela tira as suas, que já aparecem na gaveta pessoal).
+ * A RLS (`meta_compartilhada_comigo`) é quem decide; aqui só se pergunta "quais
+ * estão emprestadas a este espaço".
+ */
+export function useMetasCompartilhadasCom(espaco: Espaco) {
+  const supabase = useSupabaseClient()
+
+  return useEspacoQuery(espaco, ['metas', 'compartilhadas'], async (spaceId): Promise<MetaComAportes[]> => {
+    const { data, error } = await supabase
+      .from('meta_compartilhamento')
+      .select(`meta:meta!inner(${SELECT_META})`)
+      .eq('space_id', spaceId)
+
+    if (error) throw error
+    return ((data ?? []) as unknown as Array<{ meta: MetaCrua }>)
+      .map(c => normalizar(c.meta))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
   })
 }
 
 /** Limpa tudo o que é de metas na gaveta da meta — lista, aportes do mês, projeção. */
 function invalidarMetas(queryClient: ReturnType<typeof useQueryClient>, spaceId: string) {
   return queryClient.invalidateQueries({ queryKey: ['space', spaceId, 'metas'] })
+}
+
+/** Compartilhar e comemorar mexem em mais de uma gaveta — limpa as metas de todas. */
+function invalidarTodasAsMetas(queryClient: ReturnType<typeof useQueryClient>) {
+  return queryClient.invalidateQueries({
+    predicate: q => q.queryKey[0] === 'space' && q.queryKey[2] === 'metas',
+  })
+}
+
+/** Emprestar (ou deixar de emprestar) uma meta pessoal a um espaço conjunto. Só o dono. */
+export function useCompartilharMeta() {
+  const supabase = useSupabaseClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ meta, spaceId, compartilhar }: {
+      meta: Pick<Meta, 'id'>
+      spaceId: string
+      compartilhar: boolean
+    }) => {
+      const { error } = compartilhar
+        ? await supabase.rpc('compartilhar_meta', { p_meta: meta.id, p_space: spaceId })
+        : await supabase.rpc('descompartilhar_meta', { p_meta: meta.id, p_space: spaceId })
+      if (error) throw error
+    },
+    onSuccess: () => invalidarTodasAsMetas(queryClient),
+  })
+}
+
+/** "🎉" numa meta cumprida — a presença da linha é a comemoração. */
+export function useComemorarMeta() {
+  const supabase = useSupabaseClient()
+  const queryClient = useQueryClient()
+  const usuarioId = useUsuarioId()
+
+  return useMutation({
+    mutationFn: async ({ meta, comemorar }: { meta: Pick<Meta, 'id'>, comemorar: boolean }) => {
+      if (!usuarioId.value) throw new Error('Não autenticado')
+      const { error } = comemorar
+        ? await supabase.from('meta_comemoracao').insert({ meta_id: meta.id, user_id: usuarioId.value })
+        : await supabase.from('meta_comemoracao').delete().eq('meta_id', meta.id).eq('user_id', usuarioId.value)
+      if (error) throw error
+    },
+    onSuccess: () => invalidarTodasAsMetas(queryClient),
+  })
 }
 
 export interface NovaMeta {

@@ -1092,6 +1092,68 @@ export type Database = {
           },
         ]
       }
+      meta_comemoracao: {
+        Row: {
+          created_at: string
+          meta_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          meta_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          meta_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_comemoracao_meta_id_fkey"
+            columns: ["meta_id"]
+            isOneToOne: false
+            referencedRelation: "meta"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_compartilhamento: {
+        Row: {
+          compartilhado_por: string
+          created_at: string
+          meta_id: string
+          space_id: string
+        }
+        Insert: {
+          compartilhado_por: string
+          created_at?: string
+          meta_id: string
+          space_id: string
+        }
+        Update: {
+          compartilhado_por?: string
+          created_at?: string
+          meta_id?: string
+          space_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_compartilhamento_meta_id_fkey"
+            columns: ["meta_id"]
+            isOneToOne: false
+            referencedRelation: "meta"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_compartilhamento_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_leitura: {
         Row: {
           alvo: number
@@ -2013,6 +2075,10 @@ export type Database = {
         Args: { p_interesse: string; p_space: string }
         Returns: undefined
       }
+      compartilhar_meta: {
+        Args: { p_meta: string; p_space: string }
+        Returns: undefined
+      }
       conceder_pins: {
         Args: {
           p_base_extra?: number
@@ -2085,6 +2151,10 @@ export type Database = {
         Args: { p_interesse: string; p_space: string }
         Returns: undefined
       }
+      descompartilhar_meta: {
+        Args: { p_meta: string; p_space: string }
+        Returns: undefined
+      }
       devolver_planos_vencidos: { Args: never; Returns: number }
       escolher_agrupamento: {
         Args: { p_agrupamento: string }
@@ -2111,6 +2181,7 @@ export type Database = {
       }
       marcar_notificacoes_lidas: { Args: { p_ids?: string[] }; Returns: number }
       marcar_roteiro_visto: { Args: { p_roteiro: string }; Returns: undefined }
+      meta_compartilhada_comigo: { Args: { p_meta: string }; Returns: boolean }
       meu_multiplicador_de_pins: {
         Args: { p_space?: string }
         Returns: {
@@ -2179,6 +2250,7 @@ export type Database = {
       pode_ver_foto: { Args: { p_foto: string }; Returns: boolean }
       pode_ver_interesse: { Args: { p_interesse: string }; Returns: boolean }
       pode_ver_memoria: { Args: { p_memoria: string }; Returns: boolean }
+      pode_ver_meta: { Args: { p_meta: string }; Returns: boolean }
       pode_ver_roteiro: { Args: { p_roteiro: string }; Returns: boolean }
       reabrir_memoria: { Args: { p_memoria: string }; Returns: undefined }
       registrar_aporte: {

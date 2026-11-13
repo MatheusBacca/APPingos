@@ -188,9 +188,11 @@ por categoria. Progresso = soma dos aportes, nunca armazenado.
 `criar_meta` com `p_interesse` marca o interesse como `convertido`, `convertido_tipo = 'objetivo'`
 e `convertido_ref_id` = a meta, na mesma transação. A Frente B não precisa dela.
 
-Compartilhar uma meta pessoal com um espaço conjunto (ajuste de 12/11, ainda **pendente**) é só
-da Frente A e não muda nada para a Frente B: a meta continua no espaço pessoal, `registrar_aporte`
-e as colunas acima ficam iguais, e quem vê pelo compartilhamento só lê.
+Compartilhar uma meta pessoal com um espaço conjunto (`meta_compartilhamento`,
+`20261112160200_meta_compartilhamento.sql`) é só da Frente A e não muda nada para a Frente B: a
+meta continua no espaço pessoal, `registrar_aporte` e as colunas acima ficam iguais, e quem vê
+pelo compartilhamento só lê — a caixa de entrada não oferece "Aporte em meta" para quem não é
+membro do espaço da meta, porque a RPC recusaria.
 
 ### 7. Mover compra entre gavetas — RPC
 
@@ -271,10 +273,15 @@ O que mudou em relação ao rascunho, para a Frente B não descobrir lendo SQL:
 8. **`rateioIgual` devolve percentual**, e `dividirIgualmente` passou a ser exportada.
 9. **GRANTs explícitos** nas tabelas novas para `authenticated` — o banco local novo não expõe
    tabela sem GRANT; no remoto é redundante e inofensivo.
-10. **Depois do contrato (W4, sem mudar assinatura):** `20261112130000_metas_pins.sql` liga a regra
-    de Pins `objetivo_cumprido` (gatilho em `meta`) e `20261112130100_meta_aporte_saldo.sql`
+10. **Depois do contrato (W4, sem mudar assinatura):** `20261112160000_metas_pins.sql` liga a regra
+    de Pins `objetivo_cumprido` (gatilho em `meta`) e `20261112160100_meta_aporte_saldo.sql`
     recusa apagar um aporte quando o guardado ficaria negativo. Um aporte da Pluggy apagado
-    depois de um resgate esbarra nessa trava — apague o resgate antes.
+    depois de um resgate esbarra nessa trava — apague o resgate antes. Depois vem
+    `20261112160200_meta_compartilhamento.sql` (meta pessoal compartilhada, só leitura).
+    **As duas primeiras nasceram como `20261112130000`/`130100` e foram renomeadas em 13/11**:
+    a chave Pix da Frente B também ficou em `20261112130000`, e duas migrations com a mesma
+    versão quebram o `db push`. Nenhuma tinha sido aplicada no remoto. As da Frente A depois do
+    contrato agora vêm todas depois da última da Frente B (`20261112150000`).
 11. **`app/types/database.generated.ts` foi atualizado à mão** a partir de
     `supabase gen types --local` (o `npm run db:types` lê o projeto remoto, onde as migrations não
     foram aplicadas). Ao integrar as branches, regerar.

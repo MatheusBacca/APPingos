@@ -288,7 +288,7 @@ select pg_temp.esperar(
   (select estado = 'cumprida' and cumprida_em is not null from public.meta where id = (select id from meta_casal)),
   'o aporte que alcança o alvo cumpre a meta');
 
--- Pins `objetivo_cumprido` (20261112130000_metas_pins.sql): a meta do casal com prazo
+-- Pins `objetivo_cumprido` (20261112160000_metas_pins.sql): a meta do casal com prazo
 -- rende para os dois membros; uma meta sem prazo não rende nada.
 reset role;
 select pg_temp.esperar(
@@ -322,7 +322,7 @@ select pg_temp.esperar(
   (select sum(valor) = 0 from public.meta_aporte where meta_id = (select id from meta_casal)),
   'progresso é a soma dos aportes');
 
--- 20261112130100: apagar o aporte de 600 deixaria −600 guardado (sobrou o resgate).
+-- 20261112160100: apagar o aporte de 600 deixaria −600 guardado (sobrou o resgate).
 select pg_temp.recusa(
   $$delete from public.meta_aporte where meta_id = (select id from meta_casal) and valor = 600$$,
   'apagar aporte que deixa o guardado negativo');
@@ -397,7 +397,124 @@ select pg_temp.recusa(
   $$select public.mover_compra((select id from compra_movida), (select pessoal_bia from ids), '[]'::jsonb)$$,
   'Caio move compra de um espaço alheio');
 
+-- ============================================================================
+-- 7. Meta pessoal compartilhada (20261112160200_meta_compartilhamento.sql)
+--
+-- Ana empresta a meta pessoal ao Nós. Bia acompanha, só lendo; Caio não vê nada.
+-- ============================================================================
+
+select pg_temp.como((select ana from ids));
+create temp table meta_bike on commit drop as
+select public.criar_meta((select pessoal_ana from ids), 'Bicicleta', 1000, '2027-12-31') as id;
+grant select on meta_bike to authenticated;
+select public.registrar_aporte((select id from meta_bike), 200);
+
+select pg_temp.como((select bia from ids));
+select pg_temp.esperar((select count(*) = 0 from public.meta where id = (select id from meta_bike)),
+  'Bia não vê a meta pessoal da Ana antes do compartilhamento');
+select pg_temp.recusa($$select public.compartilhar_meta((select id from meta_bike), (select nos from ids))$$,
+  'Bia compartilha a meta da Ana');
+
+select pg_temp.como((select ana from ids));
+select pg_temp.recusa($$select public.compartilhar_meta((select id from meta_bike), (select pessoal_bia from ids))$$,
+  'Ana compartilha com um espaço de que não participa');
+create temp table meta_do_nos on commit drop as
+select public.criar_meta((select nos from ids), 'Geladeira', 3000) as id;
+grant select on meta_do_nos to authenticated;
+select pg_temp.recusa($$select public.compartilhar_meta((select id from meta_do_nos), (select pessoal_ana from ids))$$,
+  'compartilhar uma meta do casal');
+
+select public.compartilhar_meta((select id from meta_bike), (select nos from ids));
+
+select pg_temp.como((select bia from ids));
+select pg_temp.esperar((select count(*) = 1 from public.meta where id = (select id from meta_bike)),
+  'Bia vê a meta compartilhada');
+select pg_temp.esperar((select count(*) = 1 from public.meta_aporte where meta_id = (select id from meta_bike)),
+  'Bia vê os aportes da meta compartilhada');
+select pg_temp.esperar((select count(*) = 1 from public.meta_compartilhamento where meta_id = (select id from meta_bike)),
+  'Bia vê onde a meta está compartilhada');
+
+-- Só lê.
+select pg_temp.recusa($$update public.meta set titulo = 'Moto' where id = (select id from meta_bike)$$,
+  'Bia edita a meta compartilhada');
+select pg_temp.recusa($$update public.meta set estado = 'abandonada' where id = (select id from meta_bike)$$,
+  'Bia abandona a meta compartilhada');
+select pg_temp.recusa($$select public.registrar_aporte((select id from meta_bike), 50)$$,
+  'Bia aporta na meta compartilhada');
+select pg_temp.recusa(
+  $$insert into public.meta_aporte (meta_id, user_id, valor) select m.id, ids.bia, 50 from meta_bike m, ids$$,
+  'Bia insere aporte direto na meta compartilhada');
+select pg_temp.recusa($$delete from public.meta_aporte where meta_id = (select id from meta_bike)$$,
+  'Bia apaga aporte da meta compartilhada');
+select pg_temp.recusa($$delete from public.meta where id = (select id from meta_bike)$$,
+  'Bia apaga a meta compartilhada');
+select pg_temp.recusa($$select public.descompartilhar_meta((select id from meta_bike), (select nos from ids))$$,
+  'Bia descompartilha a meta da Ana');
+
+-- A projeção do casal soma aportes de metas DO casal: a compartilhada não entra.
+select pg_temp.esperar(
+  (select count(*) = 0 from public.meta_aporte a join public.meta m on m.id = a.meta_id
+    where m.space_id = (select nos from ids) and a.meta_id = (select id from meta_bike)),
+  'o aporte da meta compartilhada fica fora da projeção do casal');
+
+select pg_temp.recusa(
+  $$insert into public.meta_comemoracao (meta_id, user_id) select m.id, ids.bia from meta_bike m, ids$$,
+  'comemorar meta que ainda não foi cumprida');
+
+select pg_temp.como((select caio from ids));
+select pg_temp.esperar((select count(*) = 0 from public.meta where id = (select id from meta_bike)),
+  'Caio não vê a meta compartilhada com um espaço alheio');
+select pg_temp.esperar((select count(*) = 0 from public.meta_aporte where meta_id = (select id from meta_bike)),
+  'Caio não vê os aportes');
+
+-- Ana cumpre: o Nós é avisado, e só quem não é a Ana.
+select pg_temp.como((select ana from ids));
+select public.registrar_aporte((select id from meta_bike), 800);
+
 reset role;
+select pg_temp.esperar(
+  (select count(*) = 1 from public.notificacao
+    where tipo = 'meta_cumprida' and entidade_id = (select id from meta_bike) and user_id = (select bia from ids)),
+  'Bia recebe o aviso de meta cumprida');
+select pg_temp.esperar(
+  (select count(*) = 0 from public.notificacao
+    where tipo = 'meta_cumprida' and entidade_id = (select id from meta_bike) and user_id <> (select bia from ids)),
+  'ninguém além da Bia recebe o aviso (nem a Ana, nem o Caio)');
+set local role authenticated;
+
+select pg_temp.como((select bia from ids));
+insert into public.meta_comemoracao (meta_id, user_id) values ((select id from meta_bike), (select bia from ids));
+
+select pg_temp.como((select caio from ids));
+select pg_temp.recusa(
+  $$insert into public.meta_comemoracao (meta_id, user_id) select m.id, ids.caio from meta_bike m, ids$$,
+  'Caio comemora meta que não vê');
+
+reset role;
+select pg_temp.esperar(
+  (select count(*) = 1 from public.notificacao
+    where tipo = 'meta_comemorada' and entidade_id = (select id from meta_bike) and user_id = (select ana from ids)),
+  'Ana recebe o aviso de que a Bia comemorou');
+set local role authenticated;
+
+-- Descompartilhar fecha de novo; sair do espaço também, e voltar não reabre.
+select pg_temp.como((select ana from ids));
+select public.descompartilhar_meta((select id from meta_bike), (select nos from ids));
+select pg_temp.como((select bia from ids));
+select pg_temp.esperar((select count(*) = 0 from public.meta where id = (select id from meta_bike)),
+  'descompartilhada, a Bia deixa de ver');
+select pg_temp.esperar((select count(*) = 0 from public.meta_comemoracao where meta_id = (select id from meta_bike)),
+  'descompartilhada, a comemoração some junto da leitura');
+
+select pg_temp.como((select ana from ids));
+select public.compartilhar_meta((select id from meta_bike), (select nos from ids));
+delete from public.membership where space_id = (select nos from ids) and user_id = (select ana from ids);
+
+reset role;
+select pg_temp.esperar(
+  (select count(*) = 0 from public.meta_compartilhamento where meta_id = (select id from meta_bike)),
+  'Ana saiu do Nós: o compartilhamento foi apagado');
+
 select 'planejamento_rls: tudo certo' as resultado;
 
 rollback;
