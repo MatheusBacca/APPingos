@@ -10,8 +10,8 @@ export type DestinoConta = 'casal' | 'pessoal' | 'perguntar'
 
 export const ROTULO_DESTINO: Record<DestinoConta, string> = {
   perguntar: 'Perguntar a cada compra',
-  pessoal: 'Pessoal',
-  casal: 'Do casal',
+  pessoal: 'Direto nos meus gastos pessoais',
+  casal: 'Compartilhado',
 }
 
 /** Com quantos dias de antecedência o consentimento vencendo vira aviso. */
@@ -84,16 +84,44 @@ export function situacaoDaConexao(
   return { tom: 'ok', texto: 'Conectado.', reconectar: false }
 }
 
-/**
- * O valor do `<select>` de destino, que junta as duas colunas numa escolha só:
- * `perguntar`, `pessoal` ou `casal:<space_id>` — um casal por espaço.
- */
-export function valorDoDestino(conta: { destino: string, space_id: string | null }): string {
-  return conta.destino === 'casal' && conta.space_id ? `casal:${conta.space_id}` : conta.destino
+/** Os dois jeitos de um cartão ficar privado: cada compra na caixa de entrada, ou direto no pessoal. */
+export type ModoPrivado = 'perguntar' | 'pessoal'
+
+export interface Designacao {
+  destino: DestinoConta
+  space_id: string | null
 }
 
-export function destinoDoValor(valor: string): { destino: DestinoConta, space_id: string | null } {
-  if (valor.startsWith('casal:')) return { destino: 'casal', space_id: valor.slice('casal:'.length) }
-  if (valor === 'pessoal') return { destino: 'pessoal', space_id: null }
-  return { destino: 'perguntar', space_id: null }
+/** Se a conta está compartilhada com um espaço — o opt-in de cada pessoa, cartão a cartão. */
+export function estaCompartilhada(conta: { destino: string, space_id: string | null }): boolean {
+  return conta.destino === 'casal' && !!conta.space_id
+}
+
+/**
+ * Marcar ou desmarcar "compartilhar este cartão".
+ *
+ * Marcar leva ao espaço que a conta já apontava ou ao primeiro espaço de casal
+ * da pessoa; sem espaço de casal não há o que marcar, e a conta continua como
+ * está. Desmarcar volta a ser privado no modo mais conservador (perguntar a cada
+ * compra). Nenhum dos dois mexe nas compras que já entraram: a designação só vale
+ * para o que for importado depois (`designada_em`, migration 20261112140000).
+ */
+export function designacaoAoMarcar(
+  marcado: boolean,
+  conta: Designacao,
+  espacosDeCasal: ReadonlyArray<{ id: string }>,
+): Designacao {
+  if (!marcado) return { destino: 'perguntar', space_id: null }
+  const espaco = espacosDeCasal.find(e => e.id === conta.space_id) ?? espacosDeCasal[0]
+  return espaco ? { destino: 'casal', space_id: espaco.id } : conta
+}
+
+/** Trocar o espaço de um cartão compartilhado. */
+export function designacaoParaEspaco(spaceId: string): Designacao {
+  return { destino: 'casal', space_id: spaceId }
+}
+
+/** Trocar o modo de um cartão privado. */
+export function designacaoPrivada(modo: ModoPrivado): Designacao {
+  return { destino: modo, space_id: null }
 }

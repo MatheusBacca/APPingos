@@ -7,7 +7,7 @@
  * pessoa do espaço só vê o que vira compra no espaço do casal.
  *
  * Embaixo, o que foi classificado nos últimos 30 dias — inclusive o que a regra
- * de contagem dupla ignorou e o que o cartão do casal lançou sozinho. É de lá
+ * de contagem dupla ignorou e o que um cartão compartilhado lançou sozinho. É de lá
  * que se desfaz ou se muda uma compra de gaveta (`mover_compra`, da Frente A).
  */
 import { toast } from 'vue-sonner'
@@ -135,7 +135,7 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
           um toque se são do casal ou só suas.
         </p>
         <Button as-child variant="secondary">
-          <NuxtLink to="/orcamentos/contas">Conectar banco</NuxtLink>
+          <NuxtLink to="/orcamentos/open-finance">Como conectar</NuxtLink>
         </Button>
       </CardContent>
     </Card>

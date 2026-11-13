@@ -3,7 +3,14 @@
  * da Pluggy, a designação do cartão e os avisos da conexão.
  */
 import { describe, expect, it } from 'vitest'
-import { destinoDoValor, diasEntre, situacaoDaConexao, valorDoDestino } from '~/lib/contas-bancarias'
+import {
+  designacaoAoMarcar,
+  designacaoParaEspaco,
+  designacaoPrivada,
+  diasEntre,
+  estaCompartilhada,
+  situacaoDaConexao,
+} from '~/lib/contas-bancarias'
 import { camposDaConexao, camposDaConta } from '~/lib/importacao-bancaria'
 import { itemPodeSerDe } from '~~/server/utils/pluggy'
 import { CARTAO, CONTA_CORRENTE } from './fixtures/pluggy'
@@ -57,24 +64,36 @@ describe('situação da conexão', () => {
   })
 })
 
-describe('designação do cartão', () => {
-  it('ida e volta do valor do select', () => {
-    for (const conta of [
-      { destino: 'perguntar', space_id: null },
-      { destino: 'pessoal', space_id: null },
-      { destino: 'casal', space_id: 'esp-1' },
-    ]) {
-      expect(destinoDoValor(valorDoDestino(conta))).toEqual(conta)
-    }
+describe('compartilhar é opt-in, cartão a cartão', () => {
+  const casais = [{ id: 'nos' }, { id: 'familia' }]
+  const privada = { destino: 'perguntar' as const, space_id: null }
+
+  it('marcar leva ao primeiro espaço de casal', () => {
+    expect(designacaoAoMarcar(true, privada, casais)).toEqual({ destino: 'casal', space_id: 'nos' })
   })
 
-  it('valor estranho cai em perguntar — nunca num espaço', () => {
-    expect(destinoDoValor('qualquer')).toEqual({ destino: 'perguntar', space_id: null })
+  it('remarcar mantém o espaço que o cartão já apontava', () => {
+    expect(designacaoAoMarcar(true, { destino: 'casal', space_id: 'familia' }, casais))
+      .toEqual({ destino: 'casal', space_id: 'familia' })
   })
 
-  it('casal sem espaço não vira casal', () => {
-    expect(valorDoDestino({ destino: 'casal', space_id: null })).toBe('casal')
-    expect(destinoDoValor('casal')).toEqual({ destino: 'perguntar', space_id: null })
+  it('desmarcar volta a ser privado, perguntando a cada compra', () => {
+    expect(designacaoAoMarcar(false, { destino: 'casal', space_id: 'nos' }, casais)).toEqual(privada)
+  })
+
+  it('sem espaço de casal não há o que marcar — nunca vira casal sem espaço', () => {
+    expect(designacaoAoMarcar(true, privada, [])).toEqual(privada)
+  })
+
+  it('cada cartão escolhe o próprio espaço, e o privado escolhe o próprio modo', () => {
+    expect(designacaoParaEspaco('familia')).toEqual({ destino: 'casal', space_id: 'familia' })
+    expect(designacaoPrivada('pessoal')).toEqual({ destino: 'pessoal', space_id: null })
+  })
+
+  it('compartilhada só com destino casal E espaço', () => {
+    expect(estaCompartilhada({ destino: 'casal', space_id: 'nos' })).toBe(true)
+    expect(estaCompartilhada({ destino: 'casal', space_id: null })).toBe(false)
+    expect(estaCompartilhada({ destino: 'pessoal', space_id: null })).toBe(false)
   })
 })
 

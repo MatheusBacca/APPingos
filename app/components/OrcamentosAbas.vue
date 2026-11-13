@@ -22,6 +22,8 @@ const ABAS = [
   // Finance). As duas são só da própria pessoa.
   { to: '/orcamentos/caixa', rotulo: 'Caixa de entrada' },
   { to: '/orcamentos/contas', rotulo: 'Contas' },
+  // A apresentação da integração e o guia para ligá-la (GuiaPluggy.vue).
+  { to: '/orcamentos/open-finance', rotulo: 'Open Finance' },
 ]
 
 const route = useRoute()
@@ -35,7 +37,7 @@ const route = useRoute()
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
-      <nav class="flex gap-1 rounded-lg border bg-card p-1 text-sm">
+      <nav class="flex flex-wrap gap-1 rounded-lg border bg-card p-1 text-sm">
         <NuxtLink
           v-for="aba in ABAS"
           :key="aba.to"

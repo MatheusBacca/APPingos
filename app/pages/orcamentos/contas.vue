@@ -26,7 +26,15 @@ import {
 } from '@/components/ui/dialog'
 import { formatarDia, hojeIso } from '@/lib/datas'
 import { mensagemDeErro } from '@/lib/utils'
-import { ROTULO_DESTINO, destinoDoValor, situacaoDaConexao, valorDoDestino } from '~/lib/contas-bancarias'
+import {
+  ROTULO_DESTINO,
+  designacaoAoMarcar,
+  designacaoParaEspaco,
+  designacaoPrivada,
+  estaCompartilhada,
+  situacaoDaConexao,
+} from '~/lib/contas-bancarias'
+import type { Designacao, ModoPrivado } from '~/lib/contas-bancarias'
 import { dataLocal } from '~/lib/importacao-bancaria'
 import {
   abrirWidgetPluggy,
@@ -90,9 +98,15 @@ async function cadastrarColado() {
   }
 }
 
-async function onDesignar(conta: ContaBancaria, valor: string) {
+/*
+ * Compartilhar é opt-in de cada pessoa, cartão a cartão: privado por padrão,
+ * e desmarcar volta a ser privado sem mexer nas compras que já entraram (a
+ * designação só vale para o que for importado depois — `designada_em`).
+ */
+async function onDesignar(conta: ContaBancaria, designacao: Designacao) {
+  if (designacao.destino === conta.destino && designacao.space_id === conta.space_id) return
   try {
-    await designar.mutateAsync({ id: conta.id, ...destinoDoValor(valor) })
+    await designar.mutateAsync({ id: conta.id, ...designacao })
   }
   catch (e) {
     toast.error(mensagemDeErro(e, 'Não deu para mudar o destino.'))
@@ -159,6 +173,10 @@ const CLASSE_TOM = {
         <p>
           O extrato é só seu. Quem divide o espaço com você vê apenas as compras que você
           mandar para o espaço do casal.
+        </p>
+        <p>
+          Primeira vez? O <NuxtLink to="/orcamentos/open-finance" class="underline">passo a passo</NuxtLink>
+          mostra como criar a conta no MeuPluggy e ligar ao APPingos.
         </p>
       </CardContent>
     </Card>
@@ -232,30 +250,53 @@ const CLASSE_TOM = {
               </span>
             </div>
 
-            <label class="flex items-center gap-2 text-xs text-muted-foreground">
-              Compras vão para
-              <select
-                class="h-8 rounded-md border bg-background px-2 text-sm text-foreground"
-                :value="valorDoDestino(conta)"
-                :disabled="designar.isPending.value"
-                @change="onDesignar(conta, ($event.target as HTMLSelectElement).value)"
-              >
-                <option value="perguntar">{{ ROTULO_DESTINO.perguntar }}</option>
-                <option value="pessoal">{{ ROTULO_DESTINO.pessoal }}</option>
-                <option v-for="espaco in espacosDeCasal" :key="espaco.id" :value="`casal:${espaco.id}`">
-                  {{ ROTULO_DESTINO.casal }} · {{ espaco.nome }}
-                </option>
-              </select>
-            </label>
+            <div class="flex flex-col items-end gap-1.5 text-xs text-muted-foreground">
+              <label class="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  class="size-4 accent-primary"
+                  :checked="estaCompartilhada(conta)"
+                  :disabled="designar.isPending.value || !espacosDeCasal.length"
+                  @change="onDesignar(conta, designacaoAoMarcar(($event.target as HTMLInputElement).checked, conta, espacosDeCasal))"
+                >
+                Compartilhar com
+                <select
+                  v-if="estaCompartilhada(conta)"
+                  class="h-8 rounded-md border bg-background px-2 text-sm text-foreground"
+                  :value="conta.space_id ?? undefined"
+                  :disabled="designar.isPending.value"
+                  aria-label="Espaço que recebe as compras"
+                  @change="onDesignar(conta, designacaoParaEspaco(($event.target as HTMLSelectElement).value))"
+                >
+                  <option v-for="espaco in espacosDeCasal" :key="espaco.id" :value="espaco.id">{{ espaco.nome }}</option>
+                </select>
+                <span v-else>um espaço</span>
+              </label>
+
+              <label v-if="!estaCompartilhada(conta)" class="flex items-center gap-2">
+                Privado:
+                <select
+                  class="h-8 rounded-md border bg-background px-2 text-sm text-foreground"
+                  :value="conta.destino"
+                  :disabled="designar.isPending.value"
+                  aria-label="O que fazer com as compras privadas"
+                  @change="onDesignar(conta, designacaoPrivada(($event.target as HTMLSelectElement).value as ModoPrivado))"
+                >
+                  <option value="perguntar">{{ ROTULO_DESTINO.perguntar }}</option>
+                  <option value="pessoal">{{ ROTULO_DESTINO.pessoal }}</option>
+                </select>
+              </label>
+            </div>
           </li>
         </ul>
 
         <p
-          v-if="conexao.contas.some(c => c.destino === 'casal')"
           class="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground"
         >
-          As compras do cartão do casal entram direto no espaço do casal, 50% para cada um. Dá
-          para editar o rateio de qualquer uma depois, como uma compra lançada à mão.
+          Tudo começa privado: o extrato é só seu. Um cartão compartilhado manda as compras novas
+          direto para o espaço escolhido, metade para cada um, editáveis depois como uma compra
+          lançada à mão. Desmarcar volta a ser privado e não mexe no que já entrou.
+          <template v-if="!espacosDeCasal.length">Para compartilhar, você precisa estar num espaço de casal.</template>
         </p>
       </CardContent>
     </Card>

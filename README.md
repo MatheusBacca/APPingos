@@ -264,6 +264,10 @@ com as decisões e as pegadinhas, está em [`docs/notion-plano-open-finance.md`]
 **Sem os passos abaixo o app funciona normalmente**: a aba Orçamentos › Contas explica que falta
 configurar, e o lançamento manual continua sendo o caminho.
 
+O passo a passo detalhado, com as fontes e o que ainda não foi confirmado, está em
+[`docs/pluggy-setup-administrador.md`](./docs/pluggy-setup-administrador.md). O guia de quem só vai
+conectar o próprio banco fica no app, em Orçamentos › Open Finance.
+
 **O relógio do trial.** Criar a conta em [dashboard.pluggy.ai](https://dashboard.pluggy.ai) inicia
 um trial de ~15 dias, e **só dá para ligar contas ao MeuPluggy enquanto ele dura** — depois a lista
 trava. Decida o dia antes de criar a conta, com os dois prontos para conectar os bancos.
