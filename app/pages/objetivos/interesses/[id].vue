@@ -17,7 +17,7 @@
  * isso é o trigger `interesse_intencao_protegida`; aqui os botões que ele recusaria
  * simplesmente não aparecem, para o erro não ser a forma de descobrir a regra.
  */
-import { GiftIcon, PencilIcon, PlusIcon, Trash2Icon, UndoIcon } from '@lucide/vue'
+import { GiftIcon, PencilIcon, PlusIcon, TargetIcon, Trash2Icon, UndoIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -25,6 +25,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { mensagemDeErro } from '@/lib/utils'
 import {
+  ESTADOS_ABERTOS,
   economiaPossivel,
   interesseDeFora,
   paraQuemDoInteresse,
@@ -34,6 +35,7 @@ import {
   valorDoInteresse,
 } from '~/types/interesse'
 import type { Agrupamento, InteresseProduto } from '~/types/interesse'
+import type { OrigemDaMeta } from '~/components/MetaDialogo.vue'
 import {
   useApagarInteresse,
   useAssumirInteresse,
@@ -106,6 +108,39 @@ const ordenados = computed(() =>
 )
 
 const valor = computed(() => valorDoInteresse(agrupamentos.value))
+
+// ---- Transformar em meta ------------------------------------------------------
+
+const dialogoMeta = ref(false)
+
+/** Só a ideia em aberto vira meta: a convertida já virou alguma coisa, a arquivada desistiu. */
+const podeVirarMeta = computed(() => !!interesse.value && ESTADOS_ABERTOS.includes(interesse.value.estado))
+
+/**
+ * O alvo é o total do conjunto que representa o interesse (`valorDoInteresse`: o
+ * favorito, ou o mais barato com soma completa) — `null` com item sem preço, e o
+ * diálogo pede o valor à mão.
+ *
+ * A gaveta sugerida é a casa do interesse quando você é membro dela. Visto por
+ * compartilhamento (o interesse pessoal da outra pessoa, emprestado ao casal),
+ * você não pode criar nada no espaço pessoal DELA — a sugestão vira o espaço de
+ * onde você está olhando.
+ */
+const origemDaMeta = computed<OrigemDaMeta | null>(() => {
+  const i = interesse.value
+  if (!i) return null
+  const souDaCasa = store.espacos.some(e => e.id === i.space_id)
+  return {
+    interesseId: i.id,
+    titulo: i.titulo,
+    valor: valor.value,
+    spaceId: souDaCasa ? i.space_id : (store.espacoAtivoId ?? i.space_id),
+  }
+})
+
+async function onMetaCriada() {
+  await navigateTo('/objetivos')
+}
 const economia = computed(() => economiaPossivel(agrupamentos.value))
 
 /**
@@ -314,6 +349,22 @@ async function onApagar() {
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
+          <!--
+            A conversão que as colunas `convertido_*` esperavam desde a primeira
+            migration de Interesses: a meta nasce com o valor do favorito, e o
+            interesse sai da lista de abertos como "convertido".
+          -->
+          <Button
+            v-if="podeVirarMeta"
+            variant="outline"
+            size="sm"
+            class="gap-1.5"
+            @click="dialogoMeta = true"
+          >
+            <TargetIcon class="size-4" />
+            Transformar em meta
+          </Button>
+
           <CompartilharInteresse v-if="souDono" :interesse="interesse" />
 
           <!--
@@ -445,6 +496,7 @@ async function onApagar() {
       </section>
 
       <InteresseDialogo v-model:aberto="dialogoInteresse" :interesse="interesse" />
+      <MetaDialogo v-model:aberto="dialogoMeta" :origem="origemDaMeta" @criada="onMetaCriada" />
       <ProdutoDialogo
         v-model:aberto="dialogoProduto"
         :produto="produtoEmEdicao"

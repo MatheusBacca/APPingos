@@ -10,14 +10,20 @@
  * A primeira, **Chico Moedas**, é a função que o módulo já tinha: as compras do
  * mês, o parcelamento e o rateio entre quem divide o espaço.
  *
- * A barra aparece mesmo com uma aba só. Ela não está ali para escolher entre
- * duas coisas — está para dizer que *esta* tela é uma função com nome, e que o
- * lugar de uma segunda é ao lado dela.
+ * A segunda, **Planejamento**, é a pergunta de antes do gasto: quanto o mês tem
+ * (salário, contribuição ao casal) e quanto ainda sobra dele.
  */
 defineProps<{ subtitulo: string }>()
 
 const ABAS = [
   { to: '/orcamentos', rotulo: 'Chico Moedas' },
+  { to: '/orcamentos/planejamento', rotulo: 'Planejamento' },
+  // O extrato esperando destino, e os bancos de quem está logado (Open
+  // Finance). As duas são só da própria pessoa.
+  { to: '/orcamentos/caixa', rotulo: 'Caixa de entrada' },
+  { to: '/orcamentos/contas', rotulo: 'Contas' },
+  // A apresentação da integração e o guia para ligá-la (GuiaPluggy.vue).
+  { to: '/orcamentos/open-finance', rotulo: 'Open Finance' },
 ]
 
 const route = useRoute()
@@ -31,7 +37,7 @@ const route = useRoute()
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
-      <nav class="flex gap-1 rounded-lg border bg-card p-1 text-sm">
+      <nav class="flex flex-wrap gap-1 rounded-lg border bg-card p-1 text-sm">
         <NuxtLink
           v-for="aba in ABAS"
           :key="aba.to"

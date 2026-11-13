@@ -38,11 +38,12 @@ import { deMesInput, hojeIso, paraMesInput, primeiroDoMes } from '@/lib/datas'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { ehAdmin } from '~/types/database.types'
 import type { CorCategoria, InformadoComo } from '~/types/database.types'
-import { formatarMes } from '@/lib/datas'
-import type { Categoria, CompraDoMes } from '~/types/orcamento'
+import { formatarListaDeMeses, formatarMes } from '@/lib/datas'
+import { competenciasAcertadas, dividirIgualmente as dividirEmPartesIguais, rateioIgual } from '~/types/orcamento'
+import type { Categoria, CompraDoMes, Participante } from '~/types/orcamento'
 import type { Membro } from '~/composables/useMembros'
 import { useGastosPessoais } from '~/composables/useGastosPessoais'
-import { useRegistrarCompra, useAtualizarCompra } from '~/composables/useOrcamento'
+import { useAcertos, useAtualizarCompra, useMoverCompra, useRegistrarCompra } from '~/composables/useOrcamento'
 import { useUsuarioId } from '~/composables/useUsuarioId'
 import { useSpaceStore } from '~/stores/space'
 
@@ -123,20 +124,11 @@ watch(dataCompra, (nova) => {
   if (!competenciaTocada.value && nova) competencia.value = paraMesInput(primeiroDoMes(nova))
 })
 
+/** A conta mora em `app/types/orcamento.ts`, para servir também a quem não tem formulário. */
 function dividirIgualmente() {
-  const ativos = props.membros
-  if (!ativos.length) return
-
+  if (!props.membros.length) return
   const total = modoRateio.value === 'percentual' ? 100 : (valorTotal.value ?? 0)
-  const fatia = Math.round((total / ativos.length) * 10000) / 10000
-  const novo: Record<string, number> = {}
-  ativos.forEach((m, i) => {
-    // O primeiro absorve o resto para a soma bater com o total exibido.
-    novo[m.user_id] = i === 0
-      ? Math.round((total - fatia * (ativos.length - 1)) * 10000) / 10000
-      : fatia
-  })
-  partes.value = novo
+  partes.value = dividirEmPartesIguais(props.membros.map(m => m.user_id), total)
 }
 
 /**
@@ -146,20 +138,13 @@ function dividirIgualmente() {
  */
 function ajustar(userId: string, valor: number) {
   const total = modoRateio.value === 'percentual' ? 100 : (valorTotal.value ?? 0)
-  const outros = props.membros.filter(m => m.user_id !== userId)
-  const novo: Record<string, number> = { ...partes.value, [userId]: valor }
+  const outros = props.membros.filter(m => m.user_id !== userId).map(m => m.user_id)
 
-  if (outros.length) {
-    const sobra = Math.max(total - valor, 0)
-    const fatia = Math.round((sobra / outros.length) * 10000) / 10000
-    outros.forEach((m, i) => {
-      novo[m.user_id] = i === 0
-        ? Math.round((sobra - fatia * (outros.length - 1)) * 10000) / 10000
-        : fatia
-    })
+  partes.value = {
+    ...partes.value,
+    [userId]: valor,
+    ...dividirEmPartesIguais(outros, Math.max(total - valor, 0)),
   }
-
-  partes.value = novo
 }
 
 function reiniciar() {
@@ -205,9 +190,53 @@ function preencherCom(compra: CompraDoMes) {
 
 watch(aberto, (estaAberto) => {
   if (!estaAberto) return
+  confirmandoMover.value = false
   if (props.compra) preencherCom(props.compra)
   else reiniciar()
 })
+
+// ---- Mover de gaveta (`mover_compra`) -------------------------------------------
+
+/*
+ * Editar não troca a gaveta pelo alternador de cima: mudar a compra de espaço é
+ * apagar e recriar (o rateio antigo aponta para membros do espaço de origem), e
+ * isso é uma ação própria, com confirmação, e não um efeito colateral de "Salvar".
+ * Ela leva a compra SALVA — o que estiver mexido no formulário fica para trás.
+ */
+const mover = useMoverCompra()
+const confirmandoMover = ref(false)
+
+const destinoDoMover = computed(() => (pessoal.value ? store.espacoAtivoId : espacoPessoalId.value))
+
+/** Mover para o pessoal uma compra que outra pessoa pagou faz de você quem pagou. */
+const outraPessoaPagou = computed(() =>
+  !!props.compra && !pessoal.value && props.compra.pago_por !== usuarioId.value,
+)
+
+async function moverDeGaveta() {
+  const compra = props.compra
+  const destino = destinoDoMover.value
+  if (!compra || !destino || !usuarioId.value) return
+
+  const paraPessoal = !pessoal.value
+  // O pessoal é você inteiro; o espaço entra meio a meio, e a pessoa ajusta depois.
+  const participantes: Participante[] = paraPessoal
+    ? [{ user_id: usuarioId.value, peso: 1, informado_como: 'percentual' }]
+    : rateioIgual(props.membros.map(m => m.user_id))
+
+  try {
+    await mover.mutateAsync({ compra, destino, participantes })
+    // O "salvei e sumiu" do lançamento vale aqui também: mostrar onde a compra caiu.
+    if (paraPessoal && podeEscolherGaveta.value) ligado.value = true
+    toast.success(paraPessoal
+      ? 'Movida para os seus gastos pessoais.'
+      : 'Movida para o espaço, meio a meio — edite se o rateio for outro.')
+    aberto.value = false
+  }
+  catch (e) {
+    toast.error(mensagemDeErro(e, 'Não deu para mover a compra.'))
+  }
+}
 
 /*
  * Trocar de unidade redivide, mas só quando é a pessoa clicando. Um `watch` em
@@ -289,6 +318,49 @@ const parcelaNoMesVisivel = computed(() => {
   const delta = (anoV! - anoI!) * 12 + (mesV! - mesI!)
   const n = Math.max(parcelas.value || 1, 1)
   return delta >= 0 && delta < n ? delta + 1 : null
+})
+
+// ---- Mês já acertado ------------------------------------------------------------
+
+/*
+ * Avisa, não trava (decisão 7 do planejamento): o casal corrige o passado, e o
+ * acerto é decisão humana, não proibição. Mas mexer num mês que já foi pago muda
+ * um saldo que os dois deram por resolvido — e isso precisa estar na tela antes de
+ * salvar, e não ser descoberto depois.
+ *
+ * Os acertos são os do espaço ativo, que é onde vive a compra compartilhada. A
+ * compra pessoal não entra em acerto nenhum, então não avisa.
+ */
+const { data: acertos } = useAcertos()
+
+/**
+ * Numa edição, só avisa se o que mudou mexe em dinheiro — corrigir a descrição de
+ * uma compra de julho não muda o saldo de julho.
+ */
+const mudaDinheiro = computed(() => {
+  const c = props.compra
+  if (!c) return true
+  if (Number(c.valor_total) !== valorTotal.value) return true
+  if (c.parcelas !== Math.max(parcelas.value || 1, 1)) return true
+  if (c.competencia_inicial !== deMesInput(competencia.value)) return true
+  if (c.pago_por !== pagoPor.value) return true
+  const pesoDe = (id: string) => Number(partes.value[id] ?? 0)
+  return c.participantes.some(p => Math.abs(Number(p.peso) - pesoDe(p.user_id)) > 0.00001)
+    || Object.keys(partes.value).some(id => pesoDe(id) > 0 && !c.participantes.some(p => p.user_id === id))
+})
+
+/** Os meses acertados que a compra toca — os de depois e, numa edição, os de antes. */
+const mesesAcertados = computed(() => {
+  const lista = acertos.value ?? []
+  if (pessoal.value || !lista.length || !competencia.value || !mudaDinheiro.value) return []
+
+  const meses = new Set(competenciasAcertadas(
+    { competencia_inicial: deMesInput(competencia.value), parcelas: Math.max(parcelas.value || 1, 1) },
+    lista,
+  ))
+  if (props.compra) for (const m of competenciasAcertadas(props.compra, lista)) meses.add(m)
+
+  return [...meses].sort()
 })
 
 async function salvar() {
@@ -396,10 +468,41 @@ async function salvar() {
             </template>
           </p>
 
-          <!-- Trocar de gaveta seria mudar a compra de espaço; ver o plano. -->
-          <p v-if="editando" class="text-xs text-muted-foreground">
-            Uma compra lançada não muda de lugar — para trocar, remova e lance de novo.
-          </p>
+          <!--
+            Trocar de gaveta numa compra lançada é mudá-la de espaço (`mover_compra`):
+            uma ação própria, com confirmação, e não o alternador acima.
+          -->
+          <div v-if="editando" class="space-y-2">
+            <Button
+              v-if="!confirmandoMover"
+              type="button"
+              size="sm"
+              variant="outline"
+              @click="confirmandoMover = true"
+            >
+              {{ pessoal ? 'Mover para o espaço' : 'Mover para os meus gastos pessoais' }}
+            </Button>
+
+            <div v-else class="space-y-2 rounded-md border p-2.5 text-xs">
+              <p>
+                <template v-if="pessoal">
+                  A compra entra no espaço dividida meio a meio, passa a aparecer para todo mundo
+                  e entra no acerto do mês.
+                </template>
+                <template v-else>
+                  A compra sai do espaço — some para os outros e do acerto do mês — e fica só com você.
+                  <template v-if="outraPessoaPagou">Quem pagou passa a ser você: no pessoal não há mais ninguém.</template>
+                </template>
+                O que estiver mexido neste formulário não vai junto.
+              </p>
+              <div class="flex gap-2">
+                <Button type="button" size="sm" :disabled="mover.isPending.value" @click="moverDeGaveta">
+                  {{ mover.isPending.value ? 'Movendo…' : 'Mover' }}
+                </Button>
+                <Button type="button" size="sm" variant="ghost" @click="confirmandoMover = false">Cancelar</Button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="space-y-2">
@@ -476,6 +579,17 @@ async function salvar() {
             Ela deixa de aparecer em {{ formatarMes(competenciaVisivel) }}.
           </template>
           O acerto dos meses afetados muda junto — inclusive de meses já fechados.
+        </p>
+
+        <!-- Aviso, não trava: salvar continua valendo. -->
+        <p
+          v-if="mesesAcertados.length"
+          class="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs"
+        >
+          {{ editando ? 'Isto muda' : 'Esta compra muda' }} o saldo de
+          <strong>{{ formatarListaDeMeses(mesesAcertados) }}</strong>,
+          {{ mesesAcertados.length === 1 ? 'que já foi acertado' : 'que já foram acertados' }}.
+          O acerto continua marcado — vale combinar se é preciso refazer a conta.
         </p>
 
         <div class="space-y-2">
