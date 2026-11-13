@@ -236,6 +236,114 @@ export type Database = {
           },
         ]
       }
+      conexao_bancaria: {
+        Row: {
+          atualizado_em: string
+          banco: string
+          banco_logo_url: string | null
+          conectado_em: string
+          consentimento_expira_em: string | null
+          erro_sincronizacao: string | null
+          id: string
+          item_id: string
+          sincronizado_em: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          banco?: string
+          banco_logo_url?: string | null
+          conectado_em?: string
+          consentimento_expira_em?: string | null
+          erro_sincronizacao?: string | null
+          id?: string
+          item_id: string
+          sincronizado_em?: string | null
+          status?: string
+          user_id?: string
+        }
+        Update: {
+          atualizado_em?: string
+          banco?: string
+          banco_logo_url?: string | null
+          conectado_em?: string
+          consentimento_expira_em?: string | null
+          erro_sincronizacao?: string | null
+          id?: string
+          item_id?: string
+          sincronizado_em?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      conta_bancaria: {
+        Row: {
+          atualizado_em: string
+          conexao_id: string
+          criado_em: string
+          designada_em: string
+          destino: string
+          id: string
+          nome: string
+          numero: string | null
+          pluggy_account_id: string
+          space_id: string | null
+          tipo: string
+          titular_documento: string | null
+          titular_nome: string | null
+          user_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          conexao_id: string
+          criado_em?: string
+          designada_em?: string
+          destino?: string
+          id?: string
+          nome: string
+          numero?: string | null
+          pluggy_account_id: string
+          space_id?: string | null
+          tipo: string
+          titular_documento?: string | null
+          titular_nome?: string | null
+          user_id?: string
+        }
+        Update: {
+          atualizado_em?: string
+          conexao_id?: string
+          criado_em?: string
+          designada_em?: string
+          destino?: string
+          id?: string
+          nome?: string
+          numero?: string | null
+          pluggy_account_id?: string
+          space_id?: string | null
+          tipo?: string
+          titular_documento?: string | null
+          titular_nome?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conta_bancaria_conexao_id_fkey"
+            columns: ["conexao_id"]
+            isOneToOne: false
+            referencedRelation: "conexao_bancaria"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conta_bancaria_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contribuicao: {
         Row: {
           modo: string
@@ -1660,6 +1768,8 @@ export type Database = {
         Row: {
           apelido: string | null
           avatar_url: string | null
+          chave_pix: string | null
+          chave_pix_tipo: string | null
           created_at: string
           id: string
           nome: string
@@ -1667,6 +1777,8 @@ export type Database = {
         Insert: {
           apelido?: string | null
           avatar_url?: string | null
+          chave_pix?: string | null
+          chave_pix_tipo?: string | null
           created_at?: string
           id: string
           nome: string
@@ -1674,6 +1786,8 @@ export type Database = {
         Update: {
           apelido?: string | null
           avatar_url?: string | null
+          chave_pix?: string | null
+          chave_pix_tipo?: string | null
           created_at?: string
           id?: string
           nome?: string
@@ -1988,6 +2102,128 @@ export type Database = {
           },
         ]
       }
+      transacao_bancaria: {
+        Row: {
+          atualizada_em: string
+          categoria_pluggy: string | null
+          chave_compra: string | null
+          classificada_em: string | null
+          competencia: string
+          compra_id: string | null
+          conexao_id: string
+          conta_id: string
+          contraparte_documento: string | null
+          contraparte_nome: string | null
+          data: string
+          data_compra: string | null
+          descricao: string
+          destino: string | null
+          fatura_id: string | null
+          id: string
+          importada_em: string
+          metodo: string | null
+          motivo_exclusao: string | null
+          parcela_numero: number | null
+          parcelas_total: number | null
+          pendente: boolean
+          pluggy_id: string
+          provider_id: string
+          sentido: string
+          user_id: string
+          valor: number
+          valor_total_compra: number | null
+        }
+        Insert: {
+          atualizada_em?: string
+          categoria_pluggy?: string | null
+          chave_compra?: string | null
+          classificada_em?: string | null
+          competencia: string
+          compra_id?: string | null
+          conexao_id: string
+          conta_id: string
+          contraparte_documento?: string | null
+          contraparte_nome?: string | null
+          data: string
+          data_compra?: string | null
+          descricao: string
+          destino?: string | null
+          fatura_id?: string | null
+          id?: string
+          importada_em?: string
+          metodo?: string | null
+          motivo_exclusao?: string | null
+          parcela_numero?: number | null
+          parcelas_total?: number | null
+          pendente?: boolean
+          pluggy_id: string
+          provider_id: string
+          sentido: string
+          user_id: string
+          valor: number
+          valor_total_compra?: number | null
+        }
+        Update: {
+          atualizada_em?: string
+          categoria_pluggy?: string | null
+          chave_compra?: string | null
+          classificada_em?: string | null
+          competencia?: string
+          compra_id?: string | null
+          conexao_id?: string
+          conta_id?: string
+          contraparte_documento?: string | null
+          contraparte_nome?: string | null
+          data?: string
+          data_compra?: string | null
+          descricao?: string
+          destino?: string | null
+          fatura_id?: string | null
+          id?: string
+          importada_em?: string
+          metodo?: string | null
+          motivo_exclusao?: string | null
+          parcela_numero?: number | null
+          parcelas_total?: number | null
+          pendente?: boolean
+          pluggy_id?: string
+          provider_id?: string
+          sentido?: string
+          user_id?: string
+          valor?: number
+          valor_total_compra?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transacao_bancaria_compra_id_fkey"
+            columns: ["compra_id"]
+            isOneToOne: false
+            referencedRelation: "compra"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transacao_bancaria_compra_id_fkey"
+            columns: ["compra_id"]
+            isOneToOne: false
+            referencedRelation: "parcela_mensal"
+            referencedColumns: ["compra_id"]
+          },
+          {
+            foreignKeyName: "transacao_bancaria_conexao_id_fkey"
+            columns: ["conexao_id"]
+            isOneToOne: false
+            referencedRelation: "conexao_bancaria"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transacao_bancaria_conta_id_fkey"
+            columns: ["conta_id"]
+            isOneToOne: false
+            referencedRelation: "conta_bancaria"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       parcela_mensal: {
@@ -2071,6 +2307,35 @@ export type Database = {
       avisar_viagens_proximas: { Args: never; Returns: number }
       can_access_entry: { Args: { p_entry: string }; Returns: boolean }
       can_access_playlist: { Args: { p_playlist: string }; Returns: boolean }
+      classificar_aporte: {
+        Args: {
+          p_meta: string
+          p_transacao: string
+        }
+        Returns: string
+      }
+      classificar_compra: {
+        Args: {
+          p_categoria_cor?: string
+          p_categoria_nome?: string
+          p_competencia_inicial: string
+          p_data_compra: string
+          p_descricao: string
+          p_parcelas: number
+          p_participantes: Json
+          p_space: string
+          p_transacao: string
+          p_valor_total: number
+        }
+        Returns: string
+      }
+      classificar_renda: {
+        Args: {
+          p_competencia: string
+          p_transacao: string
+        }
+        Returns: undefined
+      }
       compartilhar_interesse: {
         Args: { p_interesse: string; p_space: string }
         Returns: undefined
@@ -2109,6 +2374,14 @@ export type Database = {
       }
       conceder_pins_viagens_concluidas: { Args: never; Returns: number }
       concluir_memoria: { Args: { p_memoria: string }; Returns: undefined }
+      conciliar_acerto: {
+        Args: {
+          p_competencia: string
+          p_space: string
+          p_transacao: string
+        }
+        Returns: undefined
+      }
       contribuicoes_do_espaco: {
         Args: { p_space: string }
         Returns: {
@@ -2156,6 +2429,12 @@ export type Database = {
         Returns: undefined
       }
       devolver_planos_vencidos: { Args: never; Returns: number }
+      devolver_para_caixa: {
+        Args: {
+          p_transacao: string
+        }
+        Returns: undefined
+      }
       escolher_agrupamento: {
         Args: { p_agrupamento: string }
         Returns: undefined
@@ -2168,6 +2447,14 @@ export type Database = {
       is_space_admin: { Args: { p_space: string }; Returns: boolean }
       is_space_member: { Args: { p_space: string }; Returns: boolean }
       is_space_owner: { Args: { p_space: string }; Returns: boolean }
+      ingerir_transacoes: {
+        Args: {
+          p_conta: string
+          p_desde: string
+          p_linhas: Json
+        }
+        Returns: number
+      }
       juntar_produto_ao_agrupamento: {
         Args: { p_agrupamento: string; p_produto: string }
         Returns: Json
@@ -2175,6 +2462,13 @@ export type Database = {
       lembrete_semanal_filmes: { Args: never; Returns: number }
       liberar_interesse: { Args: { p_interesse: string }; Returns: undefined }
       liberar_roteiro: { Args: { p_roteiro: string }; Returns: undefined }
+      lancar_compras_do_cartao: {
+        Args: {
+          p_compras: Json
+          p_conta: string
+        }
+        Returns: number
+      }
       marcar_assistiram_comigo: {
         Args: { p_entry: string; p_usuarios: string[] }
         Returns: number
@@ -2253,6 +2547,14 @@ export type Database = {
       pode_ver_meta: { Args: { p_meta: string }; Returns: boolean }
       pode_ver_roteiro: { Args: { p_roteiro: string }; Returns: boolean }
       reabrir_memoria: { Args: { p_memoria: string }; Returns: undefined }
+      reclassificar_compra: {
+        Args: {
+          p_compra: string
+          p_participantes: Json
+          p_space_destino: string
+        }
+        Returns: string
+      }
       registrar_aporte: {
         Args: {
           p_data?: string
@@ -2331,6 +2633,13 @@ export type Database = {
       sou_dono_do_interesse: { Args: { p_interesse: string }; Returns: boolean }
       status_do_email: { Args: never; Returns: Json }
       token_de_escuta: { Args: { p_user: string }; Returns: string }
+      vincular_transacao: {
+        Args: {
+          p_compra: string
+          p_transacao: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
