@@ -56,8 +56,10 @@ de um espaço de casal (ou para quem usa o app sozinho). O setup completo está 
   com Pix" só passaram por typecheck e testes de lógica.
 - **Tipos do banco escritos à mão** em `app/types/database.generated.ts`: regerar com
   `npm run db:types` depois do `db push`.
-- **Desfazer salário ou aporte vindo do extrato** não devolve a transação para a caixa: pede um
-  gatilho nas tabelas da Frente A (`renda_recebida`, `meta_aporte`).
+- ~~**Desfazer salário ou aporte vindo do extrato**~~ — resolvido em
+  `20261112170000_devolver_renda_e_aporte.sql`: "Devolver à caixa" apaga a marcação de salário
+  ou o aporte criados pela própria transação. Desmarcar o salário pelo Planejamento continua sem
+  devolver a transação (pede gatilho em `renda_recebida`).
 - **A conciliação do Pix do acerto** só roda quando alguém abre a caixa de entrada.
 - **`test/imports.test.ts`** estoura o tempo padrão do vitest com a máquina carregada; passa
   isolado. Já existia antes desta frente.

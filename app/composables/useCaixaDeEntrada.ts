@@ -255,6 +255,7 @@ export function useClassificar() {
       // renda e de metas — que são cache de outras chaves.
       queryClient.invalidateQueries({ predicate: q => q.queryKey[0] === 'space' }),
       queryClient.invalidateQueries({ queryKey: ['renda'] }),
+      queryClient.invalidateQueries({ queryKey: ['metas'] }),
     ]),
   })
 }

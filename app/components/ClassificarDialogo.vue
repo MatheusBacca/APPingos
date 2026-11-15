@@ -43,7 +43,7 @@ import {
   useMembrosDoEspaco,
   useMetasAtivas,
 } from '~/composables/useCaixaDeEntrada'
-import { useMinhaRenda } from '~/composables/useRenda'
+import { useMinhaRenda, useRendaRecebida } from '~/composables/useRenda'
 import { useUsuarioId } from '~/composables/useUsuarioId'
 import { useSpaceStore } from '~/stores/space'
 
@@ -102,6 +102,20 @@ const outro = computed(() => membros.value?.find(m => m.user_id !== usuarioId.va
 const candidatas = computed(() =>
   props.item ? candidatasJaLancei(props.item.plano, candidatasBrutas.value ?? []) : [],
 )
+
+/* Uma só candidata (o caso comum) já vem marcada: sobra só confirmar. O mesmo para meta. */
+watch([candidatas, () => props.item, () => props.modo], ([lista]) => {
+  if (lista.length === 1 && !compraEscolhida.value) compraEscolhida.value = lista[0]!.id
+}, { immediate: true })
+watch([() => metas.value, () => props.item, () => props.modo], ([lista]) => {
+  if (props.modo === 'meta' && lista?.length === 1 && !metaEscolhida.value) metaEscolhida.value = lista[0]!.id
+}, { immediate: true })
+
+/*
+ * O salário do mês já marcado: confirmar troca a marcação pelo crédito do extrato
+ * (é upsert). Antes trocava em silêncio — agora a tela diz o que vai acontecer.
+ */
+const { data: salarioJaMarcado } = useRendaRecebida(() => (props.modo === 'salario' ? competenciaSalario.value : ''))
 
 const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome ?? 'Espaço'
 
@@ -256,7 +270,13 @@ async function salvar() {
           :key="c.id"
           class="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-sm"
         >
-          <input v-model="compraEscolhida" type="radio" :value="c.id" class="accent-primary">
+          <input
+            v-model="compraEscolhida"
+            type="radio"
+            :value="c.id"
+            class="accent-primary"
+            :aria-label="`${c.descricao}, ${nomeDoEspaco(c.space_id)}, ${formatarDia(c.data_compra)}`"
+          >
           <span class="min-w-0 flex-1 truncate">{{ c.descricao }}</span>
           <span class="text-xs text-muted-foreground">{{ nomeDoEspaco(c.space_id) }} · {{ formatarDia(c.data_compra) }}</span>
         </label>
@@ -273,6 +293,17 @@ async function salvar() {
           <template v-if="renda">O mês sai da data prevista do seu salário; ajuste se o crédito for de outro.</template>
           <template v-else>Sem salário cadastrado em Espaços, o mês é o do crédito.</template>
         </p>
+        <p
+          v-if="salarioJaMarcado && salarioJaMarcado.transacao_id !== item.principal.id"
+          class="flex items-start gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200"
+        >
+          <AlertTriangleIcon class="mt-0.5 size-3.5 shrink-0" />
+          <span>
+            {{ formatarMes(competenciaSalario) }} já estava marcado como recebido
+            ({{ formatarDinheiro(salarioJaMarcado.valor) }} em {{ formatarDia(salarioJaMarcado.recebido_em) }}).
+            Confirmar troca essa marcação por este crédito do extrato.
+          </span>
+        </p>
       </div>
 
       <!-- Meta -->
@@ -283,7 +314,7 @@ async function salvar() {
           :key="m.id"
           class="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-sm"
         >
-          <input v-model="metaEscolhida" type="radio" :value="m.id" class="accent-primary">
+          <input v-model="metaEscolhida" type="radio" :value="m.id" class="accent-primary" :aria-label="m.titulo">
           <span class="min-w-0 flex-1 truncate">{{ m.titulo }}</span>
           <span class="text-xs text-muted-foreground">{{ nomeDoEspaco(m.space_id) }}</span>
         </label>

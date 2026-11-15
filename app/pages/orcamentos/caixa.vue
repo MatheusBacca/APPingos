@@ -31,6 +31,7 @@ import { useConciliacaoPix } from '~/composables/useConciliacaoPix'
 import { useConexoesBancarias } from '~/composables/useContasBancarias'
 import { useUsuarioId } from '~/composables/useUsuarioId'
 import { useSpaceStore } from '~/stores/space'
+import { categoriaPluggyEmPortugues } from '~/lib/categorias-pluggy'
 
 useHead({ title: 'Caixa de entrada · APPingos' })
 
@@ -69,7 +70,17 @@ async function ignorar(item: ItemDaCaixa) {
 async function devolver(linha: LinhaClassificada) {
   try {
     await classificar.mutateAsync({ tipo: 'devolver', transacao: linha.id })
-    toast.success('De volta à caixa de entrada.')
+    /*
+     * O Pix do acerto marcou o mês como pago, e devolver não desmarca: o mês pode já
+     * estar pago à mão antes do Pix, e o acerto não guarda quem o marcou. A tela diz
+     * onde desfazer, em vez de deixar o "pago" parecer obra do Pix ainda.
+     */
+    if (linha.motivo_exclusao === 'acerto') {
+      toast.success('De volta à caixa. O mês continua marcado como pago — desfaça em Chico Moedas se o Pix não era o acerto.')
+    }
+    else {
+      toast.success('De volta à caixa de entrada.')
+    }
   }
   catch (e) {
     toast.error(mensagemDeErro(e, 'Não deu para desfazer.'))
@@ -129,7 +140,7 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
     <OrcamentosAbas subtitulo="O extrato que chegou do banco, esperando um destino. Só você vê." />
 
     <Card v-if="conexoes && !conexoes.length">
-      <CardContent class="flex flex-wrap items-center justify-between gap-3 py-6 text-sm">
+      <CardContent class="flex flex-wrap items-center justify-between gap-3 text-sm">
         <p class="text-muted-foreground">
           Nenhum banco conectado. Conectando, as compras chegam sozinhas aqui — e você decide com
           um toque se são do casal ou só suas.
@@ -145,7 +156,7 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
     </div>
 
     <Card v-else-if="!itens.length && conexoes?.length">
-      <CardContent class="flex items-center gap-3 py-6 text-sm text-muted-foreground">
+      <CardContent class="flex items-center gap-3 text-sm text-muted-foreground">
         <InboxIcon class="size-5" />
         Nada esperando. O extrato novo chega uma vez por dia.
       </CardContent>
@@ -162,7 +173,7 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
                 · {{ item.transacoes.map(t => t.parcela_numero).join(', ') }} de {{ item.plano.parcelas }} parcelas
                 ({{ formatarDinheiro(item.plano.valor_total) }} no total)
               </template>
-              <template v-if="item.principal.categoria_pluggy"> · {{ item.principal.categoria_pluggy }}</template>
+              <template v-if="item.principal.categoria_pluggy"> · {{ categoriaPluggyEmPortugues(item.principal.categoria_pluggy) }}</template>
               <template v-if="item.pendente"> · <strong>pendente no banco</strong></template>
             </p>
           </div>
@@ -195,15 +206,19 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
     <section v-if="classificadas?.length" class="space-y-2">
       <h2 class="text-sm font-medium text-muted-foreground">Classificadas nos últimos 30 dias</h2>
       <ul class="divide-y rounded-lg border bg-card text-sm">
-        <li v-for="linha in classificadas" :key="linha.id" class="flex flex-wrap items-center gap-2 px-3 py-2">
-          <span class="min-w-0 flex-1 truncate">
-            {{ linha.descricao }}
-            <span class="text-xs text-muted-foreground">· {{ formatarDia(linha.data) }} · {{ formatarDinheiro(Number(linha.valor)) }}</span>
-          </span>
+        <!--
+          No celular a descrição ocupa a linha inteira e o selo e as ações descem para
+          a de baixo: lado a lado, a descrição era cortada até sumir.
+        -->
+        <li v-for="linha in classificadas" :key="linha.id" class="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2">
+          <div class="min-w-0 basis-full sm:basis-0 sm:flex-1">
+            <p class="truncate">{{ linha.descricao }}</p>
+            <p class="text-xs text-muted-foreground">{{ formatarDia(linha.data) }} · {{ formatarDinheiro(Number(linha.valor)) }}</p>
+          </div>
           <span class="rounded-full bg-muted px-2 py-0.5 text-xs">
             {{ ROTULO_DESTINO[linha.destino ?? ''] }}
             <template v-if="linha.compra"> · {{ nomeDoEspaco(linha.compra.space_id) }}</template>
-            <template v-if="linha.motivo_exclusao"> · {{ ROTULO_MOTIVO[linha.motivo_exclusao] }}</template>
+            <template v-if="linha.motivo_exclusao && linha.destino === 'ignorada'"> · {{ ROTULO_MOTIVO[linha.motivo_exclusao] }}</template>
           </span>
           <Button
             v-if="linha.compra && destinoDaMudanca(linha)"
@@ -217,7 +232,7 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
             Mover para {{ destinoDaMudanca(linha)!.nome }}
           </Button>
           <Button
-            v-if="linha.destino === 'ignorada' || (linha.destino === 'compra' && linha.compra)"
+            v-if="linha.destino === 'ignorada' || linha.destino === 'renda' || linha.destino === 'aporte' || (linha.destino === 'compra' && linha.compra)"
             size="sm"
             variant="ghost"
             class="gap-1"

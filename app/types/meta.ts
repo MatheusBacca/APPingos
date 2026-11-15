@@ -78,8 +78,13 @@ export function progressoDaMeta(
 export interface AporteSugerido {
   /** Quanto guardar por mês para chegar ao alvo no prazo. */
   porMes: number
-  /** Em quantos meses, contando o atual. */
+  /** Em quantos meses: contando o atual, ou a partir do próximo quando este mês já recebeu aporte. */
   meses: number
+  /**
+   * `false` quando o mês atual já teve aporte: o ritmo passa a contar do mês que
+   * vem, senão o que já foi guardado agora "dilui" a sugestão e ela não basta.
+   */
+  contaEsteMes: boolean
   /** O prazo já passou: o que falta é para agora. */
   vencido: boolean
 }
@@ -88,6 +93,11 @@ export interface AporteSugerido {
  * Quanto guardar por mês até o prazo: o que falta dividido pelos meses que sobram,
  * CONTANDO o mês atual — quem abre a meta em 12 de novembro com prazo em junho
  * ainda pode guardar em novembro, e são oito meses (nov a jun), não sete.
+ *
+ * Exceção: se o mês atual JÁ recebeu aporte (`guardadoNoMes > 0`), ele está feito e
+ * a divisão é pelos meses seguintes. Sem isso, guardar R$ 1.000 em novembro numa
+ * meta de R$ 12.000 até outubro baixaria a sugestão para R$ 916,67 em 12 meses — e
+ * seguir a sugestão de dezembro em diante deixaria a meta ~R$ 917 abaixo do alvo.
  *
  * `null` quando não há o que sugerir: sem prazo, ou com o alvo já alcançado.
  * Prazo vencido devolve o que falta inteiro, num mês só, com `vencido` — a tela diz
@@ -100,6 +110,7 @@ export function aporteMensalSugerido(
   meta: Pick<Meta, 'valor_alvo' | 'prazo'>,
   guardado: number,
   hoje: string,
+  guardadoNoMes = 0,
 ): AporteSugerido | null {
   if (!meta.prazo) return null
 
@@ -110,10 +121,14 @@ export function aporteMensalSugerido(
   const [anoP, mesP] = meta.prazo.split('-').map(Number)
   const meses = (anoP! - anoH!) * 12 + (mesP! - mesH!) + 1
 
-  if (meses <= 0 || meta.prazo < hoje) return { porMes: falta, meses: 1, vencido: true }
+  if (meses <= 0 || meta.prazo < hoje) return { porMes: falta, meses: 1, vencido: true, contaEsteMes: true }
+
+  // Último mês do prazo: o que falta é para agora, haja aporte neste mês ou não.
+  const contaEsteMes = meses === 1 || guardadoNoMes <= 0
+  const divisor = contaEsteMes ? meses : meses - 1
 
   // Arredonda para CIMA no centavo: guardar o sugerido todo mês precisa bastar.
-  return { porMes: Math.ceil((falta / meses) * 100) / 100, meses, vencido: false }
+  return { porMes: Math.ceil((falta / divisor) * 100) / 100, meses: divisor, vencido: false, contaEsteMes }
 }
 
 /** "Ana R$ 800 · Bia R$ 1.200" — quanto cada um guardou, já com os resgates. */

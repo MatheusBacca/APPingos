@@ -22,13 +22,21 @@ import { mensagemDeErro } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { formatarDia, formatarDiaCompleto, hojeIso } from '@/lib/datas'
+import { formatarDia, formatarDiaCompleto, hojeIso, nomeDoMes, primeiroDoMes, somarMeses } from '@/lib/datas'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { ROTULO_ESTADO_META, aporteMensalSugerido, guardadoPorPessoa, progressoDaMeta } from '~/types/meta'
 import type { EstadoMeta } from '~/types/meta'
@@ -70,7 +78,14 @@ const compartilhar = useCompartilharMeta()
 const comemorar = useComemorarMeta()
 
 const progresso = computed(() => progressoDaMeta(props.meta, props.meta.aportes))
-const sugerido = computed(() => aporteMensalSugerido(props.meta, progresso.value.guardado, hojeIso()))
+/** O líquido guardado neste mês: com aporte já feito, a sugestão conta do mês que vem. */
+const guardadoNoMes = computed(() => {
+  const mes = primeiroDoMes(hojeIso())
+  return props.meta.aportes.filter(a => a.competencia === mes).reduce((t, a) => t + Number(a.valor), 0)
+})
+const sugerido = computed(() =>
+  aporteMensalSugerido(props.meta, progresso.value.guardado, hojeIso(), guardadoNoMes.value))
+const proximoMes = computed(() => nomeDoMes(somarMeses(primeiroDoMes(hojeIso()), 1)).toLowerCase())
 
 const porPessoa = computed(() =>
   [...guardadoPorPessoa(props.meta.aportes)]
@@ -163,9 +178,17 @@ async function trocarEstado(estado: EstadoMeta) {
   }
 }
 
+/*
+ * Apagar leva junto todos os aportes e não tem volta — diferente de "Abandonar",
+ * que encerra a meta e deixa reabrir. Por isso pede confirmação com o título e o
+ * que se perde, no mesmo molde de "Tirar da estante" em Livros.
+ */
+const confirmandoApagar = ref(false)
+
 async function onApagar() {
   try {
     await apagar.mutateAsync(props.meta)
+    confirmandoApagar.value = false
     toast.success('Meta apagada.')
   }
   catch (e) {
@@ -197,7 +220,7 @@ async function onRemoverAporte(aporteId: string) {
           <Badge v-if="somenteLeitura" variant="outline" class="font-normal">Meta de {{ dono }} · só acompanhar</Badge>
           <Badge v-else-if="pessoal" variant="outline" class="font-normal">{{ seloPessoal }}</Badge>
           <span v-if="meta.prazo">até {{ formatarDiaCompleto(meta.prazo) }}</span>
-          <span v-if="meta.interesse_id">· veio de um interesse</span>
+          <span v-if="meta.interesse_id">{{ meta.prazo ? '· ' : '' }}veio de um interesse</span>
         </div>
       </div>
 
@@ -222,7 +245,7 @@ async function onRemoverAporte(aporteId: string) {
           </template>
 
           <DropdownMenuSeparator v-if="podeApagar" />
-          <DropdownMenuItem v-if="podeApagar" class="text-destructive" @select="onApagar">Apagar</DropdownMenuItem>
+          <DropdownMenuItem v-if="podeApagar" class="text-destructive" @select="confirmandoApagar = true">Apagar</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </header>
@@ -246,7 +269,13 @@ async function onRemoverAporte(aporteId: string) {
             <template v-if="sugerido.vencido"> — o prazo passou.</template>
             <template v-else>
               — {{ formatarDinheiro(sugerido.porMes) }} por mês
-              {{ sugerido.meses === 1 ? 'neste mês' : `nos próximos ${sugerido.meses} meses` }}.
+              <template v-if="sugerido.contaEsteMes">
+                {{ sugerido.meses === 1 ? 'neste mês' : `nos próximos ${sugerido.meses} meses` }}.
+              </template>
+              <template v-else>
+                {{ sugerido.meses === 1 ? `em ${proximoMes}` : `de ${proximoMes} em diante (${sugerido.meses} meses)` }}.
+                Este mês já tem aporte.
+              </template>
             </template>
           </template><template v-else>.</template>
         </template>
@@ -300,5 +329,27 @@ async function onRemoverAporte(aporteId: string) {
         </li>
       </ul>
     </details>
+
+    <Dialog v-model:open="confirmandoApagar">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Apagar "{{ meta.titulo }}"?</DialogTitle>
+          <DialogDescription>
+            <template v-if="meta.aportes.length">
+              Some a meta e os {{ meta.aportes.length === 1 ? 'movimento' : `${meta.aportes.length} movimentos` }}
+              registrados nela ({{ formatarDinheiro(progresso.guardado) }} guardados), para todo mundo do espaço.
+            </template>
+            <template v-else>Some a meta para todo mundo do espaço.</template>
+            Não dá para desfazer — se só desistiu, "Abandonar" encerra a meta e deixa reabrir depois.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="ghost" @click="confirmandoApagar = false">Cancelar</Button>
+          <Button variant="destructive" :disabled="apagar.isPending.value" @click="onApagar">
+            {{ apagar.isPending.value ? 'Apagando…' : 'Apagar meta' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </article>
 </template>

@@ -41,6 +41,8 @@ export interface CompraDoMes {
   /** Qual parcela cai neste mês (1-based) e quanto ela vale. Vêm da view. */
   numero: number
   valor: number
+  /** Quando a compra foi lançada — é o que diz se ela entrou depois de o mês ser marcado como pago. */
+  created_at?: string
 }
 
 export interface NovaCompra {
@@ -368,4 +370,21 @@ export const ROTULO_COR: Record<CorCategoria, string> = {
 /** Normalização que espelha a coluna gerada `nome_norm` no banco. */
 export function normalizarCategoria(nome: string): string {
   return nome.trim().toLowerCase()
+}
+
+/**
+ * Se o mês foi marcado como pago e DEPOIS entrou compra nele.
+ *
+ * O acerto guarda só "quando" e "por quem", não "quanto": um Pix de R$ 150 que
+ * quitou novembro não diz nada sobre a compra de R$ 300 que chegou do extrato no
+ * dia seguinte. Sem este aviso a tela mostrava "Pago" e "Fulano deve R$ 300" lado
+ * a lado — as duas coisas verdadeiras, e juntas uma contradição.
+ */
+export function acertoDesatualizado(
+  compras: ReadonlyArray<Pick<CompraDoMes, 'created_at'>>,
+  pagoEm: string | null | undefined,
+): boolean {
+  if (!pagoEm) return false
+  const pago = new Date(pagoEm).getTime()
+  return compras.some(c => !!c.created_at && new Date(c.created_at).getTime() > pago)
 }

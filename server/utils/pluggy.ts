@@ -24,7 +24,8 @@ export function credenciaisPluggy(event: H3Event): { id: string, secret: string 
   const { pluggyClientId, pluggyClientSecret } = useRuntimeConfig(event)
 
   if (!pluggyClientId || !pluggyClientSecret) {
-    throw erroPluggy(503, 'A Pluggy ainda não foi configurada neste ambiente (faltam NUXT_PLUGGY_CLIENT_ID e NUXT_PLUGGY_CLIENT_SECRET).')
+    console.error('[pluggy] faltam NUXT_PLUGGY_CLIENT_ID e NUXT_PLUGGY_CLIENT_SECRET no ambiente')
+    throw erroPluggy(503, 'O Open Finance ainda não foi ativado neste app. Avise quem administra o APPingos.')
   }
 
   return { id: pluggyClientId, secret: pluggyClientSecret }
@@ -50,7 +51,7 @@ export async function apiKeyPluggy(event: H3Event): Promise<string> {
     return valor
   }
   catch (e) {
-    throw traduzirErroPluggy(e)
+    throw traduzirErroPluggy(e, 'autenticacao')
   }
 }
 
@@ -60,20 +61,40 @@ export function esquecerApiKeyPluggy() {
 }
 
 /**
- * Erro da Pluggy em erro nosso, sem levar adiante nada que não seja o status e
- * o recurso (a mensagem de `ErroPluggy` já foi montada sem query nem id).
+ * O que a pessoa lê quando a Pluggy recusa — em português de gente, sem nome de
+ * variável de ambiente, rota ou mensagem em inglês. O detalhe técnico vai para o
+ * log do servidor (`traduzirErroPluggy`), que é onde quem administra vai procurar.
+ *
+ * Na `autenticacao` (trocar client id + secret pela apiKey) qualquer 4xx é chave
+ * errada ou ausente: a Pluggy responde 400 para um client id que nem é UUID, e
+ * 401/403 para um par que não confere — para quem usa o app, é o mesmo problema.
  */
-export function traduzirErroPluggy(e: unknown) {
-  if (e instanceof ErroPluggy) {
-    if (e.status === 401 || e.status === 403) {
-      esquecerApiKeyPluggy()
-      return erroPluggy(502, 'A Pluggy recusou as credenciais do app. Confira NUXT_PLUGGY_CLIENT_ID/SECRET.')
-    }
-    if (e.status === 404) return erroPluggy(404, 'A Pluggy não encontrou esta conexão.')
-    if (e.status === 429) return erroPluggy(429, 'A Pluggy pediu uma pausa — tente de novo em alguns segundos.')
-    return erroPluggy(502, e.message)
+export function mensagemDoErroPluggy(status: number, contexto: 'autenticacao' | 'conexao' = 'conexao'): string {
+  if (contexto === 'autenticacao' && status >= 400 && status < 500 && status !== 429) {
+    return 'A ligação do APPingos com a Pluggy está com as chaves erradas. Avise quem administra o app.'
   }
-  return erroPluggy(502, 'Falha ao falar com a Pluggy.')
+  if (status === 401 || status === 403) {
+    return 'A ligação do APPingos com a Pluggy está com as chaves erradas. Avise quem administra o app.'
+  }
+  if (status === 404) return 'A Pluggy não encontrou esta conexão. Confira o id ou conecte de novo.'
+  if (status === 429) return 'A Pluggy pediu uma pausa — tente de novo em alguns segundos.'
+  if (status >= 500) return 'A Pluggy não respondeu agora. Tente de novo em alguns minutos.'
+  return 'A Pluggy não aceitou o pedido. Tente de novo; se continuar, avise quem administra o app.'
+}
+
+/**
+ * Erro da Pluggy em erro nosso. A mensagem de `ErroPluggy` (já sem query nem id)
+ * fica só no log; a pessoa recebe `mensagemDoErroPluggy`.
+ */
+export function traduzirErroPluggy(e: unknown, contexto: 'autenticacao' | 'conexao' = 'conexao') {
+  if (e instanceof ErroPluggy) {
+    console.error(`[pluggy] ${e.message}`)
+    if (e.status === 401 || e.status === 403 || contexto === 'autenticacao') esquecerApiKeyPluggy()
+    const status = e.status === 404 || e.status === 429 ? e.status : 502
+    return erroPluggy(status, mensagemDoErroPluggy(e.status, contexto))
+  }
+  console.error('[pluggy] falha ao falar com a Pluggy:', e)
+  return erroPluggy(502, 'Não deu para falar com a Pluggy agora. Confira a internet e tente de novo.')
 }
 
 /**

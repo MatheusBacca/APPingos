@@ -12,7 +12,7 @@ import {
   situacaoDaConexao,
 } from '~/lib/contas-bancarias'
 import { camposDaConexao, camposDaConta } from '~/lib/importacao-bancaria'
-import { itemPodeSerDe } from '~~/server/utils/pluggy'
+import { itemPodeSerDe, mensagemDoErroPluggy } from '~~/server/utils/pluggy'
 import { CARTAO, CONTA_CORRENTE } from './fixtures/pluggy'
 
 const conexao = (extra: Partial<Parameters<typeof situacaoDaConexao>[0]> = {}) => ({
@@ -150,5 +150,23 @@ describe('dono do item', () => {
 describe('conexão apagada na Pluggy', () => {
   it('diz o que fazer em vez de oferecer um reconectar que não funcionaria', () => {
     expect(situacaoDaConexao(conexao({ status: 'DELETED' }), '2026-11-12')).toMatchObject({ tom: 'erro', reconectar: false })
+  })
+})
+
+describe('mensagemDoErroPluggy', () => {
+  it('chave errada na autenticação vira um recado para o administrador, sem jargão', () => {
+    const m = mensagemDoErroPluggy(400, 'autenticacao')
+    expect(m).toContain('administra')
+    expect(m).not.toMatch(/NUXT_|clientId|UUID|\/auth/)
+  })
+
+  it('401 e 403 são o mesmo recado, em qualquer contexto', () => {
+    expect(mensagemDoErroPluggy(401)).toBe(mensagemDoErroPluggy(403, 'autenticacao'))
+  })
+
+  it('404, 429 e 5xx dizem o que fazer', () => {
+    expect(mensagemDoErroPluggy(404)).toContain('não encontrou')
+    expect(mensagemDoErroPluggy(429, 'autenticacao')).toContain('pausa')
+    expect(mensagemDoErroPluggy(503)).toContain('Tente de novo')
   })
 })

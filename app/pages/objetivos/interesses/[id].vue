@@ -134,6 +134,7 @@ const origemDaMeta = computed<OrigemDaMeta | null>(() => {
     interesseId: i.id,
     titulo: i.titulo,
     valor: valor.value,
+    semProdutos: produtos.value.length === 0,
     spaceId: souDaCasa ? i.space_id : (store.espacoAtivoId ?? i.space_id),
   }
 })

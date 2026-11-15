@@ -37,22 +37,38 @@ describe('progressoDaMeta', () => {
 describe('aporteMensalSugerido', () => {
   it('conta o mês atual: de novembro a junho são oito meses', () => {
     expect(aporteMensalSugerido({ valor_alvo: 2400, prazo: '2027-06-30' }, 0, '2026-11-12'))
-      .toEqual({ porMes: 300, meses: 8, vencido: false })
+      .toEqual({ porMes: 300, meses: 8, vencido: false, contaEsteMes: true })
   })
 
   it('arredonda para cima, para guardar o sugerido bastar', () => {
     expect(aporteMensalSugerido({ valor_alvo: 1000, prazo: '2027-01-31' }, 0, '2026-11-12'))
-      .toEqual({ porMes: 333.34, meses: 3, vencido: false })
+      .toEqual({ porMes: 333.34, meses: 3, vencido: false, contaEsteMes: true })
   })
 
   it('prazo neste mês: tudo neste mês', () => {
     expect(aporteMensalSugerido({ valor_alvo: 1000, prazo: '2026-11-30' }, 400, '2026-11-12'))
-      .toEqual({ porMes: 600, meses: 1, vencido: false })
+      .toEqual({ porMes: 600, meses: 1, vencido: false, contaEsteMes: true })
+  })
+
+  it('mês atual com aporte: o ritmo conta do mês que vem e basta para chegar ao alvo', () => {
+    const s = aporteMensalSugerido({ valor_alvo: 12000, prazo: '2027-10-31' }, 1000, '2026-11-15', 1000)
+    expect(s).toEqual({ porMes: 1000, meses: 11, vencido: false, contaEsteMes: false })
+    expect(s!.porMes * s!.meses).toBeGreaterThanOrEqual(11000)
+  })
+
+  it('mês atual com aporte, mas é o último do prazo: o que falta continua sendo para agora', () => {
+    expect(aporteMensalSugerido({ valor_alvo: 1000, prazo: '2026-11-30' }, 400, '2026-11-12', 400))
+      .toEqual({ porMes: 600, meses: 1, vencido: false, contaEsteMes: true })
+  })
+
+  it('resgate líquido no mês não conta como aporte', () => {
+    expect(aporteMensalSugerido({ valor_alvo: 2400, prazo: '2027-06-30' }, 0, '2026-11-12', -100))
+      .toMatchObject({ meses: 8, contaEsteMes: true })
   })
 
   it('prazo vencido devolve o que falta, sem dividir por mês negativo', () => {
     expect(aporteMensalSugerido({ valor_alvo: 1000, prazo: '2026-10-31' }, 400, '2026-11-12'))
-      .toEqual({ porMes: 600, meses: 1, vencido: true })
+      .toEqual({ porMes: 600, meses: 1, vencido: true, contaEsteMes: true })
   })
 
   it('vencido no mesmo mês, dias antes de hoje, também é vencido', () => {

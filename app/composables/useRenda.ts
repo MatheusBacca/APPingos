@@ -157,7 +157,8 @@ export function useRendaRecebida(competencia: MaybeRefOrGetter<string>) {
 
   return useQuery({
     queryKey: ['renda', 'recebida', usuarioId, computed(() => toValue(competencia))],
-    enabled: computed(() => !!usuarioId.value),
+    // Sem mês ainda (um diálogo antes de abrir), a consulta seria `competencia=eq.` — 400.
+    enabled: computed(() => !!usuarioId.value && !!toValue(competencia)),
     queryFn: async (): Promise<RendaRecebida | null> => {
       const { data, error } = await supabase
         .from('renda_recebida')

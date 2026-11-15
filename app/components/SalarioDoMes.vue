@@ -37,8 +37,12 @@ const data = ref('')
 
 function abrir() {
   valor.value = props.previsto
-  // Hoje, se o salário já devia ter caído; senão, a data prevista.
-  data.value = props.dataPrevista <= hojeIso() ? hojeIso() : props.dataPrevista
+  /*
+   * A data prevista, se ela já passou: quem marca no dia 15 um salário previsto
+   * para o dia 9 quase sempre recebeu no dia 9 e só não marcou. Se a previsão
+   * ainda não chegou, o salário caiu adiantado — hoje.
+   */
+  data.value = props.dataPrevista <= hojeIso() ? props.dataPrevista : hojeIso()
   marcando.value = true
 }
 

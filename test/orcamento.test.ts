@@ -8,6 +8,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  acertoDesatualizado,
   competenciasAcertadas,
   dividirIgualmente,
   fracaoDe,
@@ -293,5 +294,32 @@ describe('competenciasAcertadas', () => {
 
   it('sem acerto nenhum, sem aviso', () => {
     expect(competenciasAcertadas({ competencia_inicial: '2026-07-01', parcelas: 12 }, [])).toEqual([])
+  })
+})
+
+describe('acertoDesatualizado', () => {
+  const pagoEm = '2026-11-15T15:00:00+00:00'
+
+  it('sem pagamento, nada a avisar', () => {
+    expect(acertoDesatualizado([{ created_at: '2026-11-20T10:00:00+00:00' }], null)).toBe(false)
+  })
+
+  it('compras lançadas antes do pago: o acerto vale', () => {
+    expect(acertoDesatualizado([{ created_at: '2026-11-10T10:00:00+00:00' }], pagoEm)).toBe(false)
+  })
+
+  it('compra lançada depois do pago: o acerto ficou para trás', () => {
+    expect(acertoDesatualizado([
+      { created_at: '2026-11-10T10:00:00+00:00' },
+      { created_at: '2026-11-15T16:30:00+00:00' },
+    ], pagoEm)).toBe(true)
+  })
+
+  it('compara instantes, não texto: fusos diferentes no mesmo momento não contam', () => {
+    expect(acertoDesatualizado([{ created_at: '2026-11-15T12:00:00-03:00' }], pagoEm)).toBe(false)
+  })
+
+  it('compra sem data (cache antigo) não dispara o aviso', () => {
+    expect(acertoDesatualizado([{}], pagoEm)).toBe(false)
   })
 })

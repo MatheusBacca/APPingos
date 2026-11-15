@@ -46,6 +46,7 @@ import {
 } from '~/composables/useContasBancarias'
 import type { ConexaoBancaria, ContaBancaria } from '~/composables/useContasBancarias'
 import { useSpaceStore } from '~/stores/space'
+import { mostraSetupDoAdministrador } from '~/lib/guia-pluggy'
 
 useHead({ title: 'Contas conectadas · APPingos' })
 
@@ -58,6 +59,8 @@ const store = useSpaceStore()
 
 const hoje = hojeIso()
 const espacosDeCasal = computed(() => store.espacos.filter(e => e.tipo === 'casal'))
+/** Só quem administra vê o que falta no servidor; para os outros, um recado sem jargão. */
+const administrador = computed(() => mostraSetupDoAdministrador(store.espacos))
 
 const conectando = ref(false)
 
@@ -152,10 +155,15 @@ const CLASSE_TOM = {
 
     <Card v-if="configurada === false">
       <CardHeader>
-        <CardTitle class="text-base">A Pluggy ainda não foi configurada</CardTitle>
-        <CardDescription>
-          Faltam <code>NUXT_PLUGGY_CLIENT_ID</code> e <code>NUXT_PLUGGY_CLIENT_SECRET</code> no
-          ambiente. O resto do app funciona igual — o lançamento manual continua sendo o caminho.
+        <CardTitle class="text-base">O Open Finance ainda não foi ativado</CardTitle>
+        <CardDescription v-if="administrador">
+          Faltam as chaves da Pluggy no servidor — o
+          <NuxtLink to="/orcamentos/open-finance" class="underline">passo a passo do administrador</NuxtLink>
+          mostra onde pegar e onde pôr. Enquanto isso, o lançamento manual continua funcionando igual.
+        </CardDescription>
+        <CardDescription v-else>
+          Quem administra o APPingos ainda precisa ligar a Pluggy. Enquanto isso, o lançamento manual
+          continua funcionando igual.
         </CardDescription>
       </CardHeader>
     </Card>
@@ -165,7 +173,7 @@ const CLASSE_TOM = {
     </div>
 
     <Card v-else-if="!conexoes?.length && configurada">
-      <CardContent class="space-y-2 py-6 text-sm text-muted-foreground">
+      <CardContent class="space-y-2 text-sm text-muted-foreground">
         <p>
           Conecte o banco para as compras chegarem sozinhas: elas caem numa caixa de entrada e
           você decide, com um toque, se são do casal ou só suas.
@@ -250,11 +258,12 @@ const CLASSE_TOM = {
               </span>
             </div>
 
-            <div class="flex flex-col items-end gap-1.5 text-xs text-muted-foreground">
-              <label class="flex items-center gap-2">
+            <div class="flex w-full flex-col items-start gap-1.5 text-xs text-muted-foreground sm:w-auto sm:items-end">
+              <label class="flex flex-wrap items-center gap-2">
                 <input
                   type="checkbox"
                   class="size-4 accent-primary"
+                  :aria-label="`Compartilhar ${conta.nome} com o espaço de casal`"
                   :checked="estaCompartilhada(conta)"
                   :disabled="designar.isPending.value || !espacosDeCasal.length"
                   @change="onDesignar(conta, designacaoAoMarcar(($event.target as HTMLInputElement).checked, conta, espacosDeCasal))"
@@ -270,10 +279,10 @@ const CLASSE_TOM = {
                 >
                   <option v-for="espaco in espacosDeCasal" :key="espaco.id" :value="espaco.id">{{ espaco.nome }}</option>
                 </select>
-                <span v-else>um espaço</span>
+                <span v-else>{{ espacosDeCasal.length === 1 ? espacosDeCasal[0]!.nome : 'o casal' }}</span>
               </label>
 
-              <label v-if="!estaCompartilhada(conta)" class="flex items-center gap-2">
+              <label v-if="!estaCompartilhada(conta)" class="flex flex-wrap items-center gap-2">
                 Privado:
                 <select
                   class="h-8 rounded-md border bg-background px-2 text-sm text-foreground"

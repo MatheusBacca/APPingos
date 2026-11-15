@@ -11,7 +11,7 @@ import { useSpaceStore } from '~/stores/space'
 
 const SELECT_COMPRA = `
   id, space_id, descricao, valor_total, data_compra, competencia_inicial, parcelas,
-  pago_por, registrado_por,
+  pago_por, registrado_por, created_at,
   categoria:categoria(id, nome, cor),
   participantes:compra_participante(user_id, peso, informado_como)
 `

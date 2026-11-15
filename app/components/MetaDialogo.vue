@@ -34,8 +34,10 @@ import { useSpaceStore } from '~/stores/space'
 export interface OrigemDaMeta {
   interesseId: string
   titulo: string
-  /** Total do conjunto favorito, ou `null` com item sem preço. */
+  /** Total do conjunto favorito, ou `null` com item sem preço (ou sem produto nenhum). */
   valor: number | null
+  /** O interesse ainda não tem produto: o recado é outro — não há o que somar, nem item sem preço. */
+  semProdutos?: boolean
   /** Onde o interesse mora — a gaveta sugerida. */
   spaceId: string
 }
@@ -192,7 +194,10 @@ async function salvar() {
           </div>
         </div>
 
-        <p v-if="origem && origem.valor === null" class="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs">
+        <p v-if="origem && origem.valor === null && origem.semProdutos" class="text-xs text-muted-foreground">
+          Este interesse ainda não tem produto com preço — informe o valor à mão.
+        </p>
+        <p v-else-if="origem && origem.valor === null" class="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs">
           O conjunto favorito deste interesse tem item sem preço, então não há um total para usar —
           informe o valor à mão.
         </p>
