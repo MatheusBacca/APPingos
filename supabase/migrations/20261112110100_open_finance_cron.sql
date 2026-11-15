@@ -41,10 +41,18 @@ begin
   */
   perform net.http_post(
     url     := v_url,
-    headers := jsonb_build_object(
-                 'Content-Type',  'application/json',
-                 'Authorization', 'Bearer ' || v_token
-               ),
+    /*
+      A chave vai sempre em `apikey` — é onde o Supabase pede a nova
+      (`sb_secret_…`), que não é JWT e seria recusada no Bearer. A `service_role`
+      legada (um JWT, `eyJ…`, que para de valer no fim de 2026) vai também no
+      Bearer. A função aceita qualquer um dos dois
+      (supabase/functions/_shared/chaves-supabase.ts).
+    */
+    headers := jsonb_build_object('Content-Type', 'application/json', 'apikey', v_token)
+               || case when v_token like 'eyJ%'
+                    then jsonb_build_object('Authorization', 'Bearer ' || v_token)
+                    else '{}'::jsonb
+                  end,
     body    := '{}'::jsonb,
     timeout_milliseconds := 5000
   );

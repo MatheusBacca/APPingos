@@ -121,3 +121,14 @@ export function categoriaPluggyEmPortugues(categoria: string | null | undefined)
   if (!nome) return null
   return TRADUCOES[nome.toLowerCase()] ?? nome
 }
+
+/**
+ * O rótulo da categoria numa transação que está esperando destino. "Credit card
+ * payment" só chega aqui quando NÃO é pagamento de fatura (essa é ignorada na
+ * importação) — é a compra no débito que o C6 categoriza assim. Mostrar
+ * "Pagamento de fatura" ao lado dela faria a pessoa ignorar um gasto de verdade.
+ */
+export function rotuloDaCategoriaNaCaixa(categoria: string | null | undefined): string | null {
+  if (/^\s*credit card payment\s*$/i.test(categoria ?? '')) return null
+  return categoriaPluggyEmPortugues(categoria)
+}

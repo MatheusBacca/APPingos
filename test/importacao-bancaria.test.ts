@@ -164,6 +164,18 @@ describe('contagem dupla (pegadinha 3, invariante 5)', () => {
     }
   })
 
+  it('compra no débito NÃO some, mesmo que o banco a categorize como pagamento de cartão (C6)', () => {
+    for (const descricao of ['DEBITO DE CARTAO 1234 PADARIA', 'Compra no débito MERCADO', 'DEB CARTAO FARMACIA']) {
+      const t = { ...PAGAMENTO_FATURA_NA_CONTA, description: descricao, category: 'Credit card payment' }
+      expect(normalizarTransacao(t, NA_CONTA, contexto).motivo_exclusao, descricao).toBeNull()
+    }
+  })
+
+  it('o operationType PAGAMENTO_FATURA do Open Finance basta, sem categoria nem descrição', () => {
+    const t = { ...PAGAMENTO_FATURA_NA_CONTA, description: 'TED 000123', category: null, operationType: 'PAGAMENTO_FATURA' }
+    expect(normalizarTransacao(t, NA_CONTA, contexto).motivo_exclusao).toBe('pagamento_fatura')
+  })
+
   it('o crédito do pagamento na conta do cartão também', () => {
     expect(normalizarTransacao(PAGAMENTO_RECEBIDO_NO_CARTAO, NO_CARTAO, contexto).motivo_exclusao)
       .toBe('pagamento_fatura')

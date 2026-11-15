@@ -11,7 +11,7 @@
  * que se desfaz ou se muda uma compra de gaveta (`mover_compra`, da Frente A).
  */
 import { toast } from 'vue-sonner'
-import { ArrowLeftRightIcon, InboxIcon, Undo2Icon } from '@lucide/vue'
+import { ArrowLeftRightIcon, ChevronDownIcon, InboxIcon, Undo2Icon } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -31,7 +31,7 @@ import { useConciliacaoPix } from '~/composables/useConciliacaoPix'
 import { useConexoesBancarias } from '~/composables/useContasBancarias'
 import { useUsuarioId } from '~/composables/useUsuarioId'
 import { useSpaceStore } from '~/stores/space'
-import { categoriaPluggyEmPortugues } from '~/lib/categorias-pluggy'
+import { rotuloDaCategoriaNaCaixa } from '~/lib/categorias-pluggy'
 
 useHead({ title: 'Caixa de entrada · APPingos' })
 
@@ -48,6 +48,11 @@ const classificar = useClassificar()
 useConciliacaoPix(transacoes)
 
 const itens = computed(() => itensDaCaixa(transacoes.value ?? []))
+// Pendente não tem o que fazer até o banco lançar (no cartão, às vezes só no
+// fechamento da fatura): fica num bloco recolhido no fim, para não empurrar
+// para baixo o que dá para classificar agora.
+const prontas = computed(() => itens.value.filter(i => !i.pendente))
+const pendentes = computed(() => itens.value.filter(i => i.pendente))
 const nomeDaConta = (contaId: string) =>
   transacoes.value?.find(t => t.conta_id === contaId)?.conta?.nome ?? ''
 
@@ -162,10 +167,17 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
       </CardContent>
     </Card>
 
-    <ul v-else-if="itens.length" class="divide-y rounded-lg border bg-card">
-      <li v-for="item in itens" :key="item.chave" class="space-y-2 p-3">
-        <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <div class="min-w-0">
+    <Card v-else-if="!prontas.length && pendentes.length">
+      <CardContent class="flex items-center gap-3 text-sm text-muted-foreground">
+        <InboxIcon class="size-5" />
+        Nada pronto para classificar. O que está pendente no banco aparece aqui quando for lançado.
+      </CardContent>
+    </Card>
+
+    <ul v-if="!isPending && prontas.length" class="divide-y rounded-lg border bg-card">
+      <li v-for="item in prontas" :key="item.chave" class="space-y-2 p-3">
+        <div class="flex items-baseline justify-between gap-3">
+          <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-medium">{{ item.plano.descricao }}</p>
             <p class="text-xs text-muted-foreground">
               {{ formatarDia(item.data) }} · {{ nomeDaConta(item.principal.conta_id) }}
@@ -173,12 +185,12 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
                 · {{ item.transacoes.map(t => t.parcela_numero).join(', ') }} de {{ item.plano.parcelas }} parcelas
                 ({{ formatarDinheiro(item.plano.valor_total) }} no total)
               </template>
-              <template v-if="item.principal.categoria_pluggy"> · {{ categoriaPluggyEmPortugues(item.principal.categoria_pluggy) }}</template>
+              <template v-if="rotuloDaCategoriaNaCaixa(item.principal.categoria_pluggy)"> · {{ rotuloDaCategoriaNaCaixa(item.principal.categoria_pluggy) }}</template>
               <template v-if="item.pendente"> · <strong>pendente no banco</strong></template>
             </p>
           </div>
           <span
-            class="text-sm font-semibold tabular-nums"
+            class="shrink-0 text-sm font-semibold tabular-nums"
             :class="item.sentido === 'entrada' ? 'text-emerald-600 dark:text-emerald-400' : ''"
           >
             {{ item.sentido === 'entrada' ? '+' : '' }}{{ formatarDinheiro(item.transacoes.reduce((s, t) => s + Number(t.valor), 0)) }}
@@ -202,6 +214,30 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
         </div>
       </li>
     </ul>
+
+    <details v-if="!isPending && pendentes.length" class="group rounded-lg border bg-card">
+      <summary class="flex cursor-pointer list-none items-center justify-between gap-2 p-3 text-sm">
+        <span>
+          <span class="font-medium">Pendentes no banco ({{ pendentes.length }})</span>
+          <span class="block text-xs text-muted-foreground">Dá para classificar quando o banco lançar — no cartão, às vezes só no fechamento da fatura.</span>
+        </span>
+        <ChevronDownIcon class="size-4 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
+      </summary>
+      <ul class="divide-y border-t">
+        <li v-for="item in pendentes" :key="item.chave" class="flex items-baseline justify-between gap-3 px-3 py-2">
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-sm">{{ item.plano.descricao }}</p>
+            <p class="text-xs text-muted-foreground">
+              {{ formatarDia(item.data) }} · {{ nomeDaConta(item.principal.conta_id) }}
+              <template v-if="rotuloDaCategoriaNaCaixa(item.principal.categoria_pluggy)"> · {{ rotuloDaCategoriaNaCaixa(item.principal.categoria_pluggy) }}</template>
+            </p>
+          </div>
+          <span class="shrink-0 text-sm tabular-nums" :class="item.sentido === 'entrada' ? 'text-emerald-600 dark:text-emerald-400' : ''">
+            {{ item.sentido === 'entrada' ? '+' : '' }}{{ formatarDinheiro(item.transacoes.reduce((s, t) => s + Number(t.valor), 0)) }}
+          </span>
+        </li>
+      </ul>
+    </details>
 
     <section v-if="classificadas?.length" class="space-y-2">
       <h2 class="text-sm font-medium text-muted-foreground">Classificadas nos últimos 30 dias</h2>

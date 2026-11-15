@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { categoriaPluggyEmPortugues } from '~/lib/categorias-pluggy'
+import { categoriaPluggyEmPortugues, rotuloDaCategoriaNaCaixa } from '~/lib/categorias-pluggy'
 
 describe('categoriaPluggyEmPortugues', () => {
   it('traduz as categorias comuns da Pluggy', () => {
@@ -21,5 +21,16 @@ describe('categoriaPluggyEmPortugues', () => {
   it('vazio ou nulo não vira texto', () => {
     expect(categoriaPluggyEmPortugues(null)).toBeNull()
     expect(categoriaPluggyEmPortugues('  ')).toBeNull()
+  })
+})
+
+describe('rotuloDaCategoriaNaCaixa', () => {
+  it('não rotula como pagamento de fatura o que ficou na caixa (compra no débito do C6)', () => {
+    expect(rotuloDaCategoriaNaCaixa('Credit card payment')).toBeNull()
+  })
+
+  it('as demais categorias continuam traduzidas', () => {
+    expect(rotuloDaCategoriaNaCaixa('Groceries')).toBe('Mercado')
+    expect(rotuloDaCategoriaNaCaixa(null)).toBeNull()
   })
 })

@@ -78,8 +78,8 @@ Em **Project Settings › Edge Functions › Secrets**:
 | `PLUGGY_CLIENT_SECRET` | o mesmo `client_secret` |
 | `PLUGGY_WEBHOOK_SECRET` | opcional; só se for usar o webhook (passo 7) |
 
-A função tem `verify_jwt = false` no `config.toml` e confere quem a chama: o banco (Bearer da
-`service_role`) ou a Pluggy (header secreto).
+A função tem `verify_jwt = false` no `config.toml` e confere quem a chama: o banco (uma chave
+secreta do projeto, nova ou legada) ou a Pluggy (header secreto).
 
 ## 5. As migrations e o cron
 
@@ -89,14 +89,17 @@ branch e em [pendencias-open-finance.md](./pendencias-open-finance.md)). Aplicar
 Em seguida, `npm run db:types` — os tipos desta branch foram escritos à mão.
 
 O `pg_cron` chama a função todo dia às 7h de Brasília. Ele precisa de dois segredos no Vault,
-criados **uma vez** no SQL Editor (a chave é a `service_role` legada, a que começa com `eyJ`):
+criados **uma vez** no SQL Editor. A chave é a **secret key** do projeto (`sb_secret_…`, em
+Project Settings › API Keys); a `service_role` legada (`eyJ…`) também funciona, mas o Supabase
+desliga as chaves legadas no fim de 2026. O cron manda a chave no header `apikey` (e no Bearer, se
+for a legada), e a função aceita as duas (`supabase/functions/_shared/chaves-supabase.ts`):
 
 ```sql
 select vault.create_secret(
   'https://SEU-PROJETO.supabase.co/functions/v1/sincronizar-pluggy',
   'pluggy_sincronizar_url'
 );
-select vault.create_secret('SUA-SERVICE-ROLE-KEY', 'pluggy_sincronizar_token');
+select vault.create_secret('SUA-SECRET-KEY', 'pluggy_sincronizar_token');
 ```
 
 Sem eles a tarefa roda e não faz nada. O horário ideal é depois da atualização diária do

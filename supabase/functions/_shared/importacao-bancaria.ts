@@ -214,6 +214,14 @@ const CATEGORIA_TRANSFERENCIA_PROPRIA = /same person transfer|same ownership/i
 const DESCRICAO_PAGAMENTO_FATURA
   = /\b(pag(amento|to)?|pgto)\s*(de\s*)?(fatura|cartao( de credito)?|cart credito)\b/
 const DESCRICAO_PAGAMENTO_NO_CARTAO = /\b(pag(amento|to)?|pgto)\b/
+/**
+ * Compra feita com o cartão de DÉBITO, que sai da conta corrente. Alguns bancos
+ * (o C6, na primeira amostra real) a categorizam como "Credit card payment" —
+ * e confiar só na categoria escondia da caixa de entrada todo gasto no débito.
+ */
+const DESCRICAO_COMPRA_NO_DEBITO = /\b(debito de cartao|deb(ito)? cartao|compra (no |com )?(cartao de )?debito|cartao de debito|compra debito)\b/
+/** O `operationType` do Open Finance para o pagamento da fatura. */
+const OPERACAO_PAGAMENTO_FATURA = /^pagamento_fatura$/i
 const DESCRICAO_TRANSFERENCIA_PROPRIA = /mesma titularidade|entre contas proprias|transf(erencia)? propria/
 
 function contraparteDe(t: TransacaoPluggy, sentido: Sentido): ParteDoPagamento | null {
@@ -246,7 +254,14 @@ export function motivoDeExclusao(
   const categoria = t.category ?? ''
   const descricao = normalizarNome(t.description)
 
-  if (CATEGORIA_PAGAMENTO_FATURA.test(categoria)) return 'pagamento_fatura'
+  // O próprio Open Finance dizendo que é pagamento de fatura: o sinal mais forte.
+  if (OPERACAO_PAGAMENTO_FATURA.test(t.operationType ?? '') || OPERACAO_PAGAMENTO_FATURA.test(t.paymentData?.paymentMethod ?? '')) {
+    return 'pagamento_fatura'
+  }
+  // A categoria vale, menos para compra no débito na conta: o banco pode
+  // classificá-la como pagamento de cartão, e ela é gasto de verdade.
+  const compraNoDebito = tipoConta === 'conta' && DESCRICAO_COMPRA_NO_DEBITO.test(descricao)
+  if (CATEGORIA_PAGAMENTO_FATURA.test(categoria) && !compraNoDebito) return 'pagamento_fatura'
   if (tipoConta === 'conta' && sentido === 'saida' && DESCRICAO_PAGAMENTO_FATURA.test(descricao)) {
     return 'pagamento_fatura'
   }

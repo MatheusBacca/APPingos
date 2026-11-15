@@ -24,7 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { formatarDia, hojeIso } from '@/lib/datas'
+import { formatarDia, formatarDiaCompleto, hojeIso } from '@/lib/datas'
 import { mensagemDeErro } from '@/lib/utils'
 import {
   ROTULO_DESTINO,
@@ -233,7 +233,7 @@ const CLASSE_TOM = {
           </template>
           <template v-else>Ainda não sincronizado — o extrato chega uma vez por dia.</template>
           <template v-if="conexao.consentimento_expira_em">
-            Consentimento válido até {{ formatarDia(dataLocal(conexao.consentimento_expira_em)) }}.
+            Consentimento válido até {{ formatarDiaCompleto(dataLocal(conexao.consentimento_expira_em)) }}.
           </template>
         </p>
       </CardHeader>

@@ -127,6 +127,12 @@ interface Pagina<T> {
   results: T[]
 }
 
+/** A página do `GET /v2/transactions`: `next` é a query da próxima, ou `null` no fim. */
+interface PaginaCursor<T> {
+  results: T[]
+  next: string | null
+}
+
 // ---------------------------------------------------------------------------
 // Cliente
 // ---------------------------------------------------------------------------
@@ -237,7 +243,29 @@ export async function listarFaturas(apiKey: string, accountId: string): Promise<
   }
 }
 
-/** Página de 500 (o máximo da API), até acabar. `de`/`ate` em `YYYY-MM-DD`. */
+/**
+ * O dia inteiro de Brasília, de `de` a `ate` (`YYYY-MM-DD`), em instantes UTC —
+ * é o que `/v2/transactions` pede em `dateFrom`/`dateTo` (date-time). A Pluggy
+ * grava `date` em UTC, e uma compra às 22h do dia 31 aqui já é dia 1 lá: mandar
+ * só a data cortaria a noite do último dia da janela.
+ */
+export function intervaloDaJanela(de: string, ate: string): { dateFrom: string, dateTo: string } {
+  const inicio = new Date(`${de}T00:00:00.000-03:00`)
+  const fim = new Date(`${ate}T23:59:59.999-03:00`)
+  return { dateFrom: inicio.toISOString(), dateTo: fim.toISOString() }
+}
+
+/**
+ * Todas as transações da conta na janela, pela paginação por cursor.
+ *
+ * A Pluggy desligou o `GET /transactions` paginado por número para as contas
+ * criadas a partir de junho de 2026 (responde 410, "Use GET /v2/transactions
+ * with cursor pagination instead") e o tira do ar de vez em 2026-12-31. O v2
+ * devolve páginas de 500 e um `next` que é a query string pronta da próxima
+ * página — anexada como veio, sem remontar —, ou `null` no fim.
+ *
+ * O teto de páginas é só o cinto de segurança contra um cursor que não anda.
+ */
 export async function listarTransacoes(
   apiKey: string,
   accountId: string,
@@ -245,22 +273,35 @@ export async function listarTransacoes(
   ate: string,
 ): Promise<TransacaoPluggy[]> {
   const todas: TransacaoPluggy[] = []
-  let pagina = 1
-  let totalPaginas = 1
+  const { dateFrom, dateTo } = intervaloDaJanela(de, ate)
+  let consulta: string | null = `?${new URLSearchParams({ accountId, dateFrom, dateTo })}`
+  const vistas = new Set<string>()
 
-  do {
-    const params = new URLSearchParams({
-      accountId,
-      from: de,
-      to: ate,
-      pageSize: '500',
-      page: String(pagina),
-    })
-    const resposta = await pedir<Pagina<TransacaoPluggy>>(`/transactions?${params}`, { apiKey })
+  while (consulta && !vistas.has(consulta) && vistas.size < 200) {
+    vistas.add(consulta)
+    const resposta: PaginaCursor<TransacaoPluggy> = await pedir<PaginaCursor<TransacaoPluggy>>(
+      `/v2/transactions${consulta}`,
+      { apiKey },
+    )
     todas.push(...resposta.results)
-    totalPaginas = resposta.totalPages
-    pagina++
-  } while (pagina <= totalPaginas)
+    consulta = proximaConsulta(resposta.next)
+  }
 
   return todas
+}
+
+/**
+ * O `next` da Pluggy como query string a anexar em `/v2/transactions`.
+ *
+ * A documentação diz que ele já vem pronto (`?accountId=…&after=…`). Por
+ * garantia aceita também a URL inteira ou a query sem o `?`.
+ */
+export function proximaConsulta(next: string | null | undefined): string | null {
+  const valor = next?.trim()
+  if (!valor) return null
+  if (/^https?:\/\//i.test(valor)) {
+    const url = new URL(valor)
+    return url.search || null
+  }
+  return valor.startsWith('?') ? valor : `?${valor}`
 }

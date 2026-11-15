@@ -13,8 +13,10 @@
  * Aqui o `service_role` já vive (é como `enviar-emails` escreve).
  *
  * QUEM PODE ACORDAR:
- *   - o banco, pelo `pg_cron` diário: `Authorization: Bearer <service_role>`
- *     (`acordar_sincronizacao_pluggy`, 20261112110100_open_finance_cron.sql);
+ *   - o banco, pelo `pg_cron` diário, com uma chave secreta do projeto — a nova
+ *     (`sb_secret_…`, no header `apikey`) ou a `service_role` legada (Bearer),
+ *     ver `../_shared/chaves-supabase.ts` (`acordar_sincronizacao_pluggy`,
+ *     20261112110100_open_finance_cron.sql);
  *   - a Pluggy, pelo webhook opcional: header `x-appingos-webhook` com o segredo
  *     `PLUGGY_WEBHOOK_SECRET`. Responde 202 na hora e processa depois — a Pluggy
  *     exige 2xx em até 10 s.
@@ -26,12 +28,14 @@
  * Segredos (Project Settings > Edge Functions > Secrets):
  *   PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET   os mesmos do NUXT_PLUGGY_* do app
  *   PLUGGY_WEBHOOK_SECRET                    opcional; sem ele, webhook recusado
- * `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` são injetados pela plataforma.
+ * `SUPABASE_URL`, `SUPABASE_SECRET_KEYS` e (legada) `SUPABASE_SERVICE_ROLE_KEY`
+ * são injetados pela plataforma.
  *
  * NADA AQUI FOI EXECUTADO CONTRA A PLUGGY DE VERDADE: o código segue a
  * documentação v2 e as regras testadas no vitest. Validar com o trial (fase 2).
  */
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0'
+import { chamadaDeServico, chaveParaOBanco } from '../_shared/chaves-supabase.ts'
 import {
   ErroPluggy,
   autenticarPluggy,
@@ -76,10 +80,15 @@ const json = (corpo: unknown, status = 200) =>
 
 Deno.serve(async (req) => {
   const url = Deno.env.get('SUPABASE_URL')!
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  const lerAmbiente = (nome: string) => Deno.env.get(nome)
+  const serviceKey = chaveParaOBanco(lerAmbiente)
   const segredoWebhook = Deno.env.get('PLUGGY_WEBHOOK_SECRET')
 
-  const peloBanco = (req.headers.get('Authorization') ?? '') === `Bearer ${serviceKey}`
+  if (!serviceKey) {
+    return json({ erro: 'o projeto não expôs nenhuma chave secreta para a função' }, 500)
+  }
+
+  const peloBanco = chamadaDeServico(req.headers, lerAmbiente)
   const pelaPluggy = !!segredoWebhook && req.headers.get('x-appingos-webhook') === segredoWebhook
 
   if (!peloBanco && !pelaPluggy) {
