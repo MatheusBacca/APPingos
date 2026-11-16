@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.15"
   }
   public: {
     Tables: {
@@ -1169,7 +1169,7 @@ export type Database = {
           valor: number
         }
         Insert: {
-          competencia?: never
+          competencia?: string | null
           created_at?: string
           data?: string
           id?: string
@@ -1180,7 +1180,7 @@ export type Database = {
           valor: number
         }
         Update: {
-          competencia?: never
+          competencia?: string | null
           created_at?: string
           data?: string
           id?: string
@@ -1196,6 +1196,13 @@ export type Database = {
             columns: ["meta_id"]
             isOneToOne: false
             referencedRelation: "meta"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_aporte_transacao_id_fkey"
+            columns: ["transacao_id"]
+            isOneToOne: false
+            referencedRelation: "transacao_bancaria"
             referencedColumns: ["id"]
           },
         ]
@@ -1794,6 +1801,66 @@ export type Database = {
         }
         Relationships: []
       }
+      rating: {
+        Row: {
+          entry_id: string
+          enviado_em: string | null
+          id: string
+          nota: number | null
+          pagina_atual: number | null
+          planejado_em: string | null
+          planejado_para: string | null
+          resenha: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          visto_em: string | null
+        }
+        Insert: {
+          entry_id: string
+          enviado_em?: string | null
+          id?: string
+          nota?: number | null
+          pagina_atual?: number | null
+          planejado_em?: string | null
+          planejado_para?: string | null
+          resenha?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          visto_em?: string | null
+        }
+        Update: {
+          entry_id?: string
+          enviado_em?: string | null
+          id?: string
+          nota?: number | null
+          pagina_atual?: number | null
+          planejado_em?: string | null
+          planejado_para?: string | null
+          resenha?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          visto_em?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rating_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "entry"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rating_user_id_profile_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       renda: {
         Row: {
           recebimento_dia: number
@@ -1872,64 +1939,12 @@ export type Database = {
           user_id?: string
           valor?: number
         }
-        Relationships: []
-      }
-      rating: {
-        Row: {
-          entry_id: string
-          enviado_em: string | null
-          id: string
-          nota: number | null
-          pagina_atual: number | null
-          planejado_em: string | null
-          planejado_para: string | null
-          resenha: string | null
-          status: string
-          updated_at: string
-          user_id: string
-          visto_em: string | null
-        }
-        Insert: {
-          entry_id: string
-          enviado_em?: string | null
-          id?: string
-          nota?: number | null
-          pagina_atual?: number | null
-          planejado_em?: string | null
-          planejado_para?: string | null
-          resenha?: string | null
-          status?: string
-          updated_at?: string
-          user_id: string
-          visto_em?: string | null
-        }
-        Update: {
-          entry_id?: string
-          enviado_em?: string | null
-          id?: string
-          nota?: number | null
-          pagina_atual?: number | null
-          planejado_em?: string | null
-          planejado_para?: string | null
-          resenha?: string | null
-          status?: string
-          updated_at?: string
-          user_id?: string
-          visto_em?: string | null
-        }
         Relationships: [
           {
-            foreignKeyName: "rating_entry_id_fkey"
-            columns: ["entry_id"]
+            foreignKeyName: "renda_recebida_transacao_id_fkey"
+            columns: ["transacao_id"]
             isOneToOne: false
-            referencedRelation: "entry"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rating_user_id_profile_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profile"
+            referencedRelation: "transacao_bancaria"
             referencedColumns: ["id"]
           },
         ]
@@ -2266,6 +2281,7 @@ export type Database = {
     }
     Functions: {
       acordar_envio_de_email: { Args: never; Returns: undefined }
+      acordar_sincronizacao_pluggy: { Args: never; Returns: undefined }
       adicionar_item: {
         Args: { p_item: Json; p_space: string }
         Returns: string
@@ -2308,10 +2324,7 @@ export type Database = {
       can_access_entry: { Args: { p_entry: string }; Returns: boolean }
       can_access_playlist: { Args: { p_playlist: string }; Returns: boolean }
       classificar_aporte: {
-        Args: {
-          p_meta: string
-          p_transacao: string
-        }
+        Args: { p_meta: string; p_transacao: string }
         Returns: string
       }
       classificar_compra: {
@@ -2330,10 +2343,7 @@ export type Database = {
         Returns: string
       }
       classificar_renda: {
-        Args: {
-          p_competencia: string
-          p_transacao: string
-        }
+        Args: { p_competencia: string; p_transacao: string }
         Returns: undefined
       }
       compartilhar_interesse: {
@@ -2373,15 +2383,11 @@ export type Database = {
         Returns: number
       }
       conceder_pins_viagens_concluidas: { Args: never; Returns: number }
-      concluir_memoria: { Args: { p_memoria: string }; Returns: undefined }
       conciliar_acerto: {
-        Args: {
-          p_competencia: string
-          p_space: string
-          p_transacao: string
-        }
+        Args: { p_competencia: string; p_space: string; p_transacao: string }
         Returns: undefined
       }
+      concluir_memoria: { Args: { p_memoria: string }; Returns: undefined }
       contribuicoes_do_espaco: {
         Args: { p_space: string }
         Returns: {
@@ -2399,6 +2405,7 @@ export type Database = {
         Args: { p_interesse: string; p_nome?: string }
         Returns: string
       }
+      criar_convite: { Args: { p_space: string }; Returns: string }
       criar_meta: {
         Args: {
           p_interesse?: string
@@ -2409,7 +2416,6 @@ export type Database = {
         }
         Returns: string
       }
-      criar_convite: { Args: { p_space: string }; Returns: string }
       definir_email_notificacoes: {
         Args: { p_ativo: boolean; p_endereco?: string }
         Returns: undefined
@@ -2428,13 +2434,8 @@ export type Database = {
         Args: { p_meta: string; p_space: string }
         Returns: undefined
       }
+      devolver_para_caixa: { Args: { p_transacao: string }; Returns: undefined }
       devolver_planos_vencidos: { Args: never; Returns: number }
-      devolver_para_caixa: {
-        Args: {
-          p_transacao: string
-        }
-        Returns: undefined
-      }
       escolher_agrupamento: {
         Args: { p_agrupamento: string }
         Returns: undefined
@@ -2443,32 +2444,25 @@ export type Database = {
       espaco_do_caminho: { Args: { p_nome: string }; Returns: string }
       faxina_notificacoes: { Args: never; Returns: number }
       gerar_codigo_convite: { Args: never; Returns: string }
+      ingerir_transacoes: {
+        Args: { p_conta: string; p_desde: string; p_linhas: Json }
+        Returns: number
+      }
       inicio_do_dia_brt: { Args: { p_dia: string }; Returns: string }
       is_space_admin: { Args: { p_space: string }; Returns: boolean }
       is_space_member: { Args: { p_space: string }; Returns: boolean }
       is_space_owner: { Args: { p_space: string }; Returns: boolean }
-      ingerir_transacoes: {
-        Args: {
-          p_conta: string
-          p_desde: string
-          p_linhas: Json
-        }
-        Returns: number
-      }
       juntar_produto_ao_agrupamento: {
         Args: { p_agrupamento: string; p_produto: string }
         Returns: Json
       }
+      lancar_compras_do_cartao: {
+        Args: { p_compras: Json; p_conta: string }
+        Returns: number
+      }
       lembrete_semanal_filmes: { Args: never; Returns: number }
       liberar_interesse: { Args: { p_interesse: string }; Returns: undefined }
       liberar_roteiro: { Args: { p_roteiro: string }; Returns: undefined }
-      lancar_compras_do_cartao: {
-        Args: {
-          p_compras: Json
-          p_conta: string
-        }
-        Returns: number
-      }
       marcar_assistiram_comigo: {
         Args: { p_entry: string; p_usuarios: string[] }
         Returns: number
@@ -2606,6 +2600,10 @@ export type Database = {
         }
         Returns: Json
       }
+      renda_compartilhada_em: {
+        Args: { p_space: string; p_user: string }
+        Returns: boolean
+      }
       renda_visivel: { Args: { p_user: string }; Returns: boolean }
       resgatar_convite: { Args: { p_codigo: string }; Returns: string }
       responder_convite: {
@@ -2633,11 +2631,47 @@ export type Database = {
       sou_dono_do_interesse: { Args: { p_interesse: string }; Returns: boolean }
       status_do_email: { Args: never; Returns: Json }
       token_de_escuta: { Args: { p_user: string }; Returns: string }
-      vincular_transacao: {
-        Args: {
-          p_compra: string
-          p_transacao: string
+      transacao_da_caixa: {
+        Args: { p_transacao: string }
+        Returns: {
+          atualizada_em: string
+          categoria_pluggy: string | null
+          chave_compra: string | null
+          classificada_em: string | null
+          competencia: string
+          compra_id: string | null
+          conexao_id: string
+          conta_id: string
+          contraparte_documento: string | null
+          contraparte_nome: string | null
+          data: string
+          data_compra: string | null
+          descricao: string
+          destino: string | null
+          fatura_id: string | null
+          id: string
+          importada_em: string
+          metodo: string | null
+          motivo_exclusao: string | null
+          parcela_numero: number | null
+          parcelas_total: number | null
+          pendente: boolean
+          pluggy_id: string
+          provider_id: string
+          sentido: string
+          user_id: string
+          valor: number
+          valor_total_compra: number | null
         }
+        SetofOptions: {
+          from: "*"
+          to: "transacao_bancaria"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      vincular_transacao: {
+        Args: { p_compra: string; p_transacao: string }
         Returns: undefined
       }
     }
