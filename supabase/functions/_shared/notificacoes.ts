@@ -41,6 +41,8 @@ export type TipoNotificacao =
   | 'foto_nova'
   | 'foto_aprovada'
   | 'pins_ganhos'
+  | 'meta_cumprida'
+  | 'meta_comemorada'
   | 'app_atualizado'
 
 export interface Notificacao {
@@ -354,6 +356,30 @@ export function textoDaNotificacao(n: Notificacao): TextoNotificacao {
     }
 
     /*
+      A meta pessoal que a outra pessoa compartilhou com o espaço foi cumprida.
+      É o convite para comemorar (ver 20261112160200_meta_compartilhamento.sql) —
+      por isso o corpo diz o valor que foi juntado, e não só que acabou.
+    */
+    case 'meta_cumprida': {
+      const valor = formatarValor(d.valor_alvo)
+      return {
+        titulo: `${quem} cumpriu a meta ${texto(d, 'titulo', 'que compartilhou')}`,
+        corpo: valor ? `Juntou ${valor}. Que tal comemorar?` : 'Que tal comemorar?',
+        rota: n.rota ?? '/objetivos',
+        icone: 'PartyPopperIcon',
+      }
+    }
+
+    // A resposta: alguém comemorou a sua meta cumprida.
+    case 'meta_comemorada':
+      return {
+        titulo: `${quem} comemorou a sua meta`,
+        corpo: texto(d, 'titulo'),
+        rota: n.rota ?? '/objetivos',
+        icone: 'PartyPopperIcon',
+      }
+
+    /*
       A versão nova do app.
 
       Único tipo em que o texto vem INTEIRO do `dados`, e não montado a partir de
@@ -523,10 +549,11 @@ export type CategoriaNotificacao =
   | 'edicoes'
   | 'lembretes'
   | 'pins'
+  | 'metas'
   | 'app'
 
 /**
- * Dezoito tipos em oito interruptores.
+ * Vinte tipos em nove interruptores.
  *
  * A tabela do banco é por TIPO, e a tela é por CATEGORIA: uma caixa com
  * dezoito chaves é uma caixa que ninguém configura. O agrupamento vive aqui, e
@@ -549,6 +576,7 @@ export const TIPOS_DA_CATEGORIA: Record<CategoriaNotificacao, TipoNotificacao[]>
   edicoes: ['gasto_editado', 'gasto_removido', 'roteiro_editado'],
   lembretes: ['lembrete_filmes', 'viagem_perto', 'viagem_terminou'],
   pins: ['pins_ganhos'],
+  metas: ['meta_cumprida', 'meta_comemorada'],
   app: ['app_atualizado'],
 }
 
@@ -562,6 +590,7 @@ export const CATEGORIA_ROTULO: Record<CategoriaNotificacao, string> = {
   edicoes: 'Edições e remoções',
   lembretes: 'Lembretes',
   pins: 'Pins',
+  metas: 'Metas',
   app: 'Novidades do app',
 }
 
@@ -573,6 +602,7 @@ export const CATEGORIA_DESCRICAO: Record<CategoriaNotificacao, string> = {
   edicoes: 'Quando o outro mexe ou apaga algo que já existia.',
   lembretes: 'Domingo de filmes, a viagem que se aproxima e a que acabou de terminar.',
   pins: 'Quando a outra pessoa conquista Pins, e por quê.',
+  metas: 'Quando uma meta compartilhada com você é cumprida, e quando comemoram a sua.',
   app: 'Quando uma versão nova entra no ar, com o que ela trouxe.',
 }
 

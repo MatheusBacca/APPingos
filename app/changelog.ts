@@ -48,6 +48,12 @@ export interface Lancamento {
  */
 export const LANCAMENTOS: Lancamento[] = [
   {
+    versao: '1.9.0',
+    titulo: 'Planejamento e Open Finance',
+    descricao: 'Orçamentos ganhou a aba Planejamento: cada um informa o salário e vê quanto entra no casal e como o mês fecha. Em Objetivos, as metas têm aportes, progresso e uma sugestão de quanto guardar por mês, e um interesse vira meta com um toque. E dá para conectar o banco pelo Open Finance: o extrato chega numa caixa de entrada só sua, onde você decide se cada gasto é do casal ou só seu, e o Pix do acerto marca o mês como pago sozinho.',
+    data: '2026-11-15',
+  },
+  {
     versao: '1.8.0',
     titulo: 'Menos tela, mais resposta',
     descricao: 'O acerto do mês saiu do card e virou uma linha na barra de Orçamentos, com a conta a um clique — e "Em que foi" agora alterna entre as categorias e a lista corrida das compras do mês. Em Filmes, o plano que ninguém cumpriu volta sozinho para Disponível depois de dois dias, o calendário marca uma bolinha por filme (e não uma por pessoa), e o cartaz da busca abre a ficha com sinopse antes de você adicionar. Em Objetivos dá para mover o status pelo próprio card e ver de quem é cada interesse e quem vai dar de presente. E os seus Pins agora aparecem ao lado do seu nome na tela inicial, com um fogo quando algum hotspot está multiplicando.',

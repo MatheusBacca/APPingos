@@ -17,6 +17,8 @@ import { CheckIcon, Undo2Icon } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { mensagemDeErro } from '@/lib/utils'
 import { useAcertos, useMarcarAcerto } from '~/composables/useOrcamento'
+import { acertoDesatualizado } from '~/types/orcamento'
+import type { CompraDoMes } from '~/types/orcamento'
 
 const props = defineProps<{
   /** Âncora do mês (YYYY-MM-01) — é o que o acerto marca. */
@@ -25,6 +27,8 @@ const props = defineProps<{
   futuro: boolean
   /** Mês sem lançamento nenhum também não — não há dívida a quitar. */
   temLancamentos: boolean
+  /** As compras do mês: dizem se entrou alguma depois do pago (ver `acertoDesatualizado`). */
+  compras?: CompraDoMes[]
 }>()
 
 const { data: acertos } = useAcertos()
@@ -35,6 +39,7 @@ const pagamento = computed(() =>
 )
 
 const aparece = computed(() => !props.futuro && props.temLancamentos)
+const desatualizado = computed(() => acertoDesatualizado(props.compras ?? [], pagamento.value?.pago_em))
 
 async function alternar(pago: boolean) {
   try {
@@ -65,6 +70,14 @@ async function alternar(pago: boolean) {
   -->
   <span v-else-if="aparece" class="flex items-center gap-1.5">
     <span
+      v-if="desatualizado"
+      class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-900 dark:text-amber-100"
+      title="Entrou compra depois de o mês ser marcado como pago"
+    >
+      Pago · mudou depois
+    </span>
+    <span
+      v-else
       class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100"
     >
       Pago

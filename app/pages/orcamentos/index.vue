@@ -387,6 +387,7 @@ async function onRemover(compra: CompraDoMes) {
             :competencia="competencia"
             :futuro="situacao === 'futuro'"
             :tem-lancamentos="!!compras?.length"
+            :compras="compras ?? []"
           />
 
           <!--

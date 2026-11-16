@@ -121,6 +121,29 @@ describe('textoDaNotificacao', () => {
     expect(um.rota).toBe('/pins')
   })
 
+  it('convida a comemorar a meta compartilhada que foi cumprida', () => {
+    const t = textoDaNotificacao(notificacao({
+      tipo: 'meta_cumprida',
+      dados: { ator_nome: 'Ana', titulo: 'Bicicleta', valor_alvo: 1000 },
+      rota: '/objetivos',
+    }))
+
+    expect(t.titulo).toBe('Ana cumpriu a meta Bicicleta')
+    expect(t.corpo).toBe('Juntou R$ 1.000,00. Que tal comemorar?')
+    expect(t.icone).toBe('PartyPopperIcon')
+  })
+
+  it('avisa o dono de quem comemorou', () => {
+    const t = textoDaNotificacao(notificacao({
+      tipo: 'meta_comemorada',
+      dados: { ator_nome: 'Bia', titulo: 'Bicicleta' },
+      rota: '/objetivos',
+    }))
+
+    expect(t.titulo).toBe('Bia comemorou a sua meta')
+    expect(t.corpo).toBe('Bicicleta')
+  })
+
   it('muda de assunto quando os ganhos foram agrupados', () => {
     const varios = textoDaNotificacao(notificacao({
       tipo: 'pins_ganhos',
@@ -238,10 +261,10 @@ describe('categoriasDePreferencia', () => {
   it('sem linha nenhuma, tudo ligado', () => {
     const cats = categoriasDePreferencia([])
 
-    // Oito desde que "Pins" entrou — o número está escrito para quebrar
+    // Nove desde que "Metas" entrou — o número está escrito para quebrar
     // quando uma categoria for acrescentada sem revisar esta tela. Ele já
-    // cumpriu o papel duas vezes (Fotos, depois Pins); mantenha-o literal.
-    expect(cats).toHaveLength(8)
+    // cumpriu o papel três vezes (Fotos, Pins, Metas); mantenha-o literal.
+    expect(cats).toHaveLength(9)
     expect(cats.every(c => c.app === 'ligado' && c.email === 'ligado')).toBe(true)
   })
 

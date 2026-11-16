@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useFaixaRolavel } from '~/composables/useFaixaRolavel'
 /**
  * Cabeçalho e abas do módulo de Objetivos.
  *
@@ -6,22 +7,29 @@
  * do módulo com a sua própria página em `app/pages/objetivos/`, e acrescentar uma
  * é uma entrada em `ABAS` mais o arquivo.
  *
- * A diferença é a segunda aba. **Metas** — o que dá nome ao módulo — ainda não
- * existe, e ela aparece aqui desabilitada em vez de ser omitida. Omitir faria o
- * módulo parecer ser só Interesses; mostrar como está diz a verdade, que é
- * "Interesses primeiro, metas depois", e deixa o lugar da segunda função visível.
- * Quando Metas nascer, ela troca de lista e o `redirect` de
- * `app/pages/objetivos/index.vue` sai junto.
+ * **Metas** — o que dá nome ao módulo — nasceu depois de Interesses e passou a ser
+ * a raiz (`/objetivos`). Até então ela aparecia aqui desabilitada, para o módulo
+ * não parecer ser só Interesses; quando chegou, saiu da lista de "em breve" e o
+ * `redirect` de `app/pages/objetivos/index.vue` saiu junto. Vem primeiro porque é a
+ * pergunta do módulo ("para onde estamos indo"); Interesses é a porta de entrada
+ * de muitas metas ("transformar em meta").
  */
 defineProps<{ subtitulo: string }>()
 
 const ABAS = [
+  { to: '/objetivos', rotulo: 'Metas' },
   { to: '/objetivos/interesses', rotulo: 'Interesses' },
 ]
 
-const EM_BREVE = ['Metas']
-
 const route = useRoute()
+
+/*
+ * No celular as abas não cabem numa linha. Em vez de quebrar em duas (o que
+ * empurrava a tela para baixo e misturava as abas com as ações), a faixa rola de
+ * lado, com a aba ativa no meio e um esmaecido na borda que esconde abas.
+ */
+const faixa = ref<HTMLElement | null>(null)
+const { mascara } = useFaixaRolavel(faixa)
 </script>
 
 <template>
@@ -31,27 +39,23 @@ const route = useRoute()
       <p class="mt-1 text-sm text-muted-foreground">{{ subtitulo }}</p>
     </div>
 
-    <div class="flex flex-wrap items-center gap-2">
-      <nav class="flex gap-1 rounded-lg border bg-card p-1 text-sm">
+    <div class="flex min-w-0 flex-wrap items-center gap-2">
+      <nav
+        ref="faixa"
+        :style="mascara"
+        aria-label="Seções de Objetivos"
+        class="flex min-w-0 max-w-full gap-1 overflow-x-auto rounded-lg border bg-card p-1 text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
         <NuxtLink
           v-for="aba in ABAS"
           :key="aba.to"
           :to="aba.to"
-          class="rounded-md px-3 py-1.5 font-medium"
+          class="shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 font-medium"
           :class="route.path === aba.to ? 'text-primary' : 'text-muted-foreground hover:text-foreground'"
+          :aria-current="route.path === aba.to ? 'page' : undefined"
         >
           {{ aba.rotulo }}
         </NuxtLink>
-
-        <span
-          v-for="rotulo in EM_BREVE"
-          :key="rotulo"
-          class="cursor-not-allowed rounded-md px-3 py-1.5 font-medium text-muted-foreground/50"
-          title="Ainda não construímos esta aba."
-        >
-          {{ rotulo }}
-          <span class="sr-only">(em breve)</span>
-        </span>
       </nav>
 
       <!-- As ações são da função, não do módulo — por isso vêm da página. -->

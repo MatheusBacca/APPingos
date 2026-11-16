@@ -18,13 +18,14 @@
  * dois leem o mesmo `useAcertos()` — é uma query compartilhada, não dois estados.
  */
 import { toast } from 'vue-sonner'
-import { CheckIcon, ChevronDownIcon, CopyIcon } from '@lucide/vue'
+import { AlertTriangleIcon, CheckIcon, ChevronDownIcon, CopyIcon } from '@lucide/vue'
 import { formatarDia } from '@/lib/datas'
 import { formatarDinheiro, valorParaCopiar } from '@/lib/dinheiro'
-import { saldoDoMes } from '~/types/orcamento'
+import { acertoDesatualizado, saldoDoMes } from '~/types/orcamento'
 import type { CompraDoMes } from '~/types/orcamento'
 import type { Membro } from '~/composables/useMembros'
 import { useAcertos } from '~/composables/useOrcamento'
+import { useUsuarioId } from '~/composables/useUsuarioId'
 
 const props = defineProps<{
   compras: CompraDoMes[]
@@ -63,10 +64,14 @@ const acerto = computed(() => {
 })
 
 const { data: acertos } = useAcertos()
+const usuarioId = useUsuarioId()
 
 const pagamento = computed(() =>
   (acertos.value ?? []).find(a => a.competencia === props.competencia) ?? null,
 )
+
+/** Pago, mas entrou compra depois: o valor da frase já não é o que foi acertado. */
+const desatualizado = computed(() => acertoDesatualizado(props.compras, pagamento.value?.pago_em))
 
 /*
  * A conta fica fechada por padrão — e não fica quando não há frase que a
@@ -129,6 +134,14 @@ async function copiarValor(valor: number) {
           />
         </button>
         a {{ nomeDoMembro(acerto.credor.user_id) }}.
+        <!-- Só para quem deve, e só enquanto o mês não foi pago: ver PagarComPix.vue. -->
+        <PagarComPix
+          v-if="!pagamento && acerto.devedor.user_id === usuarioId"
+          :credor-id="acerto.credor.user_id"
+          :credor-nome="nomeDoMembro(acerto.credor.user_id)"
+          :valor="acerto.valor"
+          :competencia="competencia"
+        />
       </p>
       <p v-else class="font-medium">
         O acerto entre {{ membros.length }} pessoas — os saldos estão na conta abaixo.
@@ -160,6 +173,16 @@ async function copiarValor(valor: number) {
         <ChevronDownIcon class="size-3.5 transition-transform" :class="aberta ? 'rotate-180' : ''" />
       </button>
     </div>
+    <p
+      v-if="pagamento && desatualizado"
+      class="mt-1.5 flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300"
+    >
+      <AlertTriangleIcon class="mt-px size-3.5 shrink-0" />
+      <span>
+        Entrou compra depois que o mês foi marcado como pago. Confira o que falta e, se ainda
+        houver acerto, desfaça o pago.
+      </span>
+    </p>
 
     <div v-if="aberta" class="mt-2">
       <table class="w-full text-sm">
