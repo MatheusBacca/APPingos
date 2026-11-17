@@ -1,7 +1,7 @@
 # Pluggy — setup do administrador
 
 > O que quem administra o APPingos faz **uma vez** para ligar o Open Finance. O guia de quem só
-> vai conectar o próprio banco está no app, em Orçamentos › Open Finance (`GuiaPluggy.vue`). O
+> vai conectar o próprio banco está no app, em Orçamentos › Open Finance › Como funciona (`GuiaPluggy.vue`). O
 > porquê das decisões está em [notion-plano-open-finance.md](./notion-plano-open-finance.md).
 >
 > Escrito em 13/11/2026 a partir da documentação pública. A Pluggy muda telas e regras com
@@ -61,7 +61,7 @@ NUXT_PLUGGY_CLIENT_SECRET=<client_secret>
 ```
 
 Elas ficam só no servidor (`server/utils/pluggy.ts`): ao navegador chega apenas o connect token,
-que vale 30 minutos (documentação de autenticação da Pluggy). A tela Orçamentos › Contas lê
+que vale 30 minutos (documentação de autenticação da Pluggy). A tela Orçamentos › Open Finance › Contas lê
 `/api/pluggy/status` e, sem as duas, explica em vez de oferecer o botão.
 
 ## 4. A Edge Function de sincronização
@@ -109,7 +109,7 @@ MeuPluggy, que só se descobre com dado real: trocar com `cron.alter_job`.
 
 Dois caminhos.
 
-**Pelo app.** Cada pessoa, em Orçamentos › Contas, usa "Conectar banco": o app gera um connect
+**Pelo app.** Cada pessoa, em Orçamentos › Open Finance › Contas, usa "Conectar banco": o app gera um connect
 token com o id dela (`clientUserId`) e abre o widget da Pluggy (`pluggy-connect-sdk`). Ela escolhe o
 MeuPluggy e autoriza, **uma vez por banco** (o README pede uma autorização por banco, não por
 conta). Que o MeuPluggy aparece e autoriza dentro do widget de uma Application de desenvolvimento
@@ -118,7 +118,7 @@ conta). Que o MeuPluggy aparece e autoriza dentro do widget de uma Application d
 **Pelo Demo do dashboard.** O caminho que o README e o Actual Budget documentam: no dashboard,
 abrir a Application, ir para o Demo, fazer a autorização do MeuPluggy (uma vez por banco) e copiar
 o id do item (o Actual Budget cita "Ir para Demo" e "Copiar Item ID"). Cada pessoa cola o próprio
-id em Orçamentos › Contas › "Já tenho o id da conexão". O item criado assim não tem `clientUserId`,
+id em Orçamentos › Open Finance › Contas › "Já tenho o id da conexão". O item criado assim não tem `clientUserId`,
 e o APPingos aceita: quem cadastra primeiro fica com ele (o `item_id` é único).
 
 ## 7. Webhook (opcional)
@@ -131,12 +131,12 @@ aceita header customizado na criação do webhook é **(não verificado)**.
 ## 8. Conferir no navegador
 
 1. `npm run dev` com o `.env` preenchido e as migrations aplicadas.
-2. Orçamentos › Open Finance: o bloco "Para quem administra o app" deve dizer "Pluggy configurada".
-3. Orçamentos › Contas: conectar (ou colar o id), ver as contas aparecerem e marcar um cartão em
+2. Orçamentos › Open Finance › Como funciona: o bloco "Para quem administra o app" deve dizer "Pluggy configurada".
+3. Orçamentos › Open Finance › Contas: conectar (ou colar o id), ver as contas aparecerem e marcar um cartão em
    "Compartilhar com".
 4. Disparar a sincronização na mão (no SQL Editor, `select public.acordar_sincronizacao_pluggy();`)
    e conferir `transacao_bancaria` no Studio.
-5. Orçamentos › Caixa de entrada: classificar uma compra de cada tipo; logar com a outra conta e
+5. Orçamentos › Open Finance › Caixa de entrada: classificar uma compra de cada tipo; logar com a outra conta e
    confirmar que ela vê a compra compartilhada e **não** vê o extrato.
 
 ## Pontos da documentação ainda não confirmados

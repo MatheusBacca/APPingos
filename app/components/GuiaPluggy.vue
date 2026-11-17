@@ -58,7 +58,7 @@ const passoAPassoAberto = computed(() => estado.value === 'sem-conexao' || estad
           (ou no app do banco); depois, use "Reconectar" em Contas conectadas.
         </p>
         <Button as-child size="sm" class="gap-1.5">
-          <NuxtLink to="/orcamentos/contas">Ir para Contas conectadas <ArrowRightIcon class="size-4" /></NuxtLink>
+          <NuxtLink to="/orcamentos/open-finance/contas">Ir para Contas conectadas <ArrowRightIcon class="size-4" /></NuxtLink>
         </Button>
       </CardContent>
     </Card>
@@ -73,10 +73,10 @@ const passoAPassoAberto = computed(() => estado.value === 'sem-conexao' || estad
         </p>
         <div class="flex gap-2">
           <Button as-child size="sm" variant="secondary">
-            <NuxtLink to="/orcamentos/caixa">Caixa de entrada</NuxtLink>
+            <NuxtLink to="/orcamentos/open-finance">Caixa de entrada</NuxtLink>
           </Button>
           <Button as-child size="sm" variant="ghost">
-            <NuxtLink to="/orcamentos/contas">Contas conectadas</NuxtLink>
+            <NuxtLink to="/orcamentos/open-finance/contas">Contas conectadas</NuxtLink>
           </Button>
         </div>
       </CardContent>
@@ -110,7 +110,7 @@ const passoAPassoAberto = computed(() => estado.value === 'sem-conexao' || estad
           </span>
         </p>
         <Button v-if="estado === 'sem-conexao'" as-child size="sm" class="gap-1.5">
-          <NuxtLink to="/orcamentos/contas">Conectar meu banco <ArrowRightIcon class="size-4" /></NuxtLink>
+          <NuxtLink to="/orcamentos/open-finance/contas">Conectar meu banco <ArrowRightIcon class="size-4" /></NuxtLink>
         </Button>
       </CardContent>
     </Card>
@@ -139,7 +139,7 @@ const passoAPassoAberto = computed(() => estado.value === 'sem-conexao' || estad
         <li>
           <p class="font-medium">Ligue o MeuPluggy ao APPingos</p>
           <p class="text-muted-foreground">
-            Em Orçamentos › Contas, "Conectar banco" abre o widget da Pluggy. Escolha o MeuPluggy e
+            Em Orçamentos › Open Finance › Contas, "Conectar banco" abre o widget da Pluggy. Escolha o MeuPluggy e
             autorize. Com vários bancos no MeuPluggy, a autorização é feita uma vez para cada banco.
             Se quem administra o app já ligou a sua conexão por fora e te passou o id dela, cole em
             "Já tenho o id da conexão", na mesma tela.
