@@ -48,6 +48,12 @@ export interface Lancamento {
  */
 export const LANCAMENTOS: Lancamento[] = [
   {
+    versao: '1.10.1',
+    titulo: 'Open Finance numa aba só',
+    descricao: 'Em Orçamentos, Caixa de entrada, Contas e o guia agora moram juntos na aba Open Finance, cada um numa seção. E as abas subiram para o lado do título, com o botão da tela logo abaixo delas.',
+    data: '2026-11-16',
+  },
+  {
     versao: '1.10.0',
     titulo: 'O extrato chega na hora',
     descricao: 'Conectou o banco? Não precisa esperar o dia seguinte: na Caixa de entrada, "Trazer agora" busca os últimos 90 dias do extrato na hora. Quem não apertar recebe tudo do mesmo jeito na sincronização das 7h.',
