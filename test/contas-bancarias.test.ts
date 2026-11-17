@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  aguardandoSincronizacaoInicial,
   designacaoAoMarcar,
   designacaoParaEspaco,
   designacaoPrivada,
@@ -168,5 +169,17 @@ describe('mensagemDoErroPluggy', () => {
     expect(mensagemDoErroPluggy(404)).toContain('não encontrou')
     expect(mensagemDoErroPluggy(429, 'autenticacao')).toContain('pausa')
     expect(mensagemDoErroPluggy(503)).toContain('Tente de novo')
+  })
+})
+
+describe('sincronização inicial', () => {
+  it('pede só as conexões que nunca sincronizaram e ainda existem', () => {
+    const conexoes = [
+      { id: 'nova', sincronizado_em: null, status: 'UPDATED' },
+      { id: 'coletando', sincronizado_em: null, status: 'UPDATING' },
+      { id: 'feita', sincronizado_em: '2026-11-15T10:00:00Z', status: 'UPDATED' },
+      { id: 'apagada', sincronizado_em: null, status: 'DELETED' },
+    ]
+    expect(aguardandoSincronizacaoInicial(conexoes).map(c => c.id)).toEqual(['nova', 'coletando'])
   })
 })

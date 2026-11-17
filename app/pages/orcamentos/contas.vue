@@ -71,7 +71,7 @@ async function conectar(itemId?: string) {
     if (!novo) return
     const { contas } = await registrar.mutateAsync(novo)
     toast.success(contas
-      ? `Banco conectado — ${contas === 1 ? '1 conta' : `${contas} contas`}. O extrato chega na próxima sincronização.`
+      ? `Banco conectado — ${contas === 1 ? '1 conta' : `${contas} contas`}. O extrato chega na próxima sincronização, ou agora pela Caixa de entrada.`
       : 'Banco conectado. As contas aparecem assim que a Pluggy terminar de buscar.')
   }
   catch (e) {

@@ -44,6 +44,19 @@ export function chaveRecebida(headers: Headers): string | null {
   return m ? m[1]!.trim() : null
 }
 
+/**
+ * O token do `Authorization: Bearer`, ignorando o `apikey`.
+ *
+ * É por onde chega o JWT de quem está logado quando o app chama a função com
+ * `supabase.functions.invoke`: o cliente manda a chave pública em `apikey` e a
+ * sessão no Bearer — `chaveRecebida` leria a pública e pararia ali.
+ */
+export function tokenBearer(headers: Headers): string | null {
+  const auth = headers.get('Authorization') ?? ''
+  const m = /^Bearer\s+(.+)$/i.exec(auth.trim())
+  return m ? m[1]!.trim() : null
+}
+
 export function chamadaDeServico(headers: Headers, ler: LerAmbiente): boolean {
   const recebida = chaveRecebida(headers)
   return !!recebida && chavesDeServico(ler).includes(recebida)

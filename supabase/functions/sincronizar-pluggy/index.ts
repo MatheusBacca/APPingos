@@ -19,7 +19,12 @@
  *     20261112110100_open_finance_cron.sql);
  *   - a Pluggy, pelo webhook opcional: header `x-appingos-webhook` com o segredo
  *     `PLUGGY_WEBHOOK_SECRET`. Responde 202 na hora e processa depois — a Pluggy
- *     exige 2xx em até 10 s.
+ *     exige 2xx em até 10 s;
+ *   - a própria pessoa, pelo botão da caixa de entrada: o JWT da sessão no
+ *     Bearer (`supabase.functions.invoke`). Só dispara a SINCRONIZAÇÃO INICIAL —
+ *     as conexões DELA que nunca sincronizaram (`sincronizado_em` nulo). Depois
+ *     disso o ritmo é o do cron, e o botão some: o MeuPluggy só atualiza uma vez
+ *     por dia, e um "sincronizar agora" à vontade só gastaria a cota da Pluggy.
  *
  * A ANON KEY não serve: ela é um JWT válido e pública por definição. Por isso
  * `verify_jwt = false` no config.toml e a checagem feita aqui dentro, como no
@@ -35,7 +40,7 @@
  * documentação v2 e as regras testadas no vitest. Validar com o trial (fase 2).
  */
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0'
-import { chamadaDeServico, chaveParaOBanco } from '../_shared/chaves-supabase.ts'
+import { chamadaDeServico, chaveParaOBanco, tokenBearer } from '../_shared/chaves-supabase.ts'
 import {
   ErroPluggy,
   autenticarPluggy,
@@ -75,10 +80,24 @@ const EVENTOS_DE_ITEM = new Set([
   'transactions/updated',
 ])
 
+/*
+  O botão da caixa de entrada chama do navegador, e o `functions.invoke` manda
+  `authorization`, `apikey` e `x-client-info` — o que dispara o preflight. Origem
+  aberta não abre nada: sem a sessão de alguém no Bearer, a chamada é recusada
+  igual (e o cron e a Pluggy nem passam por CORS).
+*/
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
 const json = (corpo: unknown, status = 200) =>
-  new Response(JSON.stringify(corpo), { status, headers: { 'Content-Type': 'application/json' } })
+  new Response(JSON.stringify(corpo), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
 
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
+
   const url = Deno.env.get('SUPABASE_URL')!
   const lerAmbiente = (nome: string) => Deno.env.get(nome)
   const serviceKey = chaveParaOBanco(lerAmbiente)
@@ -91,9 +110,22 @@ Deno.serve(async (req) => {
   const peloBanco = chamadaDeServico(req.headers, lerAmbiente)
   const pelaPluggy = !!segredoWebhook && req.headers.get('x-appingos-webhook') === segredoWebhook
 
+  const supabase = createClient(url, serviceKey, { auth: { persistSession: false } })
+
+  /*
+    Nem o banco nem a Pluggy: só pode ser alguém logado. O `getUser` confere a
+    assinatura e a validade da sessão no Auth — a anon key, que também é JWT,
+    não tem usuário e cai aqui.
+  */
+  let usuario: string | null = null
   if (!peloBanco && !pelaPluggy) {
-    // 401 encerra as tentativas da Pluggy — é o que se quer para quem não sabe o segredo.
-    return json({ erro: 'não autorizado' }, 401)
+    const token = tokenBearer(req.headers)
+    const { data } = token ? await supabase.auth.getUser(token) : { data: { user: null } }
+    usuario = data.user?.id ?? null
+    if (!usuario) {
+      // 401 encerra as tentativas da Pluggy — é o que se quer para quem não sabe o segredo.
+      return json({ erro: 'não autorizado' }, 401)
+    }
   }
 
   const clientId = Deno.env.get('PLUGGY_CLIENT_ID')
@@ -102,7 +134,6 @@ Deno.serve(async (req) => {
     return json({ erro: 'faltam PLUGGY_CLIENT_ID ou PLUGGY_CLIENT_SECRET' }, 500)
   }
 
-  const supabase = createClient(url, serviceKey, { auth: { persistSession: false } })
   const corpo = await req.json().catch(() => ({})) as {
     event?: string
     itemId?: string
@@ -116,7 +147,7 @@ Deno.serve(async (req) => {
     return json({ recebido: true }, 202)
   }
 
-  const resultado = await sincronizarTudo(supabase, clientId, clientSecret)
+  const resultado = await sincronizarTudo(supabase, clientId, clientSecret, usuario)
   return json(resultado)
 })
 
@@ -152,11 +183,23 @@ async function tratarWebhook(
   await sincronizarConexao(supabase, apiKey, conexao as Conexao)
 }
 
-async function sincronizarTudo(supabase: SupabaseClient, clientId: string, clientSecret: string) {
-  const { data: conexoes, error } = await supabase
+/**
+ * Todas as conexões (o cron) ou, com `usuario`, só as iniciais daquela pessoa
+ * (o botão da caixa de entrada).
+ */
+async function sincronizarTudo(
+  supabase: SupabaseClient,
+  clientId: string,
+  clientSecret: string,
+  usuario: string | null = null,
+) {
+  let consulta = supabase
     .from('conexao_bancaria')
     .select('id, user_id, item_id, sincronizado_em')
     .neq('status', 'DELETED')
+  if (usuario) consulta = consulta.eq('user_id', usuario).is('sincronizado_em', null)
+
+  const { data: conexoes, error } = await consulta
 
   if (error) return { erro: error.message }
   if (!conexoes?.length) return { conexoes: 0 }
@@ -252,11 +295,20 @@ async function sincronizarConexao(supabase: SupabaseClient, apiKey: string, cone
       }
     }
 
+    /*
+      A sincronização inicial só conta como feita com o item já atualizado. Logo
+      depois de conectar a Pluggy ainda está coletando (`UPDATING`) e pode ter
+      devolvido parte dos 90 dias; marcar `sincronizado_em` agora faria a próxima
+      voltar só 10 dias e perder o resto. Sem a marca, o cron relê a janela
+      inteira — o upsert por `provider_id` torna a repetição inócua.
+    */
+    const inicialIncompleta = !conexao.sincronizado_em && item.status !== 'UPDATED'
+
     await supabase
       .from('conexao_bancaria')
       .update({
         ...camposDaConexao(item),
-        sincronizado_em: new Date().toISOString(),
+        ...(inicialIncompleta ? {} : { sincronizado_em: new Date().toISOString() }),
         erro_sincronizacao: null,
         atualizado_em: new Date().toISOString(),
       })

@@ -11,7 +11,7 @@
  * que se desfaz ou se muda uma compra de gaveta (`mover_compra`, da Frente A).
  */
 import { toast } from 'vue-sonner'
-import { ArrowLeftRightIcon, ChevronDownIcon, InboxIcon, Undo2Icon } from '@lucide/vue'
+import { ArrowLeftRightIcon, ChevronDownIcon, InboxIcon, RefreshCwIcon, Undo2Icon } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -28,7 +28,8 @@ import {
 } from '~/composables/useCaixaDeEntrada'
 import type { LinhaClassificada } from '~/composables/useCaixaDeEntrada'
 import { useConciliacaoPix } from '~/composables/useConciliacaoPix'
-import { useConexoesBancarias } from '~/composables/useContasBancarias'
+import { useConexoesBancarias, useSincronizacaoInicial } from '~/composables/useContasBancarias'
+import { aguardandoSincronizacaoInicial } from '~/lib/contas-bancarias'
 import { useUsuarioId } from '~/composables/useUsuarioId'
 import { useSpaceStore } from '~/stores/space'
 import { rotuloDaCategoriaNaCaixa } from '~/lib/categorias-pluggy'
@@ -43,6 +44,24 @@ const { data: conexoes } = useConexoesBancarias()
 const { data: transacoes, isPending } = useTransacoesDaCaixa()
 const { data: classificadas } = useClassificadasRecentes()
 const classificar = useClassificar()
+const sincronizacaoInicial = useSincronizacaoInicial()
+
+/*
+ * A primeira leitura do extrato (90 dias) acontece sozinha no cron das 7h. Até
+ * lá, quem acabou de conectar pode trazê-la agora — uma vez por conexão: depois
+ * o ritmo é o diário do MeuPluggy, e o card some.
+ */
+const semSincronizacaoInicial = computed(() => aguardandoSincronizacaoInicial(conexoes.value ?? []))
+
+async function sincronizarAgora() {
+  try {
+    const total = await sincronizacaoInicial.mutateAsync()
+    toast.success(total === 1 ? '1 transação trazida do banco.' : `${total} transações trazidas do banco.`)
+  }
+  catch (e) {
+    toast.error(mensagemDeErro(e, 'Não deu para sincronizar agora. O cron das 7h tenta de novo.'))
+  }
+}
 
 // O Pix do acerto marca o mês como pago sozinho — ver useConciliacaoPix.
 useConciliacaoPix(transacoes)
@@ -156,11 +175,29 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
       </CardContent>
     </Card>
 
+    <Card v-if="semSincronizacaoInicial.length">
+      <CardContent class="flex flex-wrap items-center justify-between gap-3 text-sm">
+        <p class="text-muted-foreground">
+          <template v-if="semSincronizacaoInicial.length === 1">
+            O extrato de {{ semSincronizacaoInicial[0]!.banco }} ainda não chegou.
+          </template>
+          <template v-else>
+            O extrato de {{ semSincronizacaoInicial.length }} bancos ainda não chegou.
+          </template>
+          Os últimos 90 dias chegam sozinhos na sincronização das 7h — ou traga agora.
+        </p>
+        <Button :disabled="sincronizacaoInicial.isPending.value" class="gap-1.5" @click="sincronizarAgora">
+          <RefreshCwIcon class="size-4" :class="sincronizacaoInicial.isPending.value ? 'animate-spin' : ''" />
+          {{ sincronizacaoInicial.isPending.value ? 'Trazendo o extrato…' : 'Trazer agora' }}
+        </Button>
+      </CardContent>
+    </Card>
+
     <div v-if="isPending" class="space-y-2">
       <Skeleton v-for="i in 3" :key="i" class="h-16 w-full" />
     </div>
 
-    <Card v-else-if="!itens.length && conexoes?.length">
+    <Card v-else-if="!itens.length && conexoes?.length && !semSincronizacaoInicial.length">
       <CardContent class="flex items-center gap-3 text-sm text-muted-foreground">
         <InboxIcon class="size-5" />
         Nada esperando. O extrato novo chega uma vez por dia.

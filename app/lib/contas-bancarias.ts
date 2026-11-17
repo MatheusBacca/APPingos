@@ -92,6 +92,17 @@ export interface Designacao {
   space_id: string | null
 }
 
+/**
+ * As conexões cuja sincronização inicial (os últimos 90 dias) ainda não rodou —
+ * é o que acende o botão da caixa de entrada. Apagada na Pluggy não conta: a
+ * função nem tenta.
+ */
+export function aguardandoSincronizacaoInicial<T extends { sincronizado_em: string | null, status: string }>(
+  conexoes: T[],
+): T[] {
+  return conexoes.filter(c => !c.sincronizado_em && c.status !== 'DELETED')
+}
+
 /** Se a conta está compartilhada com um espaço — o opt-in de cada pessoa, cartão a cartão. */
 export function estaCompartilhada(conta: { destino: string, space_id: string | null }): boolean {
   return conta.destino === 'casal' && !!conta.space_id

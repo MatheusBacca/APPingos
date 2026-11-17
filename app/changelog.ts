@@ -48,6 +48,12 @@ export interface Lancamento {
  */
 export const LANCAMENTOS: Lancamento[] = [
   {
+    versao: '1.10.0',
+    titulo: 'O extrato chega na hora',
+    descricao: 'Conectou o banco? Não precisa esperar o dia seguinte: na Caixa de entrada, "Trazer agora" busca os últimos 90 dias do extrato na hora. Quem não apertar recebe tudo do mesmo jeito na sincronização das 7h.',
+    data: '2026-11-16',
+  },
+  {
     versao: '1.9.0',
     titulo: 'Planejamento e Open Finance',
     descricao: 'Orçamentos ganhou a aba Planejamento: cada um informa o salário e vê quanto entra no casal e como o mês fecha. Em Objetivos, as metas têm aportes, progresso e uma sugestão de quanto guardar por mês, e um interesse vira meta com um toque. E dá para conectar o banco pelo Open Finance: o extrato chega numa caixa de entrada só sua, onde você decide se cada gasto é do casal ou só seu, e o Pix do acerto marca o mês como pago sozinho.',
