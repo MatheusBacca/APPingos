@@ -126,6 +126,45 @@ export function useRegistrarConexao() {
 }
 
 /**
+ * Dispara a sincronização inicial (os últimos 90 dias) das conexões de quem está
+ * logado que ainda não sincronizaram — sem esperar o cron das 7h.
+ *
+ * Quem grava o extrato é a Edge Function `sincronizar-pluggy`, com o JWT da
+ * sessão: ela confere a pessoa e só toca as conexões dela com
+ * `sincronizado_em` nulo. Responde quando acaba, então aqui se espera.
+ */
+export function useSincronizacaoInicial() {
+  const supabase = useSupabaseClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke<{
+        conexoes?: number
+        resultado?: Record<string, number | string>
+        erro?: string
+      }>('sincronizar-pluggy', { body: {} })
+
+      if (error) {
+        // O corpo de erro da função traz `erro`; o FunctionsHttpError só diz o status.
+        const corpo = await (error as { context?: Response }).context?.json?.().catch(() => null)
+        throw new Error(corpo?.erro ?? error.message)
+      }
+      if (data?.erro) throw new Error(data.erro)
+
+      const resultados = Object.values(data?.resultado ?? {})
+      const falha = resultados.find(r => typeof r === 'string')
+      if (falha) throw new Error(String(falha))
+      return resultados.reduce<number>((soma, r) => soma + Number(r), 0)
+    },
+    onSettled: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: [CHAVE] }),
+      queryClient.invalidateQueries({ queryKey: ['caixa-de-entrada'] }),
+    ]),
+  })
+}
+
+/**
  * Abre o widget da Pluggy. Com `itemId`, em modo de atualização daquele item.
  *
  * O SDK é carregado só aqui (import dinâmico): ele traz um iframe e um bocado

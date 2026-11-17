@@ -4,6 +4,7 @@ import {
   chaveParaOBanco,
   chaveRecebida,
   chavesDeServico,
+  tokenBearer,
 } from '~~/supabase/functions/_shared/chaves-supabase'
 
 const ambiente = (vars: Record<string, string>) => (nome: string) => vars[nome]
@@ -71,5 +72,16 @@ describe('chaveParaOBanco', () => {
 
   it('cai para a legada', () => {
     expect(chaveParaOBanco(ambiente({ SUPABASE_SERVICE_ROLE_KEY: LEGADA }))).toBe(LEGADA)
+  })
+})
+
+describe('tokenBearer', () => {
+  it('lê o Bearer mesmo com a chave pública em apikey', () => {
+    const headers = new Headers({ apikey: 'sb_publishable_x', Authorization: 'Bearer eyJsessao' })
+    expect(tokenBearer(headers)).toBe('eyJsessao')
+  })
+
+  it('sem Authorization, null', () => {
+    expect(tokenBearer(new Headers({ apikey: 'sb_publishable_x' }))).toBeNull()
   })
 })
