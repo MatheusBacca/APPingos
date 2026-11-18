@@ -43,6 +43,23 @@ conexão / não configurada / conectado / renovar. O bloco do administrador só 
 de um espaço de casal (ou para quem usa o app sozinho). O setup completo está em
 `docs/pluggy-setup-administrador.md`, com fonte em cada passo.
 
+## Feito em 17/11 (v1.11.0)
+
+Cartões com fatura e limite, categorias com ícone, auto-tag e a caixa de entrada nova. Testado no
+projeto Supabase de teste ("APPingos teste PR4"), com dados semeados — não contra a Pluggy real.
+
+- **Migrations novas:** `20261117120000_cartoes_faturas_e_regras.sql` (limite e ciclo do cartão,
+  `fatura_cartao`, estabelecimento e `categoryId` na transação, `regra_classificacao`) e
+  `20261117130000_regras_automaticas.sql` (`lancar_compras_por_regra`).
+- **Edge Function `sincronizar-pluggy` mudou:** grava `creditData`, as `bills` e aplica as regras
+  com "Classificar sozinha". Precisa de deploy junto com as migrations.
+- **Nomes de campo a conferir na primeira amostra real:** `creditData.creditLimit`,
+  `availableCreditLimit`, `minimumPayment`, `balanceCloseDate`/`balanceDueDate`; na fatura,
+  `minimumPaymentAmount` e o sinal de `totalAmount`; `merchant.name`/`businessName`/`cnpj`;
+  `categoryId` como texto de 8 dígitos.
+- **Desfazer um Aceitar** apaga a compra criada e põe a regra aprendida de volta como era.
+  Mover uma compra de gaveta depois ainda não mexe na regra.
+
 ## Ainda pendente
 
 - **Nada verificado contra a Pluggy real.** Sinal do valor, fuso, agrupamento de parcelas,

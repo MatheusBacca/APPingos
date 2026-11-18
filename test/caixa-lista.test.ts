@@ -1,0 +1,104 @@
+/**
+ * A organização da caixa de entrada na tela: dias, resumo, filtros e o
+ * critério do botão "Aceitar".
+ */
+import { describe, expect, it } from 'vitest'
+import {
+  FILTRO_INICIAL,
+  aceitavel,
+  filtrarCaixa,
+  gruposPorDia,
+  resumoDaCaixa,
+  rotuloDaConta,
+} from '~/lib/caixa-lista'
+import type { Sugestao } from '~/lib/auto-tag'
+import type { ItemDaCaixa } from '~/lib/caixa-de-entrada'
+
+function item(chave: string, data: string, valor: number, extra: { sentido?: 'saida' | 'entrada', conta?: string } = {}): ItemDaCaixa {
+  const t = { id: chave, conta_id: extra.conta ?? 'itau', valor, data } as unknown as ItemDaCaixa['principal']
+  return {
+    chave,
+    principal: t,
+    transacoes: [t],
+    plano: {} as ItemDaCaixa['plano'],
+    sentido: extra.sentido ?? 'saida',
+    pendente: false,
+    data,
+  }
+}
+
+const sugestao = (extra: Partial<Sugestao> = {}): Sugestao => ({
+  destino: 'casal',
+  categoriaNome: 'Mercado',
+  categoriaBase: 'mercado',
+  origem: 'regra',
+  confianca: 'media',
+  motivo: '',
+  estabelecimento: null,
+  chave: 'condor',
+  ...extra,
+})
+
+describe('gruposPorDia', () => {
+  it('junta por dia, na ordem, com Hoje e Ontem', () => {
+    const g = gruposPorDia([
+      item('a', '2026-11-17', 1),
+      item('b', '2026-11-17', 2),
+      item('c', '2026-11-16', 3),
+      item('d', '2026-11-10', 4),
+    ], '2026-11-17')
+    expect(g.map(x => [x.rotulo, x.itens.length])).toEqual([
+      ['Hoje', 2],
+      ['Ontem', 1],
+      ['10 de novembro', 1],
+    ])
+  })
+})
+
+describe('resumoDaCaixa', () => {
+  it('soma só as saídas, mas conta todas', () => {
+    const r = resumoDaCaixa([item('a', '2026-11-17', 100.1), item('b', '2026-11-17', 0.2), item('c', '2026-11-17', 5000, { sentido: 'entrada' })])
+    expect(r.total).toBe(100.3)
+    expect(r.quantidade).toBe(3)
+    expect(r.texto.replace(/\s/g, ' ')).toBe('R$ 100,30 em 3 compras')
+  })
+
+  it('singular', () => {
+    expect(resumoDaCaixa([item('a', '2026-11-17', 10)]).texto).toMatch(/em 1 compra$/)
+  })
+})
+
+describe('aceitavel', () => {
+  it('regra com destino de compra, categoria e confiança média ou alta', () => {
+    expect(aceitavel(sugestao())).toBe(true)
+    expect(aceitavel(sugestao({ confianca: 'alta', destino: 'pessoal' }))).toBe(true)
+  })
+
+  it('não aceita sem confiança, sem categoria, sem destino ou vindo só da marca', () => {
+    expect(aceitavel(sugestao({ confianca: 'baixa' }))).toBe(false)
+    expect(aceitavel(sugestao({ categoriaNome: null }))).toBe(false)
+    expect(aceitavel(sugestao({ destino: null }))).toBe(false)
+    expect(aceitavel(sugestao({ destino: 'ignorar' }))).toBe(false)
+    expect(aceitavel(sugestao({ origem: 'estabelecimento' }))).toBe(false)
+    expect(aceitavel(undefined)).toBe(false)
+  })
+})
+
+describe('filtrarCaixa', () => {
+  const itens = [item('a', '2026-11-17', 1, { conta: 'itau' }), item('b', '2026-11-17', 1, { conta: 'corrente' })]
+  const tipo = (id: string) => (id === 'corrente' ? 'conta' as const : 'cartao' as const)
+
+  it('por origem, por conta e só com sugestão', () => {
+    const s = new Map([['a', sugestao()]])
+    expect(filtrarCaixa(itens, FILTRO_INICIAL, tipo, s)).toHaveLength(2)
+    expect(filtrarCaixa(itens, { ...FILTRO_INICIAL, origem: 'conta' }, tipo, s).map(i => i.chave)).toEqual(['b'])
+    expect(filtrarCaixa(itens, { ...FILTRO_INICIAL, conta: 'itau' }, tipo, s).map(i => i.chave)).toEqual(['a'])
+    expect(filtrarCaixa(itens, { ...FILTRO_INICIAL, soComSugestao: true }, tipo, s).map(i => i.chave)).toEqual(['a'])
+  })
+})
+
+it('rotuloDaConta', () => {
+  expect(rotuloDaConta({ nome: 'Itaú Itaucard', numero: '1234', conexao: { banco: 'Itaú' } })).toBe('Itaú •••• 1234')
+  expect(rotuloDaConta({ nome: 'Conta corrente', numero: null })).toBe('Conta corrente')
+  expect(rotuloDaConta(null)).toBe('')
+})

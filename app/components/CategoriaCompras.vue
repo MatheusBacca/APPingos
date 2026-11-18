@@ -84,6 +84,13 @@ const compras = computed(() => props.fatia?.compras ?? [])
           @click="podeEditar(compra) && emit('selecionar', compra)"
           @keydown.enter="podeEditar(compra) && emit('selecionar', compra)"
         >
+          <IconeDaCompra
+            :descricao="compra.descricao"
+            :categoria="compra.categoria?.nome"
+            :cor="compra.categoria?.cor"
+            tamanho="sm"
+          />
+
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
               <span class="font-medium">{{ compra.descricao }}</span>

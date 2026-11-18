@@ -10,9 +10,15 @@
  * rateio diferente se ajusta depois, editando a compra em Chico Moedas — a
  * caixa de entrada existe para classificar rápido, não para repetir o
  * formulário inteiro.
+ *
+ * Compartilhada e Pessoal abrem com a categoria SUGERIDA já preenchida
+ * (`sugerirClassificacao`: o que a pessoa escolheu antes para o estabelecimento,
+ * a marca conhecida ou a categoria da Pluggy) — preenchida, nunca salva: só o
+ * Confirmar grava, e só ele cria a categoria se ela ainda não existir no espaço.
+ * Confirmar também ensina a escolha (`aprender_classificacao`).
  */
 import { toast } from 'vue-sonner'
-import { AlertTriangleIcon } from '@lucide/vue'
+import { AlertTriangleIcon, SparklesIcon } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -34,6 +40,8 @@ import {
   participantesDaDivisao,
 } from '~/lib/caixa-de-entrada'
 import type { DivisaoRapida, ItemDaCaixa, ModoClassificacao } from '~/lib/caixa-de-entrada'
+import { chaveDoEstabelecimento } from '~/lib/estabelecimentos'
+import { ROTULO_DESTINO_DA_REGRA, rotuloParaRegra, sugerirClassificacao } from '~/lib/auto-tag'
 import { rateioIgual } from '~/types/orcamento'
 import { useCategorias } from '~/composables/useOrcamento'
 import {
@@ -42,6 +50,7 @@ import {
   useComprasCandidatas,
   useMembrosDoEspaco,
   useMetasAtivas,
+  useRegrasClassificacao,
 } from '~/composables/useCaixaDeEntrada'
 import { useMinhaRenda, useRendaRecebida } from '~/composables/useRenda'
 import { useUsuarioId } from '~/composables/useUsuarioId'
@@ -70,6 +79,8 @@ const divisao = ref<DivisaoRapida>('igual')
 const compraEscolhida = ref<string | null>(null)
 const competenciaSalario = ref('')
 const metaEscolhida = ref<string | null>(null)
+/** A pessoa mexeu na categoria: a sugestão para de sobrescrever o campo. */
+const categoriaTocada = ref(false)
 
 const { data: renda } = useMinhaRenda()
 
@@ -77,8 +88,11 @@ watch(() => [props.item, props.modo] as const, ([item]) => {
   if (!item) return
   const ativo = store.espacoAtivo
   espacoCasal.value = ativo?.tipo === 'casal' ? ativo.id : (espacosDeCasal.value[0]?.id ?? null)
-  descricao.value = item.plano.descricao
+  // O nome de onde foi ("iFood"), não o texto cru do extrato ("IFD*IFOOD.COM
+  // AGENCIA DE"): é o que aparece depois na lista de compras do espaço.
+  descricao.value = rotuloParaRegra(item.principal)
   categoria.value = ''
+  categoriaTocada.value = false
   divisao.value = 'igual'
   compraEscolhida.value = null
   metaEscolhida.value = null
@@ -96,6 +110,39 @@ const { data: candidatasBrutas, isPending: buscandoCandidatas } = useComprasCand
   () => (props.modo === 'ja-lancei' && props.item ? props.item.plano : null),
 )
 const { data: metas } = useMetasAtivas()
+const { data: regras } = useRegrasClassificacao()
+
+/*
+ * A sugestão com as categorias do espaço de DESTINO: "Mercado" no pessoal e
+ * "Supermercado" no casal são nomes diferentes para a mesma coisa. Só para
+ * saída — Compartilhada e Pessoal são compras.
+ */
+const sugestao = computed(() => {
+  const item = props.item
+  if (!item || item.sentido !== 'saida') return null
+  return sugerirClassificacao(item.principal, regras.value ?? [], categorias.value ?? [])
+})
+
+/*
+ * Preenche (e repreenche quando as categorias ou as regras chegam do banco),
+ * até a pessoa digitar no campo.
+ */
+watch([sugestao, () => props.modo], ([s, modo]) => {
+  if (categoriaTocada.value || (modo !== 'casal' && modo !== 'pessoal')) return
+  categoria.value = s?.categoriaNome ?? ''
+}, { immediate: true })
+
+/** A categoria preenchida ainda não existe no espaço: Confirmar vai criá-la. */
+const categoriaNova = computed(() => {
+  const nome = categoria.value.trim().toLowerCase()
+  return !!nome && !!categorias.value && !categorias.value.some(c => c.nome.trim().toLowerCase() === nome)
+})
+
+/** A regra diz outro destino ("da última vez foi Pessoal") — aviso, a pessoa decide. */
+const destinoDiferente = computed(() => {
+  const d = sugestao.value?.destino
+  return d && d !== props.modo ? ROTULO_DESTINO_DA_REGRA[d] : null
+})
 
 const outro = computed(() => membros.value?.find(m => m.user_id !== usuarioId.value) ?? null)
 
@@ -165,6 +212,14 @@ async function salvar() {
             ? participantesDaDivisao(divisao.value, eu, (membros.value ?? []).map(m => m.user_id))
             : rateioIgual([eu]),
           categoria: categoria.value.trim() || null,
+          aprender: item.sentido === 'saida'
+            ? {
+                chave: sugestao.value?.chave ?? chaveDoEstabelecimento(item.principal.descricao),
+                rotulo: rotuloParaRegra(item.principal),
+                destino: casal ? 'casal' : 'pessoal',
+                categoria: categoria.value.trim() || null,
+              }
+            : undefined,
         })
         toast.success(casal ? `Lançada em ${nomeDoEspaco(espacoCasal.value!)}.` : 'Lançada nos seus gastos pessoais.')
         break
@@ -220,11 +275,34 @@ async function salvar() {
 
         <div class="space-y-1.5">
           <Label for="caixa-categoria">Categoria <span class="font-normal text-muted-foreground">(opcional)</span></Label>
-          <Input id="caixa-categoria" v-model="categoria" list="caixa-categorias" placeholder="Mercado, Casa…" />
+          <Input
+            id="caixa-categoria"
+            v-model="categoria"
+            list="caixa-categorias"
+            placeholder="Mercado, Casa…"
+            @input="categoriaTocada = true"
+          />
           <datalist id="caixa-categorias">
             <option v-for="c in categorias ?? []" :key="c.id" :value="c.nome" />
           </datalist>
+          <p
+            v-if="sugestao && !categoriaTocada && categoria === (sugestao.categoriaNome ?? '')"
+            class="flex items-center gap-1.5 text-xs text-muted-foreground"
+          >
+            <SparklesIcon class="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+            <span>
+              Sugestão: {{ sugestao.motivo }}<template v-if="categoriaNova"> · a categoria é criada ao confirmar</template>.
+            </span>
+          </p>
+          <p v-else-if="categoriaNova" class="text-xs text-muted-foreground">
+            Categoria nova — é criada ao confirmar.
+          </p>
         </div>
+
+        <p v-if="destinoDiferente" class="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+          <template v-if="sugestao?.destino === 'ignorar'">Da última vez, você ignorou este estabelecimento.</template>
+          <template v-else>Da última vez, este estabelecimento foi para <strong>{{ destinoDiferente }}</strong>.</template>
+        </p>
 
         <fieldset v-if="modo === 'casal'" class="space-y-1.5">
           <legend class="text-sm font-medium">Quem deve</legend>

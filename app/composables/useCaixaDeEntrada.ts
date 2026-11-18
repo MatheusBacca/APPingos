@@ -5,6 +5,7 @@ import { nomeDeExibicao } from '~/types/database.types'
 import type { Participante } from '~/types/orcamento'
 import type { CompraCandidata, TransacaoDaCaixa } from '~/lib/caixa-de-entrada'
 import type { PlanoDaCompra } from '~/lib/importacao-bancaria'
+import type { DestinoDaRegra, RegraAprendida } from '~/lib/auto-tag'
 import { somarDias } from '~/lib/datas'
 import { JANELA_JA_LANCEI_DIAS } from '~/lib/caixa-de-entrada'
 import { useEspacoQuery } from '~/composables/useSpaceQuery'
@@ -25,11 +26,13 @@ const COLUNAS = `
   id, conta_id, provider_id, pluggy_id, descricao, valor, sentido, data, competencia,
   pendente, parcela_numero, parcelas_total, valor_total_compra, data_compra, fatura_id,
   chave_compra, contraparte_nome, contraparte_documento, metodo, categoria_pluggy,
+  categoria_pluggy_id, estabelecimento_nome, estabelecimento_cnpj,
   motivo_exclusao, destino, compra_id, classificada_em
 `
 
 export type LinhaDaCaixa = TransacaoDaCaixa & {
-  conta: { nome: string, tipo: 'conta' | 'cartao' } | null
+  /** O número e o banco dão o "Itaú •••• 1234" da linha, e o filtro por cartão. */
+  conta: { nome: string, tipo: 'conta' | 'cartao', numero?: string | null, conexao?: { banco: string } | null } | null
 }
 
 export type LinhaClassificada = LinhaDaCaixa & {
@@ -47,7 +50,7 @@ export function useTransacoesDaCaixa() {
     queryFn: async (): Promise<LinhaDaCaixa[]> => {
       const { data, error } = await supabase
         .from('transacao_bancaria')
-        .select(`${COLUNAS}, conta:conta_bancaria(nome, tipo)`)
+        .select(`${COLUNAS}, conta:conta_bancaria(nome, tipo, numero, conexao:conexao_bancaria(banco))`)
         .is('destino', null)
         .order('data', { ascending: false })
         .limit(300)
@@ -176,7 +179,18 @@ export function useMetasAtivas() {
   })
 }
 
-export type Classificacao =
+/**
+ * O que a classificação ensina ao auto-tag (`aprender_classificacao`): "da
+ * próxima vez que vier deste estabelecimento, sugira isto".
+ */
+export interface Aprendizado {
+  chave: string
+  rotulo: string
+  destino: DestinoDaRegra
+  categoria: string | null
+}
+
+export type Classificacao = (
   | {
     tipo: 'compra'
     transacao: string
@@ -193,6 +207,10 @@ export type Classificacao =
   | { tipo: 'devolver', transacao: string }
   | { tipo: 'reclassificar', compra: string, space: string, participantes: Participante[] }
   | { tipo: 'acerto', transacao: string, space: string, competencia: string }
+) & {
+  /** Só Compartilhada, Pessoal e Ignorar ensinam — os outros destinos não são "deste estabelecimento". */
+  aprender?: Aprendizado
+}
 
 /**
  * Um destino para uma transação — cada um é uma RPC da migration
@@ -248,6 +266,31 @@ export function useClassificar() {
       })()
 
       if (resultado.error) throw resultado.error
+      // `classificar_compra` devolve o id da compra criada — é o que o "Desfazer" apaga.
+      const criada = c.tipo === 'compra' ? (resultado.data as unknown as string | null) : null
+
+      /*
+       * Aprender vem DEPOIS de classificar, e falhar aqui não desfaz nada: a
+       * transação já tem destino, e uma regra a menos só quer dizer que a
+       * próxima sugestão vem da marca ou da Pluggy. Fica no mutationFn (e não
+       * num efeito à parte) para o `onSuccess` já recarregar as regras novas.
+       */
+      if (c.aprender?.chave.trim()) {
+        try {
+          const { error } = await supabase.rpc('aprender_classificacao', {
+            p_chave: c.aprender.chave,
+            p_rotulo: c.aprender.rotulo,
+            p_destino: c.aprender.destino,
+            ...(c.aprender.categoria ? { p_categoria_nome: c.aprender.categoria } : {}),
+          })
+          if (error) throw error
+        }
+        catch (e) {
+          console.warn('[auto-tag] não deu para aprender a classificação', e)
+        }
+      }
+
+      return criada
     },
     onSuccess: () => Promise.all([
       queryClient.invalidateQueries({ queryKey: [CHAVE] }),
@@ -257,5 +300,64 @@ export function useClassificar() {
       queryClient.invalidateQueries({ queryKey: ['renda'] }),
       queryClient.invalidateQueries({ queryKey: ['metas'] }),
     ]),
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Regras aprendidas (auto-tag)
+// ---------------------------------------------------------------------------
+
+export type RegraClassificacao = RegraAprendida & { id: string, ultima_vez: string }
+
+/**
+ * O que o app aprendeu de cada estabelecimento — da pessoa logada (RLS
+ * `user_id = auth.uid()`). Debaixo da chave da caixa: classificar invalida a
+ * caixa inteira, e é isso que traz a regra que acabou de ser aprendida.
+ */
+export function useRegrasClassificacao() {
+  const supabase = useSupabaseClient()
+  const usuarioId = useUsuarioId()
+
+  return useQuery({
+    queryKey: [CHAVE, usuarioId, 'regras'],
+    enabled: computed(() => !!usuarioId.value),
+    queryFn: async (): Promise<RegraClassificacao[]> => {
+      const { data, error } = await supabase
+        .from('regra_classificacao')
+        .select('id, chave, rotulo, destino, categoria_nome, vezes, automatica, ultima_vez')
+        .order('ultima_vez', { ascending: false })
+        .limit(1000)
+
+      if (error) throw error
+      return (data ?? []) as RegraClassificacao[]
+    },
+  })
+}
+
+/** Ligar ou desligar "Classificar sozinha" — o check do banco só aceita no pessoal. */
+export function useAutomatizarRegra() {
+  const supabase = useSupabaseClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, automatica }: { id: string, automatica: boolean }) => {
+      const { error } = await supabase.from('regra_classificacao').update({ automatica }).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [CHAVE] }),
+  })
+}
+
+/** Esquecer uma regra: a próxima transação daquele estabelecimento volta a vir sem sugestão aprendida. */
+export function useApagarRegra() {
+  const supabase = useSupabaseClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('regra_classificacao').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [CHAVE] }),
   })
 }

@@ -8,9 +8,13 @@
  * funcionando e o voltar do navegador anda entre elas.
  */
 const SECOES = [
+  // A visão de cima: fatura aberta, limite e o peso de cada cartão.
+  { to: '/orcamentos/open-finance', rotulo: 'Cartões' },
   // O uso de todo dia: o extrato esperando destino.
-  { to: '/orcamentos/open-finance', rotulo: 'Caixa de entrada' },
+  { to: '/orcamentos/open-finance/caixa', rotulo: 'Caixa de entrada' },
   { to: '/orcamentos/open-finance/contas', rotulo: 'Contas' },
+  // O que o app aprendeu de cada estabelecimento (auto-tag).
+  { to: '/orcamentos/open-finance/regras', rotulo: 'Regras' },
   // A apresentação da integração e o guia para ligá-la (GuiaPluggy.vue).
   { to: '/orcamentos/open-finance/como-funciona', rotulo: 'Como funciona' },
 ]

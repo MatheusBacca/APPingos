@@ -8,7 +8,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   agruparParcelas,
+  camposDeCreditoDaConta,
   chaveDaCompra,
+  creditoParaAtualizar,
+  faturaParaLinha,
   competenciaDaTransacao,
   contextoDasContas,
   dataLocal,
@@ -28,6 +31,7 @@ import type { ContextoImportacao, TransacaoNormalizada } from '~/lib/importacao-
 import {
   CARTAO,
   CONTA_CORRENTE,
+  FATURA_OUTUBRO,
   PAGAMENTO_FATURA_NA_CONTA,
   PAGAMENTO_RECEBIDO_NO_CARTAO,
   PIX_PARA_ELA,
@@ -386,5 +390,105 @@ describe('o lote de uma conta', () => {
     expect(lote).toHaveLength(2)
     expect(lote.find(t => t.parcela_numero === 2)!.competencia).toBe('2026-10-01')
     expect(lote.find(t => t.provider_id === 'X')!.pendente).toBe(false)
+  })
+})
+
+describe('estabelecimento e categoria da Pluggy', () => {
+  const comMerchant = (merchant: Parameters<typeof transacao>[0]['merchant']) =>
+    normalizarTransacao(transacao({ merchant }), NO_CARTAO, contexto)
+
+  it('o nome fantasia vence a razão social', () => {
+    const t = comMerchant({ name: ' iFood ', businessName: 'IFOOD.COM AGENCIA DE RESTAURANTES ONLINE S.A.', cnpj: '14.380.200/0001-21' })
+    expect(t.estabelecimento_nome).toBe('iFood')
+    expect(t.estabelecimento_cnpj).toBe('14380200000121')
+  })
+
+  it('sem nome fantasia, cai na razão social', () => {
+    expect(comMerchant({ name: '  ', businessName: 'PADARIA EXEMPLO LTDA' }).estabelecimento_nome).toBe('PADARIA EXEMPLO LTDA')
+    expect(comMerchant({ name: null, businessName: 'PADARIA EXEMPLO LTDA' }).estabelecimento_nome).toBe('PADARIA EXEMPLO LTDA')
+  })
+
+  it('sem merchant (ou vazio), tudo null — e a ingestão mantém o que já havia', () => {
+    expect(comMerchant(null)).toMatchObject({ estabelecimento_nome: null, estabelecimento_cnpj: null })
+    expect(comMerchant({ name: '', businessName: '', cnpj: '--' }))
+      .toMatchObject({ estabelecimento_nome: null, estabelecimento_cnpj: null })
+  })
+
+  it('o categoryId passa como veio', () => {
+    expect(normalizarTransacao(transacao({ category: 'Food delivery', categoryId: '11020000' }), NO_CARTAO, contexto))
+      .toMatchObject({ categoria_pluggy: 'Food delivery', categoria_pluggy_id: '11020000' })
+    expect(normalizarTransacao(transacao(), NO_CARTAO, contexto).categoria_pluggy_id).toBeNull()
+  })
+})
+
+describe('limite e ciclo do cartão', () => {
+  it('lê o creditData', () => {
+    expect(camposDeCreditoDaConta(CARTAO)).toEqual({
+      limite: 8000,
+      limite_disponivel: 5649.6,
+      fecha_em: '2026-11-03',
+      vence_em: '2026-11-10',
+      pagamento_minimo: 352.56,
+    })
+  })
+
+  it('sem creditData (conta corrente), tudo null', () => {
+    const nulos = { limite: null, limite_disponivel: null, fecha_em: null, vence_em: null, pagamento_minimo: null }
+    expect(camposDeCreditoDaConta(CONTA_CORRENTE)).toEqual(nulos)
+    expect(camposDeCreditoDaConta({ creditData: null })).toEqual(nulos)
+    expect(camposDeCreditoDaConta({ creditData: {} })).toEqual(nulos)
+  })
+
+  it('datas em UTC viram o dia de Brasília', () => {
+    const c = camposDeCreditoDaConta({
+      creditData: {
+        // 22h UTC ainda é o mesmo dia aqui (19h)...
+        balanceCloseDate: '2026-11-03T22:00:00.000Z',
+        // ...e 02h UTC é a noite do dia anterior (23h).
+        balanceDueDate: '2026-11-11T02:00:00.000Z',
+      },
+    })
+    expect(c.fecha_em).toBe('2026-11-03')
+    expect(c.vence_em).toBe('2026-11-10')
+    // Meia-noite UTC exata é "só a data", como nas transações.
+    expect(camposDeCreditoDaConta({ creditData: { balanceDueDate: '2026-11-10T00:00:00.000Z' } }).vence_em).toBe('2026-11-10')
+  })
+
+  it('limite negativo e data ilegível viram null, sem derrubar o resto', () => {
+    const c = camposDeCreditoDaConta({ creditData: { creditLimit: -1, balanceCloseDate: 'amanhã', availableCreditLimit: -120.456 } })
+    expect(c).toMatchObject({ limite: null, fecha_em: null, limite_disponivel: -120.46 })
+  })
+
+  it('para o update, só o que veio — o que sumiu mantém o último valor', () => {
+    expect(creditoParaAtualizar({ creditData: { creditLimit: 5000, balanceDueDate: '2026-12-10' } }))
+      .toEqual({ limite: 5000, vence_em: '2026-12-10' })
+    expect(creditoParaAtualizar(CONTA_CORRENTE)).toEqual({})
+  })
+})
+
+describe('faturas fechadas', () => {
+  it('vira a linha de fatura_cartao', () => {
+    expect(faturaParaLinha(FATURA_OUTUBRO, 'conta-1', 'user-1')).toEqual({
+      user_id: 'user-1',
+      conta_id: 'conta-1',
+      pluggy_bill_id: 'bill-outubro',
+      vencimento: '2026-10-10',
+      total: 2350.4,
+      minimo: 352.56,
+    })
+  })
+
+  it('vencimento em UTC vira o dia de Brasília; mínimo ausente é null', () => {
+    const linha = faturaParaLinha(
+      { id: 'b', dueDate: '2026-10-11T02:30:00.000Z', totalAmount: 99.999 },
+      'conta-1',
+      'user-1',
+    )
+    expect(linha).toMatchObject({ vencimento: '2026-10-10', total: 100, minimo: null })
+  })
+
+  it('sem o que a tabela exige, fica de fora', () => {
+    expect(faturaParaLinha({ ...FATURA_OUTUBRO, dueDate: '' }, 'c', 'u')).toBeNull()
+    expect(faturaParaLinha({ ...FATURA_OUTUBRO, totalAmount: Number.NaN }, 'c', 'u')).toBeNull()
   })
 })

@@ -13,7 +13,7 @@
 import { serverSupabaseClient } from '#supabase/server'
 import type { Database } from '~~/app/types/database.types'
 import { buscarItem, listarContas } from '~~/supabase/functions/_shared/pluggy-api'
-import { camposDaConexao, camposDaConta } from '~~/supabase/functions/_shared/importacao-bancaria'
+import { camposDaConexao, camposDaConta, creditoParaAtualizar } from '~~/supabase/functions/_shared/importacao-bancaria'
 import {
   apiKeyPluggy,
   erroPluggy,
@@ -66,14 +66,30 @@ export default defineEventHandler(async (event) => {
   }
 
   if (contas.length) {
-    const { error: erroContas } = await supabase
+    const { data: gravadas, error: erroContas } = await supabase
       .from('conta_bancaria')
       .upsert(
         contas.map(c => ({ ...camposDaConta(c), conexao_id: conexao.id, user_id: userId })),
         { onConflict: 'pluggy_account_id' },
       )
+      .select('id, pluggy_account_id')
 
     if (erroContas) throw erroPluggy(500, erroContas.message)
+
+    /*
+     * O limite do cartão já na conexão, para a tela de cartões não esperar o
+     * cron. Um `update` por conta e só com o que veio — o mesmo cuidado da
+     * sincronização (`creditoParaAtualizar`). Falhar aqui não desfaz a conexão:
+     * a próxima sincronização grava de novo.
+     */
+    const idDoApp = new Map((gravadas ?? []).map(g => [g.pluggy_account_id, g.id]))
+    for (const c of contas) {
+      const credito = creditoParaAtualizar(c)
+      const id = idDoApp.get(c.id)
+      if (!id || !Object.keys(credito).length) continue
+      const { error: erroCredito } = await supabase.from('conta_bancaria').update(credito).eq('id', id)
+      if (erroCredito) console.error('[pluggy] limite do cartão não gravado na conexão:', erroCredito.message)
+    }
   }
 
   return { id: conexao.id, contas: contas.length }

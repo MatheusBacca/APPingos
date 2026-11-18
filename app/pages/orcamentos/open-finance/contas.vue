@@ -159,7 +159,7 @@ const CLASSE_TOM = {
         <CardTitle class="text-base">O Open Finance ainda não foi ativado</CardTitle>
         <CardDescription v-if="administrador">
           Faltam as chaves da Pluggy no servidor — o
-          <NuxtLink to="/orcamentos/open-finance" class="underline">passo a passo do administrador</NuxtLink>
+          <NuxtLink to="/orcamentos/open-finance/como-funciona" class="underline">passo a passo do administrador</NuxtLink>
           mostra onde pegar e onde pôr. Enquanto isso, o lançamento manual continua funcionando igual.
         </CardDescription>
         <CardDescription v-else>
@@ -184,7 +184,7 @@ const CLASSE_TOM = {
           mandar para o espaço do casal.
         </p>
         <p>
-          Primeira vez? O <NuxtLink to="/orcamentos/open-finance" class="underline">passo a passo</NuxtLink>
+          Primeira vez? O <NuxtLink to="/orcamentos/open-finance/como-funciona" class="underline">passo a passo</NuxtLink>
           mostra como criar a conta no MeuPluggy e ligar ao APPingos.
         </p>
       </CardContent>

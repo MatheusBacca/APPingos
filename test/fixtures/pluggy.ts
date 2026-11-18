@@ -7,7 +7,7 @@
  * vale acrescentar ao lado destas, sem apagar: estas documentam o que a
  * documentação promete, e a real, o que o banco entrega.
  */
-import type { ContaPluggy, TransacaoPluggy } from '~~/supabase/functions/_shared/pluggy-api'
+import type { ContaPluggy, FaturaPluggy, TransacaoPluggy } from '~~/supabase/functions/_shared/pluggy-api'
 
 export const CPF_EU = '12345678901'
 export const CPF_ELA = '98765432100'
@@ -32,7 +32,26 @@ export const CARTAO: ContaPluggy = {
   number: '4321',
   owner: 'Matheus Exemplo',
   taxNumber: '123.456.789-01',
-  creditData: { brand: 'VISA', balanceCloseDate: '2026-11-03', balanceDueDate: '2026-11-10' },
+  creditData: {
+    level: 'PLATINUM',
+    brand: 'VISA',
+    balanceCloseDate: '2026-11-03',
+    balanceDueDate: '2026-11-10',
+    creditLimit: 8000,
+    availableCreditLimit: 5649.6,
+    minimumPayment: 352.56,
+  },
+}
+
+/** Uma fatura fechada do cartão, como `/bills` devolve. */
+export const FATURA_OUTUBRO: FaturaPluggy = {
+  id: 'bill-outubro',
+  dueDate: '2026-10-10T00:00:00.000Z',
+  totalAmount: 2350.4,
+  totalAmountCurrencyCode: 'BRL',
+  minimumPaymentAmount: 352.56,
+  allowsInstallments: true,
+  financeCharges: [],
 }
 
 let sequencia = 0
