@@ -62,10 +62,24 @@ export interface ContaPluggy {
   owner?: string | null
   /** CPF/CNPJ do titular — é o que reconhece transferência entre contas próprias. */
   taxNumber?: string | null
+  /**
+   * Só em cartão, e cada campo só quando o banco informa — a documentação dá
+   * todos como opcionais. Datas em ISO 8601 UTC; valores em reais.
+   */
   creditData?: {
+    /** O nível do cartão ("GOLD", "PLATINUM"...). */
+    level?: string | null
     brand?: string | null
+    /** O fechamento da fatura atual. */
     balanceCloseDate?: string | null
+    /** O vencimento da fatura atual. */
     balanceDueDate?: string | null
+    creditLimit?: number | null
+    availableCreditLimit?: number | null
+    minimumPayment?: number | null
+    balanceForeignCurrency?: number | null
+    isLimitFlexible?: boolean | null
+    status?: string | null
   } | null
 }
 
@@ -114,10 +128,23 @@ export interface TransacaoPluggy {
   updatedAt?: string
 }
 
+/** Uma fatura FECHADA do cartão (`/bills`). A aberta não vem aqui — ela está em `creditData`. */
 export interface FaturaPluggy {
   id: string
+  /** ISO 8601 em UTC. */
   dueDate: string
   totalAmount: number
+  totalAmountCurrencyCode?: string | null
+  minimumPaymentAmount?: number | null
+  allowsInstallments?: boolean | null
+  financeCharges?: Array<{
+    type?: string | null
+    amount?: number | null
+    currencyCode?: string | null
+    additionalInfo?: string | null
+  }> | null
+  createdAt?: string
+  updatedAt?: string
 }
 
 interface Pagina<T> {

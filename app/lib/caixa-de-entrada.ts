@@ -38,6 +38,14 @@ export interface TransacaoDaCaixa {
   contraparte_documento: string | null
   metodo: string | null
   categoria_pluggy: string | null
+  /*
+   * O que a sincronização passou a guardar para a sugestão de categoria
+   * (migration 20261117120000). Opcionais aqui porque a linha antiga e os
+   * testes de antes não têm — o banco devolve null do mesmo jeito.
+   */
+  categoria_pluggy_id?: string | null
+  estabelecimento_nome?: string | null
+  estabelecimento_cnpj?: string | null
   /** `acerto` é o Pix do acerto do mês, reconhecido pela conciliação (B5). */
   motivo_exclusao: MotivoExclusao | 'acerto' | null
   destino: 'compra' | 'ignorada' | 'renda' | 'aporte' | null
@@ -85,6 +93,9 @@ function comoNormalizada(t: TransacaoDaCaixa): TransacaoNormalizada & { id: stri
     contraparte_documento: t.contraparte_documento,
     metodo: t.metodo,
     categoria_pluggy: t.categoria_pluggy,
+    categoria_pluggy_id: t.categoria_pluggy_id ?? null,
+    estabelecimento_nome: t.estabelecimento_nome ?? null,
+    estabelecimento_cnpj: t.estabelecimento_cnpj ?? null,
     chave_compra: t.chave_compra,
     // 'acerto' é da conciliação, não da importação; para agrupar parcelas, tanto faz.
     motivo_exclusao: t.motivo_exclusao === 'acerto' ? null : t.motivo_exclusao,

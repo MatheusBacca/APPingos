@@ -48,19 +48,24 @@ import {
   listarContas,
   listarFaturas,
   listarTransacoes,
+  type ContaPluggy,
+  type FaturaPluggy,
 } from '../_shared/pluggy-api.ts'
 import {
   camposDaConexao,
   camposDaConta,
   comprasParaLancar,
   contextoDasContas,
+  creditoParaAtualizar,
   dataLocal,
+  faturaParaLinha,
   itemPodeSerDe,
   janelaDeSincronizacao,
   linhasDaConta,
   tipoDaConta,
   vencimentosDasFaturas,
 } from '../_shared/importacao-bancaria.ts'
+import { COR_CATEGORIA_BASE, agruparPorRegra, categoriaBaseDoNome } from '../_shared/estabelecimentos.ts'
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void }
 
@@ -223,6 +228,47 @@ async function sincronizarTudo(
   return { conexoes: conexoes.length, resultado }
 }
 
+/**
+ * O limite, o ciclo da fatura atual e as faturas fechadas de cada cartão.
+ *
+ * O crédito vai num `update` por conta, e só com os campos que vieram
+ * (`creditoParaAtualizar`): campo que o banco parou de mandar mantém o último
+ * valor. As faturas, num upsert por (conta, fatura) — rodar de novo é inócuo.
+ *
+ * É bônus, como a própria fatura em `listarFaturas`: uma falha aqui vai para o
+ * log e não impede o extrato de entrar.
+ */
+async function gravarCreditoEFaturas(
+  supabase: SupabaseClient,
+  userId: string,
+  contaDoApp: Map<string, { id: string }>,
+  faturasPorCartao: Array<{ cartao: ContaPluggy, faturas: FaturaPluggy[] }>,
+) {
+  const agora = new Date().toISOString()
+
+  for (const { cartao, faturas } of faturasPorCartao) {
+    const conta = contaDoApp.get(cartao.id)
+    if (!conta) continue
+
+    const credito = creditoParaAtualizar(cartao)
+    if (Object.keys(credito).length) {
+      const { error } = await supabase.from('conta_bancaria').update(credito).eq('id', conta.id)
+      if (error) console.error(`limite do cartão ${conta.id} não gravado:`, error.message)
+    }
+
+    const linhas = faturas.flatMap((f) => {
+      const linha = faturaParaLinha(f, conta.id, userId)
+      return linha ? [{ ...linha, atualizada_em: agora }] : []
+    })
+    if (linhas.length) {
+      const { error } = await supabase
+        .from('fatura_cartao')
+        .upsert(linhas, { onConflict: 'conta_id,pluggy_bill_id' })
+      if (error) console.error(`faturas do cartão ${conta.id} não gravadas:`, error.message)
+    }
+  }
+}
+
 /** Relê um item: status, contas e transações da janela. Devolve quantas transações gravou. */
 async function sincronizarConexao(supabase: SupabaseClient, apiKey: string, conexao: Conexao): Promise<number> {
   const registrarErro = (motivo: string) =>
@@ -257,13 +303,29 @@ async function sincronizarConexao(supabase: SupabaseClient, apiKey: string, cone
       { id: c.id as string, destino: c.destino as string },
     ]))
 
-    const faturas = (await Promise.all(
-      contasPluggy.filter(c => tipoDaConta(c) === 'cartao').map(c => listarFaturas(apiKey, c.id)),
-    )).flat()
+    const cartoes = contasPluggy.filter(c => tipoDaConta(c) === 'cartao')
+    const faturasPorCartao = await Promise.all(
+      cartoes.map(async c => ({ cartao: c, faturas: await listarFaturas(apiKey, c.id) })),
+    )
+    const faturas = faturasPorCartao.flatMap(f => f.faturas)
     const contexto = contextoDasContas(contasPluggy, vencimentosDasFaturas(faturas))
+
+    await gravarCreditoEFaturas(supabase, conexao.user_id, contaDoApp, faturasPorCartao)
 
     const hoje = dataLocal(new Date().toISOString())
     const { de, ate } = janelaDeSincronizacao(conexao.sincronizado_em, hoje)
+
+    /*
+      As regras com "Classificar sozinha" ligado (regra_classificacao.automatica).
+      Valem só para conta em 'perguntar' — a designada já tem destino — e a RPC
+      confere de novo tudo o que importa (pessoal, automática, desde quando).
+    */
+    const { data: regrasAutomaticas, error: erroRegras } = await supabase
+      .from('regra_classificacao')
+      .select('id, chave, categoria_nome')
+      .eq('user_id', conexao.user_id)
+      .eq('automatica', true)
+    if (erroRegras) console.error('regras automáticas não lidas:', erroRegras.message)
 
     let total = 0
     for (const contaPluggy of contasPluggy) {
@@ -292,6 +354,21 @@ async function sincronizarConexao(supabase: SupabaseClient, apiKey: string, cone
           p_compras: comprasParaLancar(linhas),
         })
         if (erroLancar) throw new Error(erroLancar.message)
+      }
+      else if (regrasAutomaticas?.length) {
+        const grupos = agruparPorRegra(linhas, regrasAutomaticas)
+        for (const [regraId, doGrupo] of grupos) {
+          const regra = regrasAutomaticas.find(r => r.id === regraId)!
+          const base = categoriaBaseDoNome(regra.categoria_nome)
+          const { error: erroRegra } = await supabase.rpc('lancar_compras_por_regra', {
+            p_conta: conta.id,
+            p_regra: regraId,
+            p_compras: comprasParaLancar(doGrupo),
+            p_cor: base ? COR_CATEGORIA_BASE[base] : 'cinza',
+          })
+          // Como o crédito e as faturas: falhar aqui deixa a transação na caixa, não perde nada.
+          if (erroRegra) console.error(`regra ${regraId} não aplicada:`, erroRegra.message)
+        }
       }
     }
 

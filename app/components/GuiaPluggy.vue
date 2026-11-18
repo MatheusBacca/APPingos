@@ -73,7 +73,7 @@ const passoAPassoAberto = computed(() => estado.value === 'sem-conexao' || estad
         </p>
         <div class="flex gap-2">
           <Button as-child size="sm" variant="secondary">
-            <NuxtLink to="/orcamentos/open-finance">Caixa de entrada</NuxtLink>
+            <NuxtLink to="/orcamentos/open-finance/caixa">Caixa de entrada</NuxtLink>
           </Button>
           <Button as-child size="sm" variant="ghost">
             <NuxtLink to="/orcamentos/open-finance/contas">Contas conectadas</NuxtLink>

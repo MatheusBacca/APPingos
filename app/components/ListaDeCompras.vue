@@ -74,13 +74,26 @@ const total = computed(() => props.compras.reduce((t, c) => t + c.valor, 0))
         @click="podeEditar(compra) && emit('selecionar', compra)"
         @keydown.enter="podeEditar(compra) && emit('selecionar', compra)"
       >
-        <div class="min-w-0 flex-1">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="font-medium">{{ compra.descricao }}</span>
+        <IconeDaCompra
+          :descricao="compra.descricao"
+          :categoria="compra.categoria?.nome"
+          :cor="compra.categoria?.cor"
+        />
 
+        <div class="min-w-0 flex-1">
+          <!--
+            Duas linhas: o nome e o valor em cima, o resto embaixo. No celular,
+            nome, selos, valor e lixeira na mesma linha espremiam o nome em três.
+          -->
+          <div class="flex items-baseline justify-between gap-3">
+            <span class="truncate font-medium">{{ compra.descricao }}</span>
+            <span class="shrink-0 font-semibold tabular-nums">{{ formatarDinheiro(compra.valor) }}</span>
+          </div>
+
+          <div class="mt-1 flex items-center gap-2 text-xs">
             <span
               v-if="compra.categoria"
-              class="rounded-full px-2 py-0.5 text-[11px]"
+              class="shrink-0 rounded-full px-2 py-0.5 text-[11px]"
               :class="CLASSE_COR[compra.categoria.cor]"
             >
               {{ compra.categoria.nome }}
@@ -88,27 +101,23 @@ const total = computed(() => props.compras.reduce((t, c) => t + c.valor, 0))
 
             <span
               v-if="ehPessoal(compra)"
-              class="inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-[11px] text-muted-foreground"
+              class="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-[11px] text-muted-foreground"
               title="Só você vê esta compra"
             >
               <UserIcon class="size-3" />
               Pessoal
             </span>
+
+            <span class="min-w-0 truncate text-muted-foreground" :title="detalhe(compra)">{{ detalhe(compra) }}</span>
+
+            <!--
+              A parcela fica junto do valor porque é ela que explica o número:
+              "R$ 200,00" numa compra de R$ 1.200 só faz sentido com o "2/6" ao lado.
+            -->
+            <span v-if="compra.parcelas > 1" class="ml-auto shrink-0 tabular-nums text-muted-foreground">
+              {{ compra.numero }}/{{ compra.parcelas }} de {{ formatarDinheiro(compra.valor_total) }}
+            </span>
           </div>
-
-          <p class="mt-0.5 text-xs text-muted-foreground">{{ detalhe(compra) }}</p>
-        </div>
-
-        <div class="shrink-0 text-right">
-          <p class="font-semibold tabular-nums">{{ formatarDinheiro(compra.valor) }}</p>
-
-          <!--
-            A parcela fica junto do valor porque é ela que explica o número:
-            "R$ 200,00" numa compra de R$ 1.200 só faz sentido com o "2/6" ao lado.
-          -->
-          <p v-if="compra.parcelas > 1" class="text-xs tabular-nums text-muted-foreground">
-            {{ compra.numero }}/{{ compra.parcelas }} de {{ formatarDinheiro(compra.valor_total) }}
-          </p>
         </div>
 
         <!-- `.stop`: sem ele, remover também abre o diálogo da compra que sumiu. -->
@@ -116,7 +125,7 @@ const total = computed(() => props.compras.reduce((t, c) => t + c.valor, 0))
           v-if="podeEditar(compra)"
           variant="ghost"
           size="icon"
-          class="shrink-0"
+          class="-mr-1 size-8 shrink-0 text-muted-foreground"
           :aria-label="`Remover ${compra.descricao}`"
           @click.stop="emit('remover', compra)"
         >

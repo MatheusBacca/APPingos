@@ -285,15 +285,23 @@ export type Database = {
           criado_em: string
           designada_em: string
           destino: string
+          dia_fechamento_manual: number | null
+          dia_vencimento_manual: number | null
+          fecha_em: string | null
           id: string
+          limite: number | null
+          limite_disponivel: number | null
+          limite_manual: number | null
           nome: string
           numero: string | null
+          pagamento_minimo: number | null
           pluggy_account_id: string
           space_id: string | null
           tipo: string
           titular_documento: string | null
           titular_nome: string | null
           user_id: string
+          vence_em: string | null
         }
         Insert: {
           atualizado_em?: string
@@ -301,15 +309,23 @@ export type Database = {
           criado_em?: string
           designada_em?: string
           destino?: string
+          dia_fechamento_manual?: number | null
+          dia_vencimento_manual?: number | null
+          fecha_em?: string | null
           id?: string
+          limite?: number | null
+          limite_disponivel?: number | null
+          limite_manual?: number | null
           nome: string
           numero?: string | null
+          pagamento_minimo?: number | null
           pluggy_account_id: string
           space_id?: string | null
           tipo: string
           titular_documento?: string | null
           titular_nome?: string | null
           user_id?: string
+          vence_em?: string | null
         }
         Update: {
           atualizado_em?: string
@@ -317,15 +333,23 @@ export type Database = {
           criado_em?: string
           designada_em?: string
           destino?: string
+          dia_fechamento_manual?: number | null
+          dia_vencimento_manual?: number | null
+          fecha_em?: string | null
           id?: string
+          limite?: number | null
+          limite_disponivel?: number | null
+          limite_manual?: number | null
           nome?: string
           numero?: string | null
+          pagamento_minimo?: number | null
           pluggy_account_id?: string
           space_id?: string | null
           tipo?: string
           titular_documento?: string | null
           titular_nome?: string | null
           user_id?: string
+          vence_em?: string | null
         }
         Relationships: [
           {
@@ -497,6 +521,47 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      fatura_cartao: {
+        Row: {
+          atualizada_em: string
+          conta_id: string
+          id: string
+          minimo: number | null
+          pluggy_bill_id: string
+          total: number
+          user_id: string
+          vencimento: string
+        }
+        Insert: {
+          atualizada_em?: string
+          conta_id: string
+          id?: string
+          minimo?: number | null
+          pluggy_bill_id: string
+          total: number
+          user_id: string
+          vencimento: string
+        }
+        Update: {
+          atualizada_em?: string
+          conta_id?: string
+          id?: string
+          minimo?: number | null
+          pluggy_bill_id?: string
+          total?: number
+          user_id?: string
+          vencimento?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fatura_cartao_conta_id_fkey"
+            columns: ["conta_id"]
+            isOneToOne: false
+            referencedRelation: "conta_bancaria"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       foto: {
         Row: {
@@ -1861,6 +1926,45 @@ export type Database = {
           },
         ]
       }
+      regra_classificacao: {
+        Row: {
+          automatica: boolean
+          automatica_desde: string | null
+          categoria_nome: string | null
+          chave: string
+          destino: string
+          id: string
+          rotulo: string
+          ultima_vez: string
+          user_id: string
+          vezes: number
+        }
+        Insert: {
+          automatica?: boolean
+          automatica_desde?: string | null
+          categoria_nome?: string | null
+          chave: string
+          destino: string
+          id?: string
+          rotulo: string
+          ultima_vez?: string
+          user_id?: string
+          vezes?: number
+        }
+        Update: {
+          automatica?: boolean
+          automatica_desde?: string | null
+          categoria_nome?: string | null
+          chave?: string
+          destino?: string
+          id?: string
+          rotulo?: string
+          ultima_vez?: string
+          user_id?: string
+          vezes?: number
+        }
+        Relationships: []
+      }
       renda: {
         Row: {
           recebimento_dia: number
@@ -2121,6 +2225,7 @@ export type Database = {
         Row: {
           atualizada_em: string
           categoria_pluggy: string | null
+          categoria_pluggy_id: string | null
           chave_compra: string | null
           classificada_em: string | null
           competencia: string
@@ -2133,6 +2238,8 @@ export type Database = {
           data_compra: string | null
           descricao: string
           destino: string | null
+          estabelecimento_cnpj: string | null
+          estabelecimento_nome: string | null
           fatura_id: string | null
           id: string
           importada_em: string
@@ -2151,6 +2258,7 @@ export type Database = {
         Insert: {
           atualizada_em?: string
           categoria_pluggy?: string | null
+          categoria_pluggy_id?: string | null
           chave_compra?: string | null
           classificada_em?: string | null
           competencia: string
@@ -2163,6 +2271,8 @@ export type Database = {
           data_compra?: string | null
           descricao: string
           destino?: string | null
+          estabelecimento_cnpj?: string | null
+          estabelecimento_nome?: string | null
           fatura_id?: string | null
           id?: string
           importada_em?: string
@@ -2181,6 +2291,7 @@ export type Database = {
         Update: {
           atualizada_em?: string
           categoria_pluggy?: string | null
+          categoria_pluggy_id?: string | null
           chave_compra?: string | null
           classificada_em?: string | null
           competencia?: string
@@ -2193,6 +2304,8 @@ export type Database = {
           data_compra?: string | null
           descricao?: string
           destino?: string | null
+          estabelecimento_cnpj?: string | null
+          estabelecimento_nome?: string | null
           fatura_id?: string | null
           id?: string
           importada_em?: string
@@ -2298,6 +2411,32 @@ export type Database = {
       anunciar_versao: {
         Args: { p_descricao: string; p_titulo: string; p_versao: string }
         Returns: number
+      }
+      aprender_classificacao: {
+        Args: {
+          p_categoria_nome?: string
+          p_chave: string
+          p_destino: string
+          p_rotulo: string
+        }
+        Returns: {
+          automatica: boolean
+          automatica_desde: string | null
+          categoria_nome: string | null
+          chave: string
+          destino: string
+          id: string
+          rotulo: string
+          ultima_vez: string
+          user_id: string
+          vezes: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "regra_classificacao"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       assumir_interesse: { Args: { p_interesse: string }; Returns: undefined }
       atualizar_compra: {
@@ -2458,6 +2597,15 @@ export type Database = {
       }
       lancar_compras_do_cartao: {
         Args: { p_compras: Json; p_conta: string }
+        Returns: number
+      }
+      lancar_compras_por_regra: {
+        Args: {
+          p_compras: Json
+          p_conta: string
+          p_cor?: string
+          p_regra: string
+        }
         Returns: number
       }
       lembrete_semanal_filmes: { Args: never; Returns: number }
@@ -2636,6 +2784,7 @@ export type Database = {
         Returns: {
           atualizada_em: string
           categoria_pluggy: string | null
+          categoria_pluggy_id: string | null
           chave_compra: string | null
           classificada_em: string | null
           competencia: string
@@ -2648,6 +2797,8 @@ export type Database = {
           data_compra: string | null
           descricao: string
           destino: string | null
+          estabelecimento_cnpj: string | null
+          estabelecimento_nome: string | null
           fatura_id: string | null
           id: string
           importada_em: string

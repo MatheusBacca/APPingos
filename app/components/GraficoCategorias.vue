@@ -23,6 +23,7 @@
 import { CLASSE_BARRA, CLASSE_BARRA_SEM_CATEGORIA } from '~/types/orcamento'
 import type { FatiaCategoria } from '~/types/orcamento'
 import { formatarDinheiro, formatarPercentual } from '@/lib/dinheiro'
+import { formatarDia, hojeIso, somarDias } from '@/lib/datas'
 
 const props = withDefaults(defineProps<{
   fatias: FatiaCategoria[]
@@ -49,6 +50,21 @@ function quantidade(fatia: FatiaCategoria): string {
   return fatia.compras.length === 1 ? '1 compra' : `${fatia.compras.length} compras`
 }
 
+/**
+ * A data da compra mais recente da categoria. É o que diz se a categoria ainda
+ * está "viva" no mês — o Delivery de ontem e o Cinema de três semanas atrás têm
+ * pesos parecidos e histórias diferentes. Hora não: o extrato do banco chega
+ * com o dia, e uma hora inventada seria pior que nenhuma.
+ */
+function ultima(fatia: FatiaCategoria): string {
+  const data = fatia.compras.reduce((m, c) => (c.data_compra > m ? c.data_compra : m), '')
+  if (!data) return ''
+  const hoje = hojeIso()
+  if (data === hoje) return 'hoje'
+  if (data === somarDias(hoje, -1)) return 'ontem'
+  return formatarDia(data)
+}
+
 const total = computed(() => props.fatias.reduce((t, f) => t + f.total, 0))
 </script>
 
@@ -67,29 +83,37 @@ const total = computed(() => props.fatias.reduce((t, f) => t + f.total, 0))
         :aria-label="`${fatia.nome}: ${quantidade(fatia)}, ${formatarDinheiro(fatia.total)}, ${formatarPercentual(fatia.fracao)} do período. Ver as compras.`"
         @click="emit('selecionar', fatia.chave)"
       >
-        <div class="flex items-baseline gap-2">
-          <span class="truncate font-medium">{{ fatia.nome }}</span>
-          <span class="shrink-0 text-xs text-muted-foreground">{{ quantidade(fatia) }}</span>
+        <div class="flex items-center gap-3">
+          <IconeDaCompra :categoria="fatia.cor ? fatia.nome : null" :cor="fatia.cor" />
 
-          <!--
-            O valor vem antes da porcentagem e em tom secundário: a pergunta
-            desta tela é o peso relativo, e o valor é a conferência de quem
-            quer saber o número absoluto.
-          -->
-          <span class="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
-            {{ formatarDinheiro(fatia.total) }}
-          </span>
-          <span class="w-14 shrink-0 text-right text-sm font-semibold tabular-nums">
-            {{ formatarPercentual(fatia.fracao) }}
-          </span>
-        </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-baseline gap-2">
+              <span class="truncate font-medium">{{ fatia.nome }}</span>
 
-        <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full bg-muted">
-          <div
-            class="h-full rounded-full transition-[width]"
-            :class="preenchimento(fatia)"
-            :style="{ width: largura(fatia) }"
-          />
+              <!--
+                O valor é o número que a pessoa lê primeiro; a porcentagem fica
+                ao lado, em tom secundário, e a barra embaixo repete o peso.
+              -->
+              <span class="ml-auto shrink-0 text-sm font-semibold tabular-nums">
+                {{ formatarDinheiro(fatia.total) }}
+              </span>
+              <span class="w-12 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                {{ formatarPercentual(fatia.fracao) }}
+              </span>
+            </div>
+
+            <p class="mt-0.5 text-xs text-muted-foreground">
+              {{ quantidade(fatia) }}<template v-if="ultima(fatia)"> · última {{ ultima(fatia) }}</template>
+            </p>
+
+            <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                class="h-full rounded-full transition-[width]"
+                :class="preenchimento(fatia)"
+                :style="{ width: largura(fatia) }"
+              />
+            </div>
+          </div>
         </div>
       </button>
 

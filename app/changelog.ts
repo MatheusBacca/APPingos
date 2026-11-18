@@ -48,6 +48,12 @@ export interface Lancamento {
  */
 export const LANCAMENTOS: Lancamento[] = [
   {
+    versao: '1.11.0',
+    titulo: 'Cartões, categorias e a caixa que aprende',
+    descricao: 'Open Finance abre nos seus cartões: a fatura aberta, quando fecha e vence e quanto do limite já foi. As compras ganham o ícone da categoria e o selo da loja, e a caixa de entrada aprende com as suas escolhas — o que ela já sabe, você aceita num toque.',
+    data: '2026-11-17',
+  },
+  {
     versao: '1.10.1',
     titulo: 'Open Finance numa aba só',
     descricao: 'Em Orçamentos, Caixa de entrada, Contas e o guia agora moram juntos na aba Open Finance, cada um numa seção. E as abas subiram para o lado do título, com o botão da tela logo abaixo delas.',

@@ -18,7 +18,7 @@
  * Só `import type` (apagado na compilação) — a regra de zero imports de runtime
  * de `_shared/` continua valendo.
  */
-import type { ContaPluggy, ItemPluggy, ParteDoPagamento, TransacaoPluggy } from './pluggy-api.ts'
+import type { ContaPluggy, FaturaPluggy, ItemPluggy, ParteDoPagamento, TransacaoPluggy } from './pluggy-api.ts'
 
 export const FUSO = 'America/Sao_Paulo'
 
@@ -60,6 +60,12 @@ export interface TransacaoNormalizada {
   contraparte_documento: string | null
   metodo: string | null
   categoria_pluggy: string | null
+  /** O `categoryId` da Pluggy: hierárquico, os dois primeiros dígitos são a raiz. */
+  categoria_pluggy_id: string | null
+  /** `merchant.name`, ou `merchant.businessName` quando o nome fantasia falta. */
+  estabelecimento_nome: string | null
+  /** O CNPJ do estabelecimento, só dígitos. */
+  estabelecimento_cnpj: string | null
   /** Junta as parcelas de uma mesma compra. `null` em compra à vista. */
   chave_compra: string | null
   motivo_exclusao: MotivoExclusao | null
@@ -360,6 +366,25 @@ export interface ContaDaTransacao {
   tipo: TipoConta
 }
 
+/**
+ * Quem vendeu, pelo `merchant` do enriquecimento da Pluggy.
+ *
+ * O nome fantasia (`name`) é o que a pessoa reconhece ("iFood"); a razão social
+ * (`businessName`) só entra quando ele falta. O CNPJ vai só com os dígitos, para
+ * casar igual venha ele formatado ou não. Vazio vira `null` — e a ingestão, com
+ * `null`, mantém o que já estava gravado.
+ */
+export function estabelecimentoDe(t: Pick<TransacaoPluggy, 'merchant'>): {
+  estabelecimento_nome: string | null
+  estabelecimento_cnpj: string | null
+} {
+  const m = t.merchant
+  return {
+    estabelecimento_nome: m?.name?.trim() || m?.businessName?.trim() || null,
+    estabelecimento_cnpj: soDigitos(m?.cnpj) || null,
+  }
+}
+
 /** Uma transação da Pluggy no formato de `transacao_bancaria`. */
 export function normalizarTransacao(
   t: TransacaoPluggy,
@@ -394,6 +419,8 @@ export function normalizarTransacao(
     contraparte_documento: contraparte?.documentNumber?.value?.trim() || null,
     metodo: t.paymentData?.paymentMethod ?? t.operationType ?? null,
     categoria_pluggy: t.category ?? null,
+    categoria_pluggy_id: t.categoryId?.trim() || null,
+    ...estabelecimentoDe(t),
     motivo_exclusao: motivoDeExclusao(t, conta.tipo, sentido, valor, contexto),
   }
 
@@ -578,6 +605,99 @@ export function camposDaConta(conta: ContaPluggy) {
     numero: tipo === 'cartao' && numero ? numero.replace(/\D/g, '').slice(-4) || numero : numero,
     titular_nome: conta.owner?.trim() || null,
     titular_documento: conta.taxNumber?.trim() || null,
+  }
+}
+
+/** As colunas de crédito de `conta_bancaria` — as que a Pluggy escreve, nunca as `*_manual`. */
+export interface CamposDeCredito {
+  limite: number | null
+  limite_disponivel: number | null
+  /** `YYYY-MM-DD` em Brasília. */
+  fecha_em: string | null
+  /** `YYYY-MM-DD` em Brasília. */
+  vence_em: string | null
+  pagamento_minimo: number | null
+}
+
+const valorOuNulo = (v: number | null | undefined): number | null =>
+  typeof v === 'number' && Number.isFinite(v) ? centavos(v) : null
+
+/** `dataLocal` que não derruba a sincronização por uma data torta num campo de bônus. */
+function dataLocalOuNula(iso: string | null | undefined): string | null {
+  if (!iso?.trim()) return null
+  try {
+    return dataLocal(iso.trim())
+  }
+  catch {
+    return null
+  }
+}
+
+/**
+ * O limite e o ciclo da fatura atual, de `creditData`.
+ *
+ * Tudo é opcional na Pluggy: o que não veio sai `null` (e conta sem `creditData`,
+ * como a corrente, sai toda `null`). As datas chegam em UTC e viram o dia de
+ * Brasília pela mesma `dataLocal` das transações — um fechamento às 02h UTC do
+ * dia 4 é dia 3 aqui. Limite negativo não existe (a coluna recusa): vira `null`.
+ */
+export function camposDeCreditoDaConta(conta: Pick<ContaPluggy, 'creditData'>): CamposDeCredito {
+  const c = conta.creditData ?? null
+  const limite = valorOuNulo(c?.creditLimit)
+  return {
+    limite: limite != null && limite >= 0 ? limite : null,
+    limite_disponivel: valorOuNulo(c?.availableCreditLimit),
+    fecha_em: dataLocalOuNula(c?.balanceCloseDate),
+    vence_em: dataLocalOuNula(c?.balanceDueDate),
+    pagamento_minimo: valorOuNulo(c?.minimumPayment),
+  }
+}
+
+/**
+ * Só os campos de crédito que vieram — o objeto do `update` da conta.
+ *
+ * O banco às vezes deixa de mandar um campo de uma sincronização para outra, e
+ * o limite de ontem é mais útil que um buraco. Por isso nada de `null` aqui: o
+ * que não veio não é escrito. Objeto vazio = nada a atualizar.
+ *
+ * (Não vai junto no upsert de `camposDaConta`: num upsert de várias linhas o
+ * PostgREST grava `null` na coluna que falta numa delas, e um cartão sem limite
+ * apagaria o do vizinho.)
+ */
+export function creditoParaAtualizar(conta: Pick<ContaPluggy, 'creditData'>): Partial<CamposDeCredito> {
+  return Object.fromEntries(
+    Object.entries(camposDeCreditoDaConta(conta)).filter(([, v]) => v != null),
+  ) as Partial<CamposDeCredito>
+}
+
+/** Uma linha de `fatura_cartao` (sem `id` nem `atualizada_em`, que o banco e o chamador põem). */
+export interface LinhaDeFatura {
+  user_id: string
+  conta_id: string
+  pluggy_bill_id: string
+  /** `YYYY-MM-DD` em Brasília. */
+  vencimento: string
+  total: number
+  minimo: number | null
+}
+
+/**
+ * Uma fatura fechada da Pluggy no formato de `fatura_cartao`.
+ *
+ * `null` quando falta o que a tabela exige (id, vencimento legível, total) —
+ * fatura é bônus, e uma torta não pode impedir as outras de entrar.
+ */
+export function faturaParaLinha(fatura: FaturaPluggy, contaId: string, userId: string): LinhaDeFatura | null {
+  const vencimento = dataLocalOuNula(fatura.dueDate)
+  const total = valorOuNulo(fatura.totalAmount)
+  if (!fatura.id || !vencimento || total == null) return null
+  return {
+    user_id: userId,
+    conta_id: contaId,
+    pluggy_bill_id: fatura.id,
+    vencimento,
+    total,
+    minimo: valorOuNulo(fatura.minimumPaymentAmount),
   }
 }
 
