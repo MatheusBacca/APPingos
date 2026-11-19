@@ -32,7 +32,9 @@ import type { LinhaResumo, UsarResumo } from '~/types/resumo'
 import { useGastosPessoais } from '~/composables/useGastosPessoais'
 import { useMembros } from '~/composables/useMembros'
 import { useComprasDoMes, useAcertos } from '~/composables/useOrcamento'
+import { usePendenciasDoEspaco } from '~/composables/useCaixaDeEntrada'
 import { useUsuarioId } from '~/composables/useUsuarioId'
+import { useSpaceStore } from '~/stores/space'
 
 /** Abaixo de um centavo é resíduo de arredondamento, não dívida. */
 const QUITADO = 0.01
@@ -107,6 +109,28 @@ export function linhaPessoais(competencia: string, pessoais: CompraDoMes[]): Lin
   }
 }
 
+/**
+ * Quantas compras dos cartões do casal esperam destino na fatura do mês — de
+ * todo mundo, não só suas (`pendencias_do_espaco`): enquanto elas não entram,
+ * o "Aberto" acima ainda vai mudar.
+ *
+ * "A classificar", e não "Pendentes": "Pendente" já é, neste mesmo painel, o
+ * mês fechado que ninguém acertou.
+ */
+export function linhaAClassificar(competencia: string, contagens: ReadonlyArray<{ quantidade: number }>): LinhaResumo | null {
+  const total = contagens.reduce((s, c) => s + c.quantidade, 0)
+  if (!total) return null
+
+  return {
+    chave: `orcamento-a-classificar-${competencia}`,
+    rotulo: 'A classificar',
+    nota: nomeDoMes(competencia),
+    valor: total === 1 ? '1 compra' : `${total} compras`,
+    valorDescrito: 'dos cartões do casal esperando destino na caixa de entrada',
+    tom: 'neutro',
+  }
+}
+
 export const useResumoOrcamentos: UsarResumo = () => {
   const usuarioId = useUsuarioId()
   const { data: membros } = useMembros()
@@ -149,6 +173,11 @@ export const useResumoOrcamentos: UsarResumo = () => {
   const corrente = primeiroDoMes(hoje)
   const { data: comprasPessoais } = useComprasDoMes(corrente, espacoVisivel)
 
+  // Só num espaço de casal: cartão "do casal" nunca aponta para o pessoal.
+  const store = useSpaceStore()
+  const espacoCasal = computed(() => (store.espacoAtivo?.tipo === 'casal' ? store.espacoAtivo.id : null))
+  const { data: aClassificar } = usePendenciasDoEspaco(espacoCasal, corrente)
+
   return computed<LinhaResumo[]>(() => {
     const ids = (membros.value ?? []).map(m => m.user_id)
     const eu = usuarioId.value
@@ -157,6 +186,7 @@ export const useResumoOrcamentos: UsarResumo = () => {
       linhaDoMes(meses.value[0], comprasA.value ?? [], ids, eu),
       linhaDoMes(meses.value[1], comprasB.value ?? [], ids, eu),
       linhaPessoais(corrente, comprasPessoais.value ?? []),
+      linhaAClassificar(corrente, aClassificar.value ?? []),
     ].filter((linha): linha is LinhaResumo => linha !== null)
   })
 }

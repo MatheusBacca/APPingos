@@ -178,7 +178,7 @@ const situacao = computed(() => {
       </p>
     </section>
 
-    <div class="grid gap-4 lg:grid-cols-2">
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <!-- ---- Meu mês ---- -->
       <div v-if="renda.isPending.value || carregandoPessoais" class="space-y-3 rounded-lg border bg-card p-4">
         <Skeleton v-for="i in 5" :key="i" class="h-6 w-full" />

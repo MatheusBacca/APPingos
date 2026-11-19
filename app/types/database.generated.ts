@@ -2665,6 +2665,13 @@ export type Database = {
         Args: { p_cor?: string; p_nome: string; p_space: string }
         Returns: string
       }
+      pendencias_do_espaco: {
+        Args: { p_competencia: string; p_space: string }
+        Returns: {
+          quantidade: number
+          user_id: string
+        }[]
+      }
       pins_hotspots: {
         Args: {
           p_agora: string

@@ -48,12 +48,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { formatarDia, hojeIso } from '@/lib/datas'
+import { formatarDia, hojeIso, nomeDoMes, primeiroDoMes } from '@/lib/datas'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { mensagemDeErro } from '@/lib/utils'
 import { avisoDeMesAcertado, itensDaCaixa } from '~/lib/caixa-de-entrada'
 import type { ItemDaCaixa, ModoClassificacao } from '~/lib/caixa-de-entrada'
-import { FILTRO_INICIAL, aceitavel, filtrarCaixa, gruposPorDia, resumoDaCaixa, rotuloDaConta, textoParaSelo, valorDoItem } from '~/lib/caixa-lista'
+import {
+  FILTRO_INICIAL,
+  aceitavel,
+  contagemPorDia,
+  filtrarCaixa,
+  gruposPorDia,
+  mesDoItem,
+  mesesDaCaixa,
+  recortarPorData,
+  resumoDaCaixa,
+  rotuloDaConta,
+  textoParaSelo,
+  valorDoItem,
+} from '~/lib/caixa-lista'
 import type { FiltroDaCaixa, Origem } from '~/lib/caixa-lista'
 import { ROTULO_DESTINO_DA_REGRA, rotuloParaRegra, sugerirClassificacao } from '~/lib/auto-tag'
 import type { Sugestao } from '~/lib/auto-tag'
@@ -174,9 +187,44 @@ const chipsVisiveis = computed(() =>
   contasNaCaixa.value.filter(c => filtro.value.origem === 'todas' || c.tipo === filtro.value.origem),
 )
 
-const visiveis = computed(() =>
+/** Origem, conta e "só com sugestão" — antes do recorte por data, para o calendário contar o que o filtro deixa ver. */
+const filtradas = computed(() =>
   filtrarCaixa(prontas.value, filtro.value, id => contaDe(id)?.tipo ?? null, sugestoes.value),
 )
+
+// ---- a página do mês ----------------------------------------------------------
+
+/*
+ * A caixa abre no mês corrente: com o Open Finance ligado, a pergunta do dia a
+ * dia é a fatura que está aberta, não o extrato inteiro. O que ficou para trás
+ * está no calendário ("Também esperando"). `?mes=2026-10` abre outro mês, e
+ * `?compra=<chave>` abre direto numa compra — é o caminho do Chico Moedas.
+ */
+const route = useRoute()
+const router = useRouter()
+
+function mesDaUrl(): string | null {
+  const valor = route.query.mes
+  return typeof valor === 'string' && /^\d{4}-\d{2}$/.test(valor) ? `${valor}-01` : null
+}
+
+const mes = ref(mesDaUrl() ?? primeiroDoMes(hojeIso()))
+const dia = ref<string | null>(null)
+
+// O mês vai para a URL: voltar de outra tela (ou recarregar) cai na mesma página.
+watch(mes, (m) => {
+  const { compra: _, ...resto } = route.query
+  router.replace({ query: { ...resto, mes: m.slice(0, 7) } })
+})
+
+const mesesComAlgo = computed(() => mesesDaCaixa(filtradas.value))
+const contagens = computed(() => contagemPorDia(filtradas.value, mes.value))
+
+const visiveis = computed(() => recortarPorData(filtradas.value, mes.value, dia.value))
+const pendentesDoMes = computed(() => recortarPorData(pendentes.value, mes.value, null))
+
+/** "em novembro", ou "em 16 de novembro" com um dia marcado. */
+const periodo = computed(() => (dia.value ? formatarDia(dia.value) : nomeDoMes(mes.value).toLowerCase()))
 
 const resumo = computed(() => resumoDaCaixa(visiveis.value))
 const hoje = hojeIso()
@@ -255,6 +303,24 @@ watch([visiveis, largo], ([lista], anterior) => {
   const antes = listaAnterior?.findIndex(i => i.chave === selecionada.value) ?? -1
   selecionada.value = (lista[Math.max(0, antes)] ?? lista[0])?.chave ?? null
 }, { immediate: true })
+
+/*
+ * `?compra=<chave>`: quando a lista chega, a página vai para o mês da compra e
+ * ela fica selecionada — no celular, a folha do detalhe já sobe aberta. Uma vez
+ * só: depois disso a seleção é da pessoa.
+ */
+const compraDaUrl = typeof route.query.compra === 'string' ? route.query.compra : null
+if (compraDaUrl) {
+  const parar = watch(prontas, (lista) => {
+    if (!lista.length) return
+    const alvo = lista.find(i => i.chave === compraDaUrl)
+    if (alvo) {
+      mes.value = mesDoItem(alvo)
+      selecionada.value = alvo.chave
+    }
+    queueMicrotask(() => parar())
+  }, { immediate: true })
+}
 
 function abrir(item: ItemDaCaixa, modo?: ModoClassificacao) {
   if (modo) emClassificacao.value = { item, modo }
@@ -397,7 +463,7 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
         <div>
           <p class="text-2xl font-semibold tabular-nums">{{ formatarDinheiro(resumo.total) }}</p>
           <p class="text-sm text-muted-foreground">
-            em {{ resumo.quantidade }} {{ resumo.quantidade === 1 ? 'compra' : 'compras' }} esperando destino
+            em {{ resumo.quantidade }} {{ resumo.quantidade === 1 ? 'compra' : 'compras' }} esperando destino em {{ periodo }}
           </p>
         </div>
         <div class="flex items-center gap-2">
@@ -463,13 +529,25 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
         </div>
       </section>
 
-      <p v-if="!visiveis.length" class="rounded-lg border border-dashed px-6 py-10 text-center text-sm text-muted-foreground">
-        Nada com esse filtro.
-      </p>
-
-      <!-- No PC, a lista e o detalhe lado a lado; no celular, só a lista. -->
-      <div v-else class="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <!--
+        No PC, a lista e, à direita, o calendário do mês com o detalhe embaixo;
+        no celular, o calendário vem antes da lista e o detalhe sobe numa folha.
+      -->
+      <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div class="space-y-4">
+          <CalendarioDaCaixa
+            v-if="!largo"
+            v-model:mes="mes"
+            v-model:dia-selecionado="dia"
+            :contagens="contagens"
+            :meses="mesesComAlgo"
+          />
+
+          <p v-if="!visiveis.length" class="rounded-lg border border-dashed px-6 py-10 text-center text-sm text-muted-foreground">
+            <template v-if="filtro.origem !== 'todas' || filtro.conta || filtro.soComSugestao">Nada com esse filtro em {{ periodo }}.</template>
+            <template v-else>Nada esperando destino em {{ periodo }}.</template>
+          </p>
+
           <section v-for="grupo in grupos" :key="grupo.dia">
             <h2 class="sticky top-[calc(3.6rem+env(safe-area-inset-top))] z-10 -mx-1 mb-1.5 bg-background/80 px-1 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground backdrop-blur md:top-0">
               {{ grupo.rotulo }}
@@ -493,21 +571,29 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
           </section>
         </div>
 
-        <aside v-if="largo" class="sticky top-4 rounded-xl border bg-card p-4">
-          <DetalheDaCaixa
-            v-if="itemSelecionado"
-            :item="itemSelecionado"
-            :sugestao="sugestoes.get(itemSelecionado.chave) ?? null"
-            :pode-aceitar="podeAceitar(itemSelecionado)"
-            :aviso-do-aceite="avisoDoAceite(itemSelecionado)"
-            :banco="bancoDe(itemSelecionado)"
-            :conta="rotuloDe(itemSelecionado)"
-            :ocupado="aceite.ocupado.value"
-            @escolher="(modo) => abrir(itemSelecionado!, modo)"
-            @aceitar="aceitar(itemSelecionado!)"
-            @ignorar="ignorar(itemSelecionado!)"
+        <aside v-if="largo" class="sticky top-4 max-h-[calc(100dvh-2rem)] space-y-4 overflow-y-auto [scrollbar-width:thin]">
+          <CalendarioDaCaixa
+            v-model:mes="mes"
+            v-model:dia-selecionado="dia"
+            :contagens="contagens"
+            :meses="mesesComAlgo"
           />
-          <p v-else class="py-10 text-center text-sm text-muted-foreground">Escolha uma compra na lista.</p>
+          <div class="rounded-xl border bg-card p-4">
+            <DetalheDaCaixa
+              v-if="itemSelecionado"
+              :item="itemSelecionado"
+              :sugestao="sugestoes.get(itemSelecionado.chave) ?? null"
+              :pode-aceitar="podeAceitar(itemSelecionado)"
+              :aviso-do-aceite="avisoDoAceite(itemSelecionado)"
+              :banco="bancoDe(itemSelecionado)"
+              :conta="rotuloDe(itemSelecionado)"
+              :ocupado="aceite.ocupado.value"
+              @escolher="(modo) => abrir(itemSelecionado!, modo)"
+              @aceitar="aceitar(itemSelecionado!)"
+              @ignorar="ignorar(itemSelecionado!)"
+            />
+            <p v-else class="py-10 text-center text-sm text-muted-foreground">Escolha uma compra na lista.</p>
+          </div>
         </aside>
       </div>
     </template>
@@ -565,16 +651,16 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
       </DialogContent>
     </Dialog>
 
-    <details v-if="!isPending && pendentes.length && mostrarPendentes" class="group rounded-lg border bg-card">
+    <details v-if="!isPending && pendentesDoMes.length && mostrarPendentes" class="group rounded-lg border bg-card">
       <summary class="flex cursor-pointer list-none items-center justify-between gap-2 p-3 text-sm">
         <span>
-          <span class="font-medium">Pendentes no banco ({{ pendentes.length }})</span>
+          <span class="font-medium">Pendentes no banco em {{ nomeDoMes(mes).toLowerCase() }} ({{ pendentesDoMes.length }})</span>
           <span class="block text-xs text-muted-foreground">Dá para classificar quando o banco lançar — no cartão, às vezes só no fechamento da fatura.</span>
         </span>
         <ChevronDownIcon class="size-4 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
       </summary>
       <ul class="divide-y border-t">
-        <li v-for="item in pendentes" :key="item.chave" class="flex items-baseline justify-between gap-3 px-3 py-2">
+        <li v-for="item in pendentesDoMes" :key="item.chave" class="flex items-baseline justify-between gap-3 px-3 py-2">
           <div class="min-w-0 flex-1">
             <p class="truncate text-sm">{{ item.plano.descricao }}</p>
             <p class="text-xs text-muted-foreground">

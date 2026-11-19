@@ -185,6 +185,8 @@ async function copiarValor(valor: number) {
     </p>
 
     <div v-if="aberta" class="mt-2">
+      <!-- Quatro colunas de dinheiro não cabem num celular: a tabela rola no card, não a página. -->
+      <div class="-mx-1 overflow-x-auto px-1">
       <table class="w-full text-sm">
         <thead>
           <tr class="border-b text-left text-xs text-muted-foreground">
@@ -208,6 +210,7 @@ async function copiarValor(valor: number) {
           </tr>
         </tbody>
       </table>
+      </div>
 
       <p class="mt-1.5 text-xs text-muted-foreground">
         Saldo positivo significa que essa pessoa adiantou mais do que a parte dela.

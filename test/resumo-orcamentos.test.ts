@@ -7,7 +7,7 @@
  * mês seguinte.
  */
 import { describe, expect, it } from 'vitest'
-import { linhaDoMes, linhaPessoais, mesesDoPainel } from '~/composables/useResumoOrcamentos'
+import { linhaAClassificar, linhaDoMes, linhaPessoais, mesesDoPainel } from '~/composables/useResumoOrcamentos'
 import type { MesDoPainel } from '~/composables/useResumoOrcamentos'
 import type { CompraDoMes } from '~/types/orcamento'
 
@@ -125,5 +125,22 @@ describe('linhaPessoais', () => {
     const divida = linhaDoMes(mes('2026-08-01', 'Aberto'), [compra(100, ELA)], MEMBROS, EU)
 
     expect(linhaPessoais('2026-08-01', [pessoal(30)])?.chave).not.toBe(divida?.chave)
+  })
+})
+
+describe('linhaAClassificar', () => {
+  it('soma a contagem de todo mundo, sem tom — não é dívida de ninguém', () => {
+    expect(linhaAClassificar('2026-11-01', [{ quantidade: 12 }, { quantidade: 3 }])).toMatchObject({
+      rotulo: 'A classificar',
+      nota: 'Novembro',
+      valor: '15 compras',
+      tom: 'neutro',
+    })
+    expect(linhaAClassificar('2026-11-01', [{ quantidade: 1 }])?.valor).toBe('1 compra')
+  })
+
+  it('some quando não há nada esperando', () => {
+    expect(linhaAClassificar('2026-11-01', [])).toBeNull()
+    expect(linhaAClassificar('2026-11-01', [{ quantidade: 0 }])).toBeNull()
   })
 })

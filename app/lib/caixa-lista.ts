@@ -5,7 +5,7 @@
  * Fica fora do componente para ser testável sem Vue, como o resto de
  * `~/lib/caixa-de-entrada`.
  */
-import { formatarDia, somarDias } from '@/lib/datas'
+import { formatarDia, primeiroDoMes, somarDias } from '@/lib/datas'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import type { Sugestao } from '~/lib/auto-tag'
 import type { ItemDaCaixa } from '~/lib/caixa-de-entrada'
@@ -87,6 +87,66 @@ export function filtrarCaixa<T extends ItemDaCaixa>(
     if (filtro.origem !== 'todas' && tipoDaConta(conta) !== filtro.origem) return false
     if (filtro.soComSugestao && !sugestoes.has(item.chave)) return false
     return true
+  })
+}
+
+// ---- a página do mês ----------------------------------------------------------
+
+/*
+ * A caixa pagina por MÊS DA COMPRA (a data do item), e não pela competência da
+ * fatura: é a data que o calendário ao lado mostra, e uma página que pusesse
+ * 30/10 dentro de novembro teria um dia que o calendário de novembro não tem.
+ * A competência é a régua do Chico Moedas (`pendentesDoCasal`), onde a pergunta
+ * é "o que pesa neste acerto".
+ */
+
+/** O mês (YYYY-MM-01) em que o item aparece: o da data mais recente dele, a mesma que o agrupa por dia. */
+export function mesDoItem(item: { data: string }): string {
+  return primeiroDoMes(item.data)
+}
+
+/** Os meses que têm algo esperando e quantos itens cada um, do mais novo para o mais antigo. */
+export function mesesDaCaixa(itens: ReadonlyArray<{ data: string }>): Array<{ mes: string, quantidade: number }> {
+  const conta = new Map<string, number>()
+  for (const item of itens) {
+    const mes = mesDoItem(item)
+    conta.set(mes, (conta.get(mes) ?? 0) + 1)
+  }
+  return [...conta].map(([mes, quantidade]) => ({ mes, quantidade })).sort((a, b) => b.mes.localeCompare(a.mes))
+}
+
+/** Quantos itens em cada dia do mês — os números do calendário. */
+export function contagemPorDia(itens: ReadonlyArray<{ data: string }>, mes: string): Map<string, number> {
+  const conta = new Map<string, number>()
+  for (const item of itens) {
+    if (mesDoItem(item) !== mes) continue
+    conta.set(item.data, (conta.get(item.data) ?? 0) + 1)
+  }
+  return conta
+}
+
+/** A página: os itens do mês e, com um dia marcado no calendário, só os dele. */
+export function recortarPorData<T extends { data: string }>(itens: T[], mes: string, dia: string | null): T[] {
+  return itens.filter(item => (dia ? item.data === dia : mesDoItem(item) === mes))
+}
+
+/**
+ * Os pendentes do casal num mês do Chico Moedas: gasto já lançado pelo banco,
+ * de um cartão designado a ESTE espaço, numa fatura desta competência. É o
+ * mesmo recorte da RPC `pendencias_do_espaco` — a lista que a dona vê tem de
+ * bater com o número que a outra pessoa vê.
+ */
+export function pendentesDoCasal<T extends ItemDaCaixa>(
+  itens: T[],
+  spaceId: string,
+  competencia: string,
+  contaDe: (contaId: string) => { destino?: string, space_id?: string | null } | null | undefined,
+): T[] {
+  return itens.filter((item) => {
+    if (item.sentido !== 'saida' || item.pendente) return false
+    const conta = contaDe(item.principal.conta_id)
+    if (conta?.destino !== 'casal' || conta.space_id !== spaceId) return false
+    return item.transacoes.some(t => !t.pendente && t.competencia === competencia)
   })
 }
 
