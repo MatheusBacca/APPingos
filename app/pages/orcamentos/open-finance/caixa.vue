@@ -533,7 +533,7 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
         No PC, a lista e, à direita, o calendário do mês com o detalhe embaixo;
         no celular, o calendário vem antes da lista e o detalhe sobe numa folha.
       -->
-      <div class="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div class="space-y-4">
           <CalendarioDaCaixa
             v-if="!largo"

@@ -434,7 +434,7 @@ async function onRemover(compra: CompraDoMes) {
     <PendenciasDoCasal :competencia="competencia" />
 
     <!-- Dois gráficos, duas perguntas. Nunca dois eixos no mesmo plot. -->
-    <section class="grid gap-4 lg:grid-cols-2">
+    <section class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div class="rounded-lg border bg-card p-4">
         <h2 class="text-sm font-medium">Por semana</h2>
         <p class="mt-0.5 text-xs text-muted-foreground">

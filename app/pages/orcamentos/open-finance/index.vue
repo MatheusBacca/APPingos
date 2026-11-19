@@ -126,7 +126,7 @@ function ajustar(c: CartaoDaPessoa) {
           <CreditCardIcon class="size-4 text-muted-foreground" />
           Seus cartões
         </h2>
-        <div class="grid gap-3 lg:grid-cols-2">
+        <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <CartaoFatura
             v-for="r in resumos"
             :key="r.cartao.id"

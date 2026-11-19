@@ -142,8 +142,13 @@ const ROTULO_TOM: Record<Barra['tom'], string> = {
       {{ vazio }}
     </p>
 
-    <!-- Tabela: o mesmo dado em texto, para leitor de tela e para conferência -->
-    <table v-else-if="mostrandoTabela" class="w-full text-sm">
+    <!--
+      Tabela: o mesmo dado em texto, para leitor de tela e para conferência.
+      Rola dentro do card: no celular, três colunas de valor passam da largura,
+      e uma tabela mais larga que o pai empurrava a PÁGINA inteira para o lado.
+    -->
+    <div v-else-if="mostrandoTabela" class="-mx-1 overflow-x-auto px-1">
+    <table class="w-full text-sm">
       <thead>
         <tr class="border-b text-left text-xs text-muted-foreground">
           <th scope="col" class="py-1.5 font-medium">Período</th>
@@ -189,6 +194,7 @@ const ROTULO_TOM: Record<Barra['tom'], string> = {
         </tr>
       </tbody>
     </table>
+    </div>
 
     <div v-else class="transition-opacity" :class="atualizando ? 'opacity-50' : ''">
       <!-- O container cresce com o eixo: altura fixa só no plot, nunca no todo -->

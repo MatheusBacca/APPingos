@@ -23,12 +23,20 @@ const route = useRoute()
 </script>
 
 <template>
-  <nav aria-label="Seções do Open Finance" class="flex flex-wrap gap-1.5 text-sm">
+  <!--
+    Uma linha só, que rola de lado no celular — como as abas de Orçamentos logo
+    acima. Quebrando em duas linhas, as cinco seções ocupavam metade da primeira
+    tela antes de aparecer qualquer compra.
+  -->
+  <nav
+    aria-label="Seções do Open Finance"
+    class="-mx-4 flex gap-1.5 overflow-x-auto px-4 text-sm [scrollbar-width:none] md:mx-0 md:flex-wrap md:px-0 [&::-webkit-scrollbar]:hidden"
+  >
     <NuxtLink
       v-for="secao in SECOES"
       :key="secao.to"
       :to="secao.to"
-      class="rounded-full border px-3 py-1 font-medium"
+      class="shrink-0 whitespace-nowrap rounded-full border px-3 py-1 font-medium"
       :class="route.path === secao.to
         ? 'border-primary/40 bg-primary/10 text-primary'
         : 'text-muted-foreground hover:text-foreground'"
