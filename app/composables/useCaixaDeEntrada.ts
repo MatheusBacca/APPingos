@@ -31,15 +31,45 @@ const COLUNAS = `
 `
 
 export type LinhaDaCaixa = TransacaoDaCaixa & {
-  /** O número e o banco dão o "Itaú •••• 1234" da linha, e o filtro por cartão. */
-  conta: { nome: string, tipo: 'conta' | 'cartao', numero?: string | null, conexao?: { banco: string } | null } | null
+  /**
+   * O número e o banco dão o "Itaú •••• 1234" da linha, e o filtro por cartão.
+   * `destino` e `space_id` dizem se o cartão é do casal — e de qual espaço —,
+   * para o Chico Moedas mostrar só o que é dos cartões daquele espaço.
+   */
+  conta: {
+    nome: string
+    tipo: 'conta' | 'cartao'
+    numero?: string | null
+    destino?: 'casal' | 'pessoal' | 'perguntar'
+    space_id?: string | null
+    conexao?: { banco: string } | null
+  } | null
 }
+
+/**
+ * Quantas linhas cada ida ao banco traz. É o teto padrão do PostgREST (`max-rows`
+ * do Supabase): pedir mais devolve 1000 do mesmo jeito, e o laço acharia que
+ * acabou.
+ */
+const PAGINA_DO_BANCO = 1000
 
 export type LinhaClassificada = LinhaDaCaixa & {
   compra: { id: string, space_id: string, descricao: string } | null
 }
 
-/** O que está esperando um destino — as mais novas primeiro. */
+/**
+ * O que está esperando um destino — TUDO, as mais novas primeiro.
+ *
+ * Inteiro, e não uma página por mês no banco: as parcelas de uma compra viram
+ * uma linha só (`itensDaCaixa`), e elas podem ter datas em meses diferentes —
+ * cortar pela data no banco partiria a compra em duas metades, uma em cada
+ * página. A paginação da tela é por mês, sobre a lista já agrupada.
+ *
+ * Já foi `.limit(300)`, e com 448 linhas paradas a caixa escondia tudo de antes
+ * de 13/09 sem avisar. Agora busca em páginas até a última vir incompleta; o
+ * `id` no fim da ordem deixa o corte entre páginas estável quando várias linhas
+ * têm a mesma data.
+ */
 export function useTransacoesDaCaixa() {
   const supabase = useSupabaseClient()
   const usuarioId = useUsuarioId()
@@ -48,16 +78,41 @@ export function useTransacoesDaCaixa() {
     queryKey: [CHAVE, usuarioId, 'pendentes'],
     enabled: computed(() => !!usuarioId.value),
     queryFn: async (): Promise<LinhaDaCaixa[]> => {
-      const { data, error } = await supabase
-        .from('transacao_bancaria')
-        .select(`${COLUNAS}, conta:conta_bancaria(nome, tipo, numero, conexao:conexao_bancaria(banco))`)
-        .is('destino', null)
-        .order('data', { ascending: false })
-        .limit(300)
+      const linhas: LinhaDaCaixa[] = []
+      for (let desde = 0; ; desde += PAGINA_DO_BANCO) {
+        const { data, error } = await supabase
+          .from('transacao_bancaria')
+          .select(`${COLUNAS}, conta:conta_bancaria(nome, tipo, numero, destino, space_id, conexao:conexao_bancaria(banco))`)
+          .is('destino', null)
+          .order('data', { ascending: false })
+          .order('id')
+          .range(desde, desde + PAGINA_DO_BANCO - 1)
 
-      if (error) throw error
-      return (data ?? []) as unknown as LinhaDaCaixa[]
+        if (error) throw error
+        const pagina = (data ?? []) as unknown as LinhaDaCaixa[]
+        linhas.push(...pagina)
+        if (pagina.length < PAGINA_DO_BANCO) return linhas
+      }
     },
+  })
+}
+
+/**
+ * Quantas compras dos cartões do casal esperam destino, por pessoa, numa
+ * competência — a de cada membro, não só a sua. Só a contagem: a lista
+ * continua sendo de quem é o extrato (RPC `pendencias_do_espaco`).
+ */
+export function usePendenciasDoEspaco(espaco: MaybeRefOrGetter<string | null>, competencia: MaybeRefOrGetter<string>) {
+  const supabase = useSupabaseClient()
+
+  return useEspacoQuery(espaco, computed(() => ['caixa', 'pendencias', toValue(competencia)]), async (spaceId) => {
+    const { data, error } = await supabase.rpc('pendencias_do_espaco', {
+      p_space: spaceId,
+      p_competencia: toValue(competencia),
+    })
+
+    if (error) throw error
+    return (data ?? []) as Array<{ user_id: string, quantidade: number }>
   })
 }
 

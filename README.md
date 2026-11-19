@@ -49,21 +49,46 @@ Fluxo do dia a dia ao mexer no schema:
 
 1. `npx supabase migration new nome_da_mudanca` → escreve o SQL
 2. `npx supabase db reset` → valida local
-3. Só então `npx supabase db push` (ver passo 3) → aplica na nuvem
+3. `npx supabase db push --remote` → aplica no Supabase de **teste** (ver passo 3)
+4. Só no release, `npx supabase db push --remote=<ref-de-produção>` → aplica na produção
 
 `npx supabase stop` derruba a stack local quando não estiver mexendo em schema.
 
-### 3. Conectar ao Supabase na nuvem
+> **CLI v3:** sem `--remote`, `db push`, `db query` e `migration list` falam com o banco
+> **local** (Docker). `--remote` sozinho é o projeto linkado; `--remote=<ref>`, outro projeto.
+> Toda escrita na nuvem pede confirmação (`--yes`).
 
-1. Crie um projeto em [supabase.com](https://supabase.com/dashboard)
-2. Em **Project Settings → API**, copie a **Project URL** e a **anon public key**
-3. Copie `.env.example` para `.env` e preencha `SUPABASE_URL` / `SUPABASE_KEY`
-4. Linke o projeto e suba as migrations que já foram validadas localmente:
+### 3. Conectar ao Supabase na nuvem: teste e produção
+
+São **dois projetos Supabase**, com o mesmo schema:
+
+| | quem usa | onde está a credencial |
+| --- | --- | --- |
+| **Teste** | o `npm run dev` de todo mundo, a CLI linkada, o `db:types` | `.env` local |
+| **Produção** | o app publicado no Vercel, com os dados reais do casal | variáveis do Vercel; localmente, `.env.producao` de quem publica |
+
+O desenvolvimento **nunca** aponta para a produção. Login, compra de teste, extrato da caixa de
+entrada, migration nova: tudo acontece no teste. A produção só recebe o que já passou por lá,
+pelo fluxo de [Publicar uma versão](#publicar-uma-versão).
+
+1. Peça a quem mantém o projeto a **URL** e a **publishable key** do projeto de teste (no
+   dashboard: **Project Settings → API Keys**). A publishable é a chave de navegador: o que
+   protege os dados é a RLS, não ela.
+2. Copie `.env.example` para `.env` e preencha `SUPABASE_URL` / `SUPABASE_KEY` com os valores
+   do **teste**.
+3. Linke a CLI ao teste:
 
    ```bash
    npx supabase login
-   npx supabase link --project-ref SEU-PROJECT-REF
-   npx supabase db push
+   npx supabase link --project-ref <ref-do-teste>
+   npx supabase migration list --remote   # o teste tem de estar com todas as do repo
+   ```
+
+4. Para aplicar migrations novas e publicar as Edge Functions no teste:
+
+   ```bash
+   npx supabase db push --remote
+   npx supabase functions deploy --remote
    ```
 
 5. **Obrigatório após qualquer mudança de schema** — regenerar os tipos:
@@ -72,12 +97,24 @@ Fluxo do dia a dia ao mexer no schema:
    npm run db:types
    ```
 
-   Gera `app/types/database.generated.ts` a partir do schema real (não editar à mão).
-   `app/types/database.types.ts` só reexporta esse arquivo e acrescenta o que o gerador não
-   infere — como as uniões literais de `papel` e `tipo`, que no banco são CHECK e não enum.
+   Gera `app/types/database.generated.ts` a partir do schema do projeto linkado (o teste),
+   sem edição à mão. `app/types/database.types.ts` só reexporta esse arquivo e acrescenta o que
+   o gerador não infere — como as uniões literais de `papel` e `tipo`, que no banco são CHECK
+   e não enum.
+
+O que o teste **não** tem, de propósito: os segredos da Pluggy e do e-mail
+(`PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET`, `GMAIL_*`/`RESEND_API_KEY`). As Edge Functions
+estão lá, mas sem eles não sincronizam nem enviam. Quem precisar testar esses fluxos cadastra
+credenciais **de teste** com `npx supabase secrets set --remote NOME=valor`. Nunca copie as da
+produção.
+
+No dashboard do projeto de teste, em **Authentication → URL Configuration**, `http://localhost:3000`
+e `http://127.0.0.1:3000` precisam estar nas Redirect URLs. Sem isso, o link de confirmação de
+cadastro não volta para o app local.
 
 **Regra de ouro:** nunca alterar uma tabela direto pelo Table Editor da nuvem — sempre por
-migration versionada. Editar direto no dashboard cria deriva entre o banco real e o git.
+migration versionada. Editar direto no dashboard cria deriva entre o banco real e o git, e
+entre o teste e a produção.
 
 ### Verificação antes de subir
 
@@ -240,7 +277,8 @@ npm run extensao
 ```
 
 Gera `extensao/lib/config.gerado.js` a partir do `.env` (as mesmas `SUPABASE_URL`/`SUPABASE_KEY`
-do app) e o `.zip` em `extensao/dist/`. Depois, no Chrome: `chrome://extensions` → **Modo do
+do app — localmente, as do **teste**) e o `.zip` em `extensao/dist/`. A extensão que se usa no
+dia a dia é a dos Releases, montada pelo workflow com as credenciais da produção. Depois, no Chrome: `chrome://extensions` → **Modo do
 desenvolvedor** → **Carregar sem compactação** → apontar para a pasta **`extensao/`**.
 
 O login é com o mesmo e-mail e senha do app — a extensão não reaproveita a sessão do navegador
@@ -251,7 +289,8 @@ entrou, e o que protege os dados é a RLS.
 **Na segunda máquina não precisa disso.** Todo push na `main` que mude `extensao/` com `version`
 nova publica o `.zip` em [Releases](https://github.com/MatheusBacca/APPingos/releases) — basta
 baixar e carregar sem compactação. Para isso, cadastre `SUPABASE_URL` e `SUPABASE_KEY` em
-**Settings → Secrets and variables → Actions** (os mesmos valores do `.env`); sem eles o workflow
+**Settings → Secrets and variables → Actions** (os valores da **produção**, não os do `.env`
+local); sem eles o workflow
 falha em vez de publicar um pacote que não conecta.
 
 Detalhes de uso, das quatro fontes que a raspagem tenta e de como publicar na Web Store:
@@ -345,7 +384,8 @@ Depois, na ordem:
 ```bash
 npm run verificar
 git add -A && git commit
-npx supabase db push
+npx supabase db push --remote                          # teste primeiro
+npx supabase db push --remote=<ref-de-produção> --yes  # depois a produção
 git push
 ```
 
@@ -398,11 +438,11 @@ O deploy é automático a cada push na branch `main`, uma vez conectado o reposi
 [dashboard do Vercel](https://vercel.com/dashboard) (Add New → Project → importar o repo do
 GitHub). O preset Nuxt é autodetectado — nada a mudar em `nuxt.config.ts`.
 
-Variáveis de ambiente a configurar no Vercel (Settings → Environment Variables, em
-**Production** e **Preview**): `SUPABASE_URL`, `SUPABASE_KEY`, `NUXT_TMDB_API_KEY`,
-`NUXT_GOOGLE_PLACES_API_KEY`, `NUXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY`, `NUXT_PLUGGY_CLIENT_ID`,
-`NUXT_PLUGGY_CLIENT_SECRET` — os mesmos valores do
-`.env` local.
+Variáveis de ambiente a configurar no Vercel (Settings → Environment Variables):
+`SUPABASE_URL`, `SUPABASE_KEY`, `NUXT_TMDB_API_KEY`, `NUXT_GOOGLE_PLACES_API_KEY`,
+`NUXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY`, `NUXT_PLUGGY_CLIENT_ID`, `NUXT_PLUGGY_CLIENT_SECRET`.
+Em **Production**, as da produção. Em **Preview** (o deploy de cada PR), `SUPABASE_URL` e
+`SUPABASE_KEY` do **teste**: um PR aberto não deve gravar no banco do casal.
 
 **Não esquecer**, os dois pela mesma razão — funcionam em `localhost` e quebram só em produção:
 

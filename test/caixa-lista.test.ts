@@ -6,8 +6,13 @@ import { describe, expect, it } from 'vitest'
 import {
   FILTRO_INICIAL,
   aceitavel,
+  contagemPorDia,
   filtrarCaixa,
   gruposPorDia,
+  mesDoItem,
+  mesesDaCaixa,
+  pendentesDoCasal,
+  recortarPorData,
   resumoDaCaixa,
   rotuloDaConta,
 } from '~/lib/caixa-lista'
@@ -101,4 +106,72 @@ it('rotuloDaConta', () => {
   expect(rotuloDaConta({ nome: 'Itaú Itaucard', numero: '1234', conexao: { banco: 'Itaú' } })).toBe('Itaú •••• 1234')
   expect(rotuloDaConta({ nome: 'Conta corrente', numero: null })).toBe('Conta corrente')
   expect(rotuloDaConta(null)).toBe('')
+})
+
+describe('a página do mês', () => {
+  const itens = [
+    item('a', '2026-11-16', 50),
+    item('b', '2026-11-16', 20),
+    item('c', '2026-11-02', 40),
+    item('d', '2026-10-30', 90),
+    item('e', '2026-08-18', 10),
+  ]
+
+  it('conta os meses que têm algo, do mais novo para o mais antigo', () => {
+    expect(mesesDaCaixa(itens)).toEqual([
+      { mes: '2026-11-01', quantidade: 3 },
+      { mes: '2026-10-01', quantidade: 1 },
+      { mes: '2026-08-01', quantidade: 1 },
+    ])
+  })
+
+  it('conta por dia só dentro do mês pedido', () => {
+    const dias = contagemPorDia(itens, '2026-11-01')
+    expect(Object.fromEntries(dias)).toEqual({ '2026-11-16': 2, '2026-11-02': 1 })
+  })
+
+  it('recorta pelo mês e, com um dia marcado, só por ele', () => {
+    expect(recortarPorData(itens, '2026-11-01', null).map(i => i.chave)).toEqual(['a', 'b', 'c'])
+    expect(recortarPorData(itens, '2026-11-01', '2026-11-16').map(i => i.chave)).toEqual(['a', 'b'])
+    expect(recortarPorData(itens, '2026-09-01', null)).toEqual([])
+  })
+
+  it('a compra de 30/10 fica em outubro, mesmo caindo na fatura de novembro', () => {
+    expect(mesDoItem(item('x', '2026-10-30', 1))).toBe('2026-10-01')
+  })
+})
+
+describe('pendentesDoCasal', () => {
+  const contas: Record<string, { destino: string, space_id: string | null }> = {
+    platinum: { destino: 'casal', space_id: 'casal-1' },
+    outro: { destino: 'casal', space_id: 'casal-2' },
+    bandeirado: { destino: 'pessoal', space_id: null },
+  }
+  const contaDe = (id: string) => contas[id]
+
+  function doCartao(chave: string, conta: string, competencia: string, extra: { sentido?: 'saida' | 'entrada', pendente?: boolean } = {}): ItemDaCaixa {
+    const base = item(chave, '2026-11-04', 10, { conta, sentido: extra.sentido })
+    const t = { ...base.principal, competencia, pendente: extra.pendente ?? false }
+    return { ...base, principal: t, transacoes: [t], pendente: extra.pendente ?? false }
+  }
+
+  it('fica com os gastos lançados dos cartões deste espaço, nesta competência', () => {
+    const itens = [
+      doCartao('ok', 'platinum', '2026-11-01'),
+      doCartao('outro-espaco', 'outro', '2026-11-01'),
+      doCartao('pessoal', 'bandeirado', '2026-11-01'),
+      doCartao('outra-fatura', 'platinum', '2026-12-01'),
+      doCartao('estorno', 'platinum', '2026-11-01', { sentido: 'entrada' }),
+      doCartao('no-banco', 'platinum', '2026-11-01', { pendente: true }),
+    ]
+    expect(pendentesDoCasal(itens, 'casal-1', '2026-11-01', contaDe).map(i => i.chave)).toEqual(['ok'])
+  })
+
+  it('a compra parcelada aparece na competência de qualquer parcela que trouxe', () => {
+    const base = doCartao('airbnb', 'platinum', '2026-10-01')
+    const nov = { ...base.principal, id: 'airbnb-4', competencia: '2026-11-01' }
+    const parcelada = { ...base, transacoes: [base.principal, nov] }
+    expect(pendentesDoCasal([parcelada], 'casal-1', '2026-11-01', contaDe)).toHaveLength(1)
+    expect(pendentesDoCasal([parcelada], 'casal-1', '2026-10-01', contaDe)).toHaveLength(1)
+  })
 })
