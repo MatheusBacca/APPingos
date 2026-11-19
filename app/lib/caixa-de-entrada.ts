@@ -46,6 +46,19 @@ export interface TransacaoDaCaixa {
   categoria_pluggy_id?: string | null
   estabelecimento_nome?: string | null
   estabelecimento_cnpj?: string | null
+  /*
+   * Onda 1 de docs/plano-open-finance-campos-novos.md (migration 20261120100000).
+   * Opcionais pelo mesmo motivo dos de cima.
+   */
+  /** A mensagem do Pix/TED que quem pagou escreveu. */
+  mensagem?: string | null
+  /** O final do cartão que fez a compra (físico, virtual, adicional). */
+  cartao_final?: string | null
+  mcc?: number | null
+  data_hora?: string | null
+  moeda?: string | null
+  valor_moeda_original?: number | null
+  boleto?: { valor_original: number | null, multa: number | null, juros: number | null, desconto: number | null } | null
   /** `acerto` é o Pix do acerto do mês, reconhecido pela conciliação (B5). */
   motivo_exclusao: MotivoExclusao | 'acerto' | null
   destino: 'compra' | 'ignorada' | 'renda' | 'aporte' | null
@@ -99,6 +112,18 @@ function comoNormalizada(t: TransacaoDaCaixa): TransacaoNormalizada & { id: stri
     chave_compra: t.chave_compra,
     // 'acerto' é da conciliação, não da importação; para agrupar parcelas, tanto faz.
     motivo_exclusao: t.motivo_exclusao === 'acerto' ? null : t.motivo_exclusao,
+    cartao_final: t.cartao_final ?? null,
+    mcc: t.mcc ?? null,
+    tipo_cobranca: null,
+    data_hora: t.data_hora ?? null,
+    fatura_prevista: null,
+    lancada_na_fatura_em: null,
+    moeda: t.moeda ?? null,
+    valor_moeda_original: t.valor_moeda_original ?? null,
+    mensagem: t.mensagem ?? null,
+    tarifa_tipo: null,
+    credito_tipo: null,
+    boleto: t.boleto ?? null,
   }
 }
 

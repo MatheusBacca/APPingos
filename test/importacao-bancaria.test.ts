@@ -475,6 +475,30 @@ describe('faturas fechadas', () => {
       vencimento: '2026-10-10',
       total: 2350.4,
       minimo: 352.56,
+      fechamento: null,
+      encargos: [],
+      total_encargos: 0,
+      permite_parcelar: true,
+      pagamentos: [],
+    })
+  })
+
+  it('guarda o fechamento oficial, os encargos somados e os pagamentos', () => {
+    const linha = faturaParaLinha({
+      ...FATURA_OUTUBRO,
+      billClosingDate: '2026-10-03T03:00:00.000Z',
+      financeCharges: [
+        { type: 'IOF', amount: 4.38 },
+        { type: 'LATE_PAYMENT_FEE', amount: -12.5, additionalInfo: 'multa' },
+        { type: 'OTHER', amount: 0 },
+      ],
+      payments: [{ id: 'p1', valueType: 'FULL_PAYMENT', paymentDate: '2026-10-10T12:00:00.000Z', paymentMode: 'PIX', amount: 2350.4 }],
+    }, 'conta-1', 'user-1')
+    expect(linha).toMatchObject({
+      fechamento: '2026-10-03',
+      encargos: [{ tipo: 'IOF', valor: 4.38, info: null }, { tipo: 'LATE_PAYMENT_FEE', valor: 12.5, info: 'multa' }],
+      total_encargos: 16.88,
+      pagamentos: [{ data: '2026-10-10', valor: 2350.4, tipo: 'FULL_PAYMENT', forma: 'PIX' }],
     })
   })
 

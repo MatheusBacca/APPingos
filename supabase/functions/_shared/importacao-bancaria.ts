@@ -18,9 +18,21 @@
  * Só `import type` (apagado na compilação) — a regra de zero imports de runtime
  * de `_shared/` continua valendo.
  */
-import type { ContaPluggy, FaturaPluggy, ItemPluggy, ParteDoPagamento, TransacaoPluggy } from './pluggy-api.ts'
+import type {
+  ContaPluggy,
+  EmprestimoPluggy,
+  FaturaPluggy,
+  InvestimentoPluggy,
+  ItemPluggy,
+  MovimentoDeInvestimentoPluggy,
+  ParteDoPagamento,
+  TransacaoPluggy,
+} from './pluggy-api.ts'
 
 export const FUSO = 'America/Sao_Paulo'
+
+/** Um JSON qualquer como veio da Pluggy — o mesmo formato do `Json` dos tipos do banco. */
+export type JsonDaPluggy = string | number | boolean | null | { [chave: string]: JsonDaPluggy | undefined } | JsonDaPluggy[]
 
 export type TipoConta = 'conta' | 'cartao'
 export type Sentido = 'saida' | 'entrada'
@@ -69,6 +81,34 @@ export interface TransacaoNormalizada {
   /** Junta as parcelas de uma mesma compra. `null` em compra à vista. */
   chave_compra: string | null
   motivo_exclusao: MotivoExclusao | null
+  /** Os 4 últimos dígitos do cartão que fez a compra (físico, virtual ou adicional). */
+  cartao_final: string | null
+  /** Merchant Category Code do estabelecimento. */
+  mcc: number | null
+  tipo_cobranca: 'a_vista' | 'parcelada' | null
+  /** A hora da compra, ISO 8601, quando o banco informa. */
+  data_hora: string | null
+  /** Dia 1 do mês da fatura prevista (`billForecastDate`). */
+  fatura_prevista: string | null
+  /** `billPostDate`: o dia em que entrou na fatura. */
+  lancada_na_fatura_em: string | null
+  /** Moeda da compra, quando não é o real. */
+  moeda: string | null
+  /** O valor na moeda original, quando não é o real. */
+  valor_moeda_original: number | null
+  /** A mensagem do Pix/TED. */
+  mensagem: string | null
+  tarifa_tipo: string | null
+  credito_tipo: string | null
+  /** Valor original, multa, juros e desconto do boleto pago. */
+  boleto: BoletoPago | null
+}
+
+export interface BoletoPago {
+  valor_original: number | null
+  multa: number | null
+  juros: number | null
+  desconto: number | null
 }
 
 /** O que a importação sabe da pessoa — para reconhecer o que é dela mesma. */
@@ -385,13 +425,80 @@ export function estabelecimentoDe(t: Pick<TransacaoPluggy, 'merchant'>): {
   }
 }
 
+/**
+ * Os 4 últimos dígitos de um número de cartão, como o banco mandar
+ * ("0750", "**** 0750", "5162 92** **** 0750"). `null` sem 4 dígitos no fim.
+ */
+export function finalDoCartao(numero: string | null | undefined): string | null {
+  const digitos = soDigitos(numero)
+  return digitos.length >= 4 ? digitos.slice(-4) : null
+}
+
+/** `YYYY-MM` ou `YYYY-MM-DD` → dia 1 do mês; o resto vira `null`. */
+function mesDaFatura(valor: string | null | undefined): string | null {
+  const m = /^(\d{4})-(\d{2})/.exec(valor?.trim() ?? '')
+  return m ? `${m[1]}-${m[2]}-01` : null
+}
+
+function textoOuNulo(v: string | null | undefined): string | null {
+  return v?.trim() || null
+}
+
+/**
+ * Os campos que a importação só passou a guardar na onda 1 do plano
+ * docs/plano-open-finance-campos-novos.md. Tudo é opcional na Pluggy, e o que
+ * não veio sai `null` (a ingestão mantém o valor anterior nesse caso).
+ */
+export function camposExtrasDaTransacao(t: TransacaoPluggy) {
+  const c = t.creditCardMetadata ?? null
+  const moeda = textoOuNulo(t.currencyCode)?.toUpperCase() ?? null
+  const estrangeira = !!moeda && moeda !== 'BRL' && /^[A-Z]{3}$/.test(moeda)
+  const b = t.boletoMetadata ?? null
+  const boleto: BoletoPago | null = b && [b.baseAmount, b.penaltyAmount, b.interestAmount, b.discountAmount].some(v => typeof v === 'number')
+    ? {
+        valor_original: valorOuNulo(b.baseAmount),
+        multa: valorOuNulo(b.penaltyAmount),
+        juros: valorOuNulo(b.interestAmount),
+        desconto: valorOuNulo(b.discountAmount),
+      }
+    : null
+  const mcc = typeof c?.payeeMCC === 'number' && Number.isInteger(c.payeeMCC) && c.payeeMCC >= 0 && c.payeeMCC <= 9999
+    ? c.payeeMCC
+    : null
+  const instante = c?.transactionDateTime ? new Date(c.transactionDateTime) : null
+
+  return {
+    cartao_final: finalDoCartao(c?.cardNumber),
+    mcc,
+    tipo_cobranca: c?.paymentType === 'SINGLE' ? 'a_vista' as const : c?.paymentType === 'INSTALLMENT' ? 'parcelada' as const : null,
+    data_hora: instante && !Number.isNaN(instante.getTime()) ? instante.toISOString() : null,
+    fatura_prevista: mesDaFatura(c?.billForecastDate),
+    lancada_na_fatura_em: /^\d{4}-\d{2}-\d{2}/.test(c?.billPostDate ?? '') ? c!.billPostDate!.slice(0, 10) : null,
+    moeda: estrangeira ? moeda : null,
+    // Na Pluggy, `amount` é na moeda da transação e `amountInAccountCurrency` em reais.
+    valor_moeda_original: estrangeira ? valorOuNulo(Math.abs(t.amount)) : null,
+    mensagem: textoOuNulo(t.paymentData?.reason),
+    tarifa_tipo: textoOuNulo(c?.feeType),
+    credito_tipo: textoOuNulo(c?.otherCreditsType),
+    boleto,
+  }
+}
+
 /** Uma transação da Pluggy no formato de `transacao_bancaria`. */
 export function normalizarTransacao(
   t: TransacaoPluggy,
   conta: ContaDaTransacao,
   contexto: ContextoImportacao,
 ): TransacaoNormalizada {
-  const { valor, sentido } = normalizarValor(t.amount, t.type, conta.tipo)
+  /*
+    Compra em outra moeda: `amount` vem na moeda da compra (USD 20) e o que pesa
+    na fatura é `amountInAccountCurrency` (R$ 110). Sem este, o valor em dólar
+    entraria como se fosse real.
+  */
+  const emReais = t.currencyCode && t.currencyCode.toUpperCase() !== 'BRL' && typeof t.amountInAccountCurrency === 'number'
+    ? Math.sign(t.amount || 1) * Math.abs(t.amountInAccountCurrency)
+    : t.amount
+  const { valor, sentido } = normalizarValor(emReais, t.type, conta.tipo)
   const data = dataLocal(t.date)
   const cartao = t.creditCardMetadata ?? null
   const faturaId = cartao?.billId ?? null
@@ -422,6 +529,7 @@ export function normalizarTransacao(
     categoria_pluggy_id: t.categoryId?.trim() || null,
     ...estabelecimentoDe(t),
     motivo_exclusao: motivoDeExclusao(t, conta.tipo, sentido, valor, contexto),
+    ...camposExtrasDaTransacao(t),
   }
 
   return {
@@ -584,6 +692,10 @@ export function camposDaConexao(item: ItemPluggy) {
     banco_logo_url: item.connector?.imageUrl ?? null,
     status: item.status,
     consentimento_expira_em: item.consentExpiresAt ?? null,
+    atualizada_na_pluggy_em: item.lastUpdatedAt ?? null,
+    situacao_execucao: item.executionStatus ?? null,
+    // Por produto (contas, cartões, transações, investimentos...): `isUpdated` e avisos.
+    situacao_produtos: item.statusDetail && typeof item.statusDetail === 'object' ? item.statusDetail as JsonDaPluggy : null,
   }
 }
 
@@ -670,6 +782,78 @@ export function creditoParaAtualizar(conta: Pick<ContaPluggy, 'creditData'>): Pa
   ) as Partial<CamposDeCredito>
 }
 
+/** Saldo, dados da conta corrente e o perfil do cartão (bandeira, nível, situação...). */
+export interface CamposExtrasDaConta {
+  saldo: number | null
+  moeda: string | null
+  saldo_com_pendentes: number | null
+  saldo_aplicado_automatico: number | null
+  cheque_especial_limite: number | null
+  cheque_especial_usado: number | null
+  agencia_conta: string | null
+  bandeira: string | null
+  nivel: string | null
+  situacao_cartao: 'ACTIVE' | 'BLOCKED' | 'CANCELLED' | null
+  titularidade: 'MAIN' | 'ADDITIONAL' | null
+  limite_flexivel: boolean | null
+  saldo_moeda_estrangeira: number | null
+  limites_detalhados: Array<Record<string, unknown>> | null
+}
+
+export function camposExtrasDaConta(conta: Pick<ContaPluggy, 'balance' | 'currencyCode' | 'bankData' | 'creditData'>): CamposExtrasDaConta {
+  const b = conta.bankData ?? null
+  const c = conta.creditData ?? null
+  const um = <T extends string>(v: string | null | undefined, validos: readonly T[]): T | null =>
+    validos.includes(v as T) ? v as T : null
+  return {
+    saldo: valorOuNulo(conta.balance),
+    moeda: textoOuNulo(conta.currencyCode),
+    saldo_com_pendentes: valorOuNulo(b?.closingBalance),
+    saldo_aplicado_automatico: valorOuNulo(b?.automaticallyInvestedBalance),
+    cheque_especial_limite: valorOuNulo(b?.overdraftContractedLimit),
+    cheque_especial_usado: valorOuNulo(b?.overdraftUsedLimit),
+    agencia_conta: textoOuNulo(b?.transferNumber),
+    bandeira: textoOuNulo(c?.brand),
+    nivel: textoOuNulo(c?.level),
+    situacao_cartao: um(c?.status, ['ACTIVE', 'BLOCKED', 'CANCELLED'] as const),
+    titularidade: um(c?.holderType, ['MAIN', 'ADDITIONAL'] as const),
+    limite_flexivel: typeof c?.isLimitFlexible === 'boolean' ? c.isLimitFlexible : null,
+    saldo_moeda_estrangeira: valorOuNulo(c?.balanceForeignCurrency),
+    limites_detalhados: Array.isArray(c?.disaggregatedCreditLimits) && c.disaggregatedCreditLimits.length
+      ? c.disaggregatedCreditLimits
+      : null,
+  }
+}
+
+/**
+ * O `update` de cada conta: crédito e extras, só o que veio (o mesmo motivo de
+ * `creditoParaAtualizar`). Com saldo, carimba quando ele foi lido.
+ */
+export function contaParaAtualizar(conta: Pick<ContaPluggy, 'balance' | 'currencyCode' | 'bankData' | 'creditData'>, agora: string) {
+  const campos = Object.fromEntries(
+    Object.entries({ ...camposDeCreditoDaConta(conta), ...camposExtrasDaConta(conta) }).filter(([, v]) => v != null),
+  ) as Partial<CamposDeCredito & CamposExtrasDaConta> & { saldo_atualizado_em?: string }
+  if (campos.saldo != null) campos.saldo_atualizado_em = agora
+  return campos
+}
+
+/**
+ * Os finais de cartão de uma conta de cartão: o da própria conta, os adicionais
+ * e virtuais que o banco lista, e os que apareceram nas transações. Sem
+ * repetição, na ordem em que aparecem.
+ */
+export function finaisDosCartoes(
+  conta: Pick<ContaPluggy, 'number' | 'creditData'>,
+  linhas: Array<Pick<TransacaoNormalizada, 'cartao_final'>>,
+): string[] {
+  const finais = [
+    finalDoCartao(conta.number),
+    ...(conta.creditData?.additionalCards ?? []).map(a => finalDoCartao(a?.number)),
+    ...linhas.map(l => l.cartao_final),
+  ]
+  return [...new Set(finais.filter((f): f is string => !!f))]
+}
+
 /** Uma linha de `fatura_cartao` (sem `id` nem `atualizada_em`, que o banco e o chamador põem). */
 export interface LinhaDeFatura {
   user_id: string
@@ -679,6 +863,29 @@ export interface LinhaDeFatura {
   vencimento: string
   total: number
   minimo: number | null
+  /** `YYYY-MM-DD` em Brasília: o fechamento oficial desta fatura. */
+  fechamento: string | null
+  encargos: EncargoDaFatura[]
+  total_encargos: number
+  permite_parcelar: boolean | null
+  pagamentos: PagamentoDaFatura[]
+}
+
+export interface EncargoDaFatura {
+  /** `LATE_PAYMENT_REMUNERATIVE_INTEREST`, `LATE_PAYMENT_FEE`, `LATE_PAYMENT_INTEREST`, `IOF`, `OTHER`. */
+  tipo: string
+  valor: number
+  info: string | null
+}
+
+export interface PagamentoDaFatura {
+  /** `YYYY-MM-DD` em Brasília. */
+  data: string | null
+  valor: number
+  /** `FULL_PAYMENT`, `INSTALLMENT_PAYMENT`, `OTHER_PAYMENT`. */
+  tipo: string | null
+  /** `DEBIT_ACCOUNT`, `BANK_SLIP`, `PIX`... */
+  forma: string | null
 }
 
 /**
@@ -691,6 +898,14 @@ export function faturaParaLinha(fatura: FaturaPluggy, contaId: string, userId: s
   const vencimento = dataLocalOuNula(fatura.dueDate)
   const total = valorOuNulo(fatura.totalAmount)
   if (!fatura.id || !vencimento || total == null) return null
+  const encargos: EncargoDaFatura[] = (fatura.financeCharges ?? []).flatMap((e) => {
+    const valor = valorOuNulo(e?.amount)
+    return valor ? [{ tipo: textoOuNulo(e?.type) ?? 'OTHER', valor: Math.abs(valor), info: textoOuNulo(e?.additionalInfo) }] : []
+  })
+  const pagamentos: PagamentoDaFatura[] = (fatura.payments ?? []).flatMap((p) => {
+    const valor = valorOuNulo(p?.amount)
+    return valor ? [{ data: dataLocalOuNula(p?.paymentDate), valor: Math.abs(valor), tipo: textoOuNulo(p?.valueType), forma: textoOuNulo(p?.paymentMode) }] : []
+  })
   return {
     user_id: userId,
     conta_id: contaId,
@@ -698,7 +913,110 @@ export function faturaParaLinha(fatura: FaturaPluggy, contaId: string, userId: s
     vencimento,
     total,
     minimo: valorOuNulo(fatura.minimumPaymentAmount),
+    fechamento: dataLocalOuNula(fatura.billClosingDate),
+    encargos,
+    total_encargos: centavos(encargos.reduce((s, e) => s + e.valor, 0)),
+    permite_parcelar: typeof fatura.allowsInstallments === 'boolean' ? fatura.allowsInstallments : null,
+    pagamentos,
   }
+}
+
+// ---------------------------------------------------------------------------
+// Investimentos e empréstimos
+// ---------------------------------------------------------------------------
+
+/** Uma posição no formato de `investimento` (sem `user_id`/`conexao_id`, que o chamador põe). */
+export function investimentoParaLinha(i: InvestimentoPluggy) {
+  return {
+    pluggy_investment_id: i.id,
+    nome: textoOuNulo(i.name) ?? 'Investimento',
+    tipo: textoOuNulo(i.type),
+    subtipo: textoOuNulo(i.subtype),
+    codigo: textoOuNulo(i.code),
+    numero: textoOuNulo(i.number),
+    emissor: textoOuNulo(i.issuer),
+    moeda: textoOuNulo(i.currencyCode),
+    saldo: valorOuNulo(i.balance),
+    valor_bruto: valorOuNulo(i.amount),
+    valor_original: valorOuNulo(i.amountOriginal),
+    valor_resgatavel: valorOuNulo(i.amountWithdrawal),
+    rendimento: valorOuNulo(i.amountProfit),
+    impostos: valorOuNulo((i.taxes ?? 0) + (i.taxes2 ?? 0) || null),
+    taxa: typeof i.rate === 'number' && Number.isFinite(i.rate) ? i.rate : null,
+    taxa_tipo: textoOuNulo(i.rateType),
+    indexador: textoOuNulo(i.indexerAdditionalInfo),
+    data_referencia: dataLocalOuNula(i.date),
+    data_compra: dataLocalOuNula(i.purchaseDate),
+    vencimento: dataLocalOuNula(i.dueDate),
+    situacao: textoOuNulo(i.status),
+  }
+}
+
+/**
+ * Um movimento de investimento. `entrada` é dinheiro ENTRANDO na posição
+ * (aplicação); resgate, imposto e amortização são `saida`. Sem direção nem tipo
+ * conhecido, `null` — a tela não adivinha.
+ */
+export function movimentoParaLinha(m: MovimentoDeInvestimentoPluggy) {
+  const data = dataLocalOuNula(m.date)
+  if (!m.id || !data) return null
+  const sentido = m.movementType === 'CREDIT' || (!m.movementType && m.type === 'BUY')
+    ? 'entrada' as const
+    : m.movementType === 'DEBIT' || (!m.movementType && m.type && m.type !== 'BUY')
+      ? 'saida' as const
+      : null
+  const valor = valorOuNulo(m.amount)
+  const liquido = valorOuNulo(m.netAmount)
+  return {
+    pluggy_id: m.id,
+    tipo: textoOuNulo(m.type),
+    sentido,
+    valor: valor == null ? null : Math.abs(valor),
+    valor_liquido: liquido == null ? null : Math.abs(liquido),
+    quantidade: typeof m.quantity === 'number' && Number.isFinite(m.quantity) ? m.quantity : null,
+    data,
+    descricao: textoOuNulo(m.description),
+  }
+}
+
+export function emprestimoParaLinha(e: EmprestimoPluggy) {
+  return {
+    pluggy_loan_id: e.id,
+    produto: textoOuNulo(e.productName),
+    tipo: textoOuNulo(e.type),
+    contrato: textoOuNulo(e.contractNumber),
+    moeda: textoOuNulo(e.currencyCode),
+    valor_contratado: valorOuNulo(e.contractAmount),
+    data_contrato: dataLocalOuNula(e.contractDate),
+    vencimento: dataLocalOuNula(e.dueDate),
+    primeira_parcela_em: dataLocalOuNula(e.firstInstallmentDueDate),
+    periodicidade: textoOuNulo(e.installmentPeriodicity),
+    cet: typeof e.CET === 'number' && Number.isFinite(e.CET) ? e.CET : null,
+    parcelas: e.installments ?? null,
+    pagamentos: e.payments ?? null,
+    juros: e.interestRates ?? null,
+  }
+}
+
+/**
+ * O pedaço de uma lista que vai para `amostra_pluggy`: o bastante para estudar
+ * quais campos vêm, sem guardar o extrato inteiro duas vezes. Prefere variedade
+ * — um exemplo de cada final de cartão e de cada método — antes de completar.
+ */
+export function amostraDeTransacoes(transacoes: TransacaoPluggy[], limite = 40): TransacaoPluggy[] {
+  const escolhidas = new Map<string, TransacaoPluggy>()
+  const vistos = new Set<string>()
+  for (const t of transacoes) {
+    const tipo = `${t.creditCardMetadata?.cardNumber ?? ''}|${t.paymentData?.paymentMethod ?? t.operationType ?? ''}|${t.currencyCode ?? ''}|${t.creditCardMetadata?.paymentType ?? ''}`
+    if (vistos.has(tipo)) continue
+    vistos.add(tipo)
+    escolhidas.set(t.id, t)
+  }
+  for (const t of transacoes) {
+    if (escolhidas.size >= limite) break
+    escolhidas.set(t.id, t)
+  }
+  return [...escolhidas.values()].slice(0, limite)
 }
 
 /**

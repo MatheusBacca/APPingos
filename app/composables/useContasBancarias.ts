@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useUsuarioId } from '~/composables/useUsuarioId'
-import type { DestinoConta } from '~/lib/contas-bancarias'
+import type { CartaoDoFinal, DestinoCartao, DestinoConta } from '~/lib/contas-bancarias'
 
 export interface ContaBancaria {
   id: string
@@ -9,6 +9,11 @@ export interface ContaBancaria {
   numero: string | null
   destino: DestinoConta
   space_id: string | null
+  /** Conta: o saldo. Cartão: a fatura aberta segundo o banco. */
+  saldo: number | null
+  saldo_atualizado_em: string | null
+  /** Os cartões por final (físico, virtual, adicional) desta conta de cartão. */
+  cartoes: CartaoDoFinal[]
 }
 
 export interface ConexaoBancaria {
@@ -45,7 +50,10 @@ export function useConexoesBancarias() {
         .select(`
           id, item_id, banco, banco_logo_url, status, consentimento_expira_em,
           sincronizado_em, erro_sincronizacao, conectado_em,
-          contas:conta_bancaria(id, tipo, nome, numero, destino, space_id)
+          contas:conta_bancaria(
+            id, tipo, nome, numero, destino, space_id, saldo, saldo_atualizado_em,
+            cartoes:cartao_bancario(id, final, apelido, destino, space_id)
+          )
         `)
         .order('conectado_em', { ascending: true })
 
@@ -54,8 +62,9 @@ export function useConexoesBancarias() {
       return ((data ?? []) as unknown as ConexaoBancaria[]).map(c => ({
         ...c,
         // Cartões primeiro: são eles que a pessoa vem aqui designar.
-        contas: [...c.contas].sort((a, b) =>
-          a.tipo === b.tipo ? a.nome.localeCompare(b.nome, 'pt-BR') : a.tipo === 'cartao' ? -1 : 1),
+        contas: [...c.contas]
+          .sort((a, b) => a.tipo === b.tipo ? a.nome.localeCompare(b.nome, 'pt-BR') : a.tipo === 'cartao' ? -1 : 1)
+          .map(conta => ({ ...conta, cartoes: [...(conta.cartoes ?? [])].sort((a, b) => a.final.localeCompare(b.final)) })),
       }))
     },
   })
@@ -85,6 +94,28 @@ export function useDesignarConta() {
     mutationFn: async (v: { id: string, destino: DestinoConta, space_id: string | null }) => {
       const { error } = await supabase
         .from('conta_bancaria')
+        .update({ destino: v.destino, space_id: v.space_id })
+        .eq('id', v.id)
+
+      if (error) throw error
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [CHAVE] }),
+  })
+}
+
+/**
+ * Designar um cartão por final (o virtual do casal dentro da conta pessoal, por
+ * exemplo). Como a conta: só vale para o que for importado depois, e o trigger
+ * `validar_cartao_bancario` recusa espaço que não é de casal da pessoa.
+ */
+export function useDesignarCartao() {
+  const supabase = useSupabaseClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (v: { id: string, destino: DestinoCartao, space_id: string | null }) => {
+      const { error } = await supabase
+        .from('cartao_bancario')
         .update({ destino: v.destino, space_id: v.space_id })
         .eq('id', v.id)
 

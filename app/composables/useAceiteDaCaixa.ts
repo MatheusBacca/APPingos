@@ -23,8 +23,8 @@ import { useSpaceStore } from '~/stores/space'
  * ter a tela do meio.
  *
  * Desfazer o Aceitar apaga a compra criada: o gatilho `voltar_para_caixa`
- * devolve a transação sozinho. Desfazer o Ignorar é o `devolver_para_caixa`
- * de cada transação do item (as parcelas vão juntas).
+ * devolve a transação sozinho. Desfazer o Ignorar é um `devolver_para_caixa`
+ * no item (a função leva as parcelas irmãs junto).
  */
 /** O padrão do aviso (4 s) some antes de a pessoa achar o botão. */
 const DURACAO_COM_DESFAZER = 8000
@@ -117,8 +117,13 @@ export function useAceiteDaCaixa() {
     ])
   }
 
+  /*
+   * As transações de um item são as parcelas de uma compra, e o
+   * `devolver_para_caixa` já devolve todas as irmãs: basta uma chamada. Chamar
+   * por parcela recusaria a segunda, que a primeira já tinha devolvido.
+   */
   async function devolver(ids: string[]) {
-    for (const id of ids) await classificar.mutateAsync({ tipo: 'devolver', transacao: id })
+    if (ids[0]) await classificar.mutateAsync({ tipo: 'devolver', transacao: ids[0] })
   }
 
   /** Um item, com o aviso e o Desfazer. */

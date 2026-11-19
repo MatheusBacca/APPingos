@@ -25,6 +25,17 @@ export interface DadosDoCartao {
   limite_manual: number | null
   dia_fechamento_manual: number | null
   dia_vencimento_manual: number | null
+  /**
+   * O dia do fechamento tirado das faturas (`fechamentoPelasFaturas`): exato
+   * quando a fatura traz o fechamento, estimado pelas datas das transações
+   * quando não traz. Fica depois do manual e do `fecha_em` do banco.
+   */
+  fechamento_das_faturas?: FechamentoDasFaturas | null
+}
+
+export interface FechamentoDasFaturas {
+  dia: number
+  fonte: 'fatura' | 'estimado'
 }
 
 export interface Ciclo {
@@ -33,8 +44,82 @@ export interface Ciclo {
   /** Dia do fechamento (inclusive). */
   fechamento: string
   vencimento: string | null
-  /** De onde o ciclo saiu — a tela avisa quando é só o mês do calendário. */
-  fonte: 'banco' | 'manual' | 'calendario'
+  /** De onde o ciclo saiu — a tela avisa quando é só o mês do calendário ou uma estimativa. */
+  fonte: 'banco' | 'manual' | 'fatura' | 'estimado' | 'calendario'
+}
+
+/** O valor mais frequente; no empate, o que aparece por último (o mais recente). */
+function moda(valores: number[]): number | null {
+  const contagem = new Map<number, number>()
+  let melhor: number | null = null
+  let maior = 0
+  for (const v of valores) {
+    const n = (contagem.get(v) ?? 0) + 1
+    contagem.set(v, n)
+    if (n >= maior) {
+      maior = n
+      melhor = v
+    }
+  }
+  return melhor
+}
+
+export interface FaturaParaFechamento {
+  pluggy_bill_id: string
+  vencimento: string
+  fechamento: string | null
+}
+
+export interface LancamentoParaFechamento {
+  fatura_id?: string | null
+  data: string
+  parcelas_total: number | null
+}
+
+/**
+ * O dia do fechamento a partir das faturas fechadas.
+ *
+ * 1. Com o fechamento oficial (`billClosingDate`, coluna `fechamento`), é o dia
+ *    mais frequente entre eles — o banco às vezes empurra para o dia útil.
+ * 2. Sem ele, ESTIMA pelas transações: entre duas faturas seguidas, o fechamento
+ *    fica entre a última compra da mais antiga e a véspera da primeira compra da
+ *    seguinte. Usa a véspera (o fim da janela). Parcelas ficam de fora: a data
+ *    delas é a da compra original, não a do lançamento.
+ *
+ * `null` quando não há como saber — aí o ciclo cai no calendário, como antes.
+ */
+export function fechamentoPelasFaturas(
+  faturas: FaturaParaFechamento[],
+  lancamentos: LancamentoParaFechamento[],
+): FechamentoDasFaturas | null {
+  const ordenadas = [...faturas].sort((a, b) => a.vencimento.localeCompare(b.vencimento))
+
+  const oficiais = ordenadas.flatMap(f => (f.fechamento ? [partesDaData(f.fechamento).dia] : []))
+  const oficial = moda(oficiais)
+  if (oficial) return { dia: oficial, fonte: 'fatura' }
+
+  const datasPorFatura = new Map<string, string[]>()
+  for (const l of lancamentos) {
+    if (!l.fatura_id || (l.parcelas_total ?? 1) > 1) continue
+    const datas = datasPorFatura.get(l.fatura_id) ?? []
+    datas.push(l.data)
+    datasPorFatura.set(l.fatura_id, datas)
+  }
+
+  const vesperas: number[] = []
+  for (let i = 1; i < ordenadas.length; i++) {
+    const anterior = datasPorFatura.get(ordenadas[i - 1]!.pluggy_bill_id)
+    const seguinte = datasPorFatura.get(ordenadas[i]!.pluggy_bill_id)
+    if (!anterior?.length || !seguinte?.length) continue
+    const ultima = anterior.reduce((a, b) => (a > b ? a : b))
+    const primeira = seguinte.reduce((a, b) => (a < b ? a : b))
+    const vespera = somarDias(primeira, -1)
+    if (vespera < ultima) continue // datas que se cruzam: a janela não diz nada
+    vesperas.push(partesDaData(vespera).dia)
+  }
+
+  const estimado = moda(vesperas)
+  return estimado ? { dia: estimado, fonte: 'estimado' } : null
 }
 
 /** O dia `dia` do mês de `mesIso`, encostando no último dia quando o mês é curto (31 → 30/28). */
@@ -73,6 +158,11 @@ export function cicloAtual(c: DadosDoCartao, hoje: string): Ciclo {
     fechamento = c.fecha_em >= hoje ? c.fecha_em : proximoDia(hoje, diaBase)
     fonte = 'banco'
   }
+  else if (c.fechamento_das_faturas) {
+    diaBase = c.fechamento_das_faturas.dia
+    fechamento = proximoDia(hoje, diaBase)
+    fonte = c.fechamento_das_faturas.fonte
+  }
   else {
     return {
       inicio: primeiroDoMes(hoje),
@@ -99,16 +189,20 @@ export interface LancamentoDoCartao {
   data: string
   /** `ignorada` com motivo é contagem dupla (pagamento da fatura) — não é gasto. */
   motivo_exclusao: string | null
+  /** Com fatura, a transação já está numa fatura FECHADA — não é da aberta. */
+  fatura_id?: string | null
 }
 
 /**
  * Quanto a fatura aberta já tem. Estorno (`entrada` no cartão) desconta; o
- * pagamento da fatura anterior, que a importação já marca, não entra.
+ * pagamento da fatura anterior, que a importação já marca, não entra. O que o
+ * banco já pôs numa fatura fechada também não, mesmo dentro das datas do ciclo
+ * (o fechamento estimado pode errar um dia; o `billId` não erra).
  */
 export function totalDoCiclo(lancamentos: LancamentoDoCartao[], contaId: string, ciclo: Ciclo): number {
   let total = 0
   for (const l of lancamentos) {
-    if (l.conta_id !== contaId || l.motivo_exclusao) continue
+    if (l.conta_id !== contaId || l.motivo_exclusao || l.fatura_id) continue
     if (l.data < ciclo.inicio || l.data > ciclo.fechamento) continue
     total += l.sentido === 'saida' ? l.valor : -l.valor
   }

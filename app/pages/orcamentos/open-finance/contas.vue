@@ -29,17 +29,23 @@ import { mensagemDeErro } from '@/lib/utils'
 import {
   ROTULO_DESTINO,
   designacaoAoMarcar,
+  designacaoDoValor,
   designacaoParaEspaco,
   designacaoPrivada,
   estaCompartilhada,
+  mostraCartoesDaConta,
+  rotuloDeHerdar,
   situacaoDaConexao,
+  valorDoCartao,
 } from '~/lib/contas-bancarias'
-import type { Designacao, ModoPrivado } from '~/lib/contas-bancarias'
+import type { CartaoDoFinal, Designacao, ModoPrivado } from '~/lib/contas-bancarias'
+import { formatarDinheiro } from '@/lib/dinheiro'
 import { dataLocal } from '~/lib/importacao-bancaria'
 import {
   abrirWidgetPluggy,
   useConexoesBancarias,
   useDesconectarBanco,
+  useDesignarCartao,
   useDesignarConta,
   usePluggyConfigurada,
   useRegistrarConexao,
@@ -113,6 +119,22 @@ async function onDesignar(conta: ContaBancaria, designacao: Designacao) {
   }
   catch (e) {
     toast.error(mensagemDeErro(e, 'Não deu para mudar o destino.'))
+  }
+}
+
+/*
+ * O cartão por final: o virtual do casal e o físico pessoal faturam na mesma
+ * conta, e cada um pode ir para um lugar. "Como a conta" é o padrão.
+ */
+const designarCartao = useDesignarCartao()
+
+async function onDesignarCartao(cartao: CartaoDoFinal, valor: string) {
+  if (valor === valorDoCartao(cartao)) return
+  try {
+    await designarCartao.mutateAsync({ id: cartao.id, ...designacaoDoValor(valor) })
+  }
+  catch (e) {
+    toast.error(mensagemDeErro(e, 'Não deu para mudar o destino do cartão.'))
   }
 }
 
@@ -257,6 +279,14 @@ const CLASSE_TOM = {
               <span v-if="conta.numero" class="text-xs text-muted-foreground">
                 {{ conta.tipo === 'cartao' ? `•••• ${conta.numero}` : conta.numero }}
               </span>
+              <span
+                v-if="conta.tipo === 'conta' && conta.saldo !== null"
+                class="text-xs font-medium tabular-nums"
+                :class="conta.saldo < 0 ? 'text-destructive' : 'text-foreground'"
+                :title="conta.saldo_atualizado_em ? `Saldo lido em ${formatarDia(dataLocal(conta.saldo_atualizado_em))}` : undefined"
+              >
+                · saldo {{ formatarDinheiro(conta.saldo) }}
+              </span>
             </div>
 
             <div class="flex w-full flex-col items-start gap-1.5 text-xs text-muted-foreground sm:w-auto sm:items-end">
@@ -296,6 +326,33 @@ const CLASSE_TOM = {
                   <option value="pessoal">{{ ROTULO_DESTINO.pessoal }}</option>
                 </select>
               </label>
+            </div>
+
+            <!-- Os cartões desta fatura: físico, virtual, adicional — cada um pode ir para um lugar. -->
+            <div v-if="conta.tipo === 'cartao' && mostraCartoesDaConta(conta, conta.cartoes)" class="w-full rounded-md bg-muted/50 px-3 py-2">
+              <p class="mb-1.5 text-xs text-muted-foreground">
+                Cartões desta fatura — escolha para onde vão as compras de cada um:
+              </p>
+              <ul class="space-y-1.5">
+                <li v-for="cartao in conta.cartoes" :key="cartao.id" class="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span class="font-medium tracking-wider">
+                    •••• {{ cartao.final }}
+                    <span v-if="cartao.final === conta.numero" class="font-normal tracking-normal text-muted-foreground">(o da conta)</span>
+                  </span>
+                  <select
+                    class="h-8 max-w-full rounded-md border bg-background px-2 text-sm text-foreground"
+                    :value="valorDoCartao(cartao)"
+                    :disabled="designarCartao.isPending.value"
+                    :aria-label="`Para onde vão as compras do cartão final ${cartao.final}`"
+                    @change="onDesignarCartao(cartao, ($event.target as HTMLSelectElement).value)"
+                  >
+                    <option value="herdar">{{ rotuloDeHerdar(conta, espacosDeCasal) }}</option>
+                    <option v-for="espaco in espacosDeCasal" :key="espaco.id" :value="`casal:${espaco.id}`">Compartilhado com {{ espaco.nome }}</option>
+                    <option value="pessoal">{{ ROTULO_DESTINO.pessoal }}</option>
+                    <option value="perguntar">{{ ROTULO_DESTINO.perguntar }}</option>
+                  </select>
+                </li>
+              </ul>
             </div>
           </li>
         </ul>

@@ -132,6 +132,9 @@ describe('mapeamento da Pluggy', () => {
       banco_logo_url: 'https://cdn/logo.svg',
       status: 'UPDATED',
       consentimento_expira_em: '2027-11-01T00:00:00.000Z',
+      atualizada_na_pluggy_em: null,
+      situacao_execucao: null,
+      situacao_produtos: null,
     })
   })
 })

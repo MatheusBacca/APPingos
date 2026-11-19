@@ -46,34 +46,58 @@ import {
   autenticarPluggy,
   buscarItem,
   listarContas,
+  listarEmprestimos,
   listarFaturas,
+  listarInvestimentos,
+  listarMovimentosDoInvestimento,
   listarTransacoes,
   type ContaPluggy,
   type FaturaPluggy,
 } from '../_shared/pluggy-api.ts'
 import {
+  amostraDeTransacoes,
   camposDaConexao,
   camposDaConta,
   comprasParaLancar,
+  contaParaAtualizar,
   contextoDasContas,
-  creditoParaAtualizar,
   dataLocal,
+  emprestimoParaLinha,
   faturaParaLinha,
+  finaisDosCartoes,
+  investimentoParaLinha,
   itemPodeSerDe,
   janelaDeSincronizacao,
   linhasDaConta,
+  movimentoParaLinha,
   tipoDaConta,
   vencimentosDasFaturas,
+  type TransacaoNormalizada,
 } from '../_shared/importacao-bancaria.ts'
 import { COR_CATEGORIA_BASE, agruparPorRegra, categoriaBaseDoNome } from '../_shared/estabelecimentos.ts'
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void }
+
+/**
+ * A versão do que a coleta grava. Subiu quando a transação ganhou colunas
+ * (final do cartão, MCC...): a conexão abaixo dela relê a janela inicial inteira
+ * uma vez, e o upsert preenche as colunas novas no que já tinha entrado.
+ */
+const VERSAO_COLETA = 1
 
 interface Conexao {
   id: string
   user_id: string
   item_id: string
   sincronizado_em: string | null
+  versao_coleta: number
+}
+
+/** Um cartão por final, como a sincronização o conhece. */
+interface CartaoDoFinal {
+  id: string
+  final: string
+  destino: 'herdar' | 'casal' | 'pessoal' | 'perguntar'
 }
 
 /** Eventos do webhook que pedem para reler um item. */
@@ -177,7 +201,7 @@ async function tratarWebhook(
 
   const { data: conexao } = await supabase
     .from('conexao_bancaria')
-    .select('id, user_id, item_id, sincronizado_em')
+    .select('id, user_id, item_id, sincronizado_em, versao_coleta')
     .eq('item_id', corpo.itemId)
     .maybeSingle()
 
@@ -200,7 +224,7 @@ async function sincronizarTudo(
 ) {
   let consulta = supabase
     .from('conexao_bancaria')
-    .select('id, user_id, item_id, sincronizado_em')
+    .select('id, user_id, item_id, sincronizado_em, versao_coleta')
     .neq('status', 'DELETED')
   if (usuario) consulta = consulta.eq('user_id', usuario).is('sincronizado_em', null)
 
@@ -242,19 +266,25 @@ async function gravarCreditoEFaturas(
   supabase: SupabaseClient,
   userId: string,
   contaDoApp: Map<string, { id: string }>,
+  contasPluggy: ContaPluggy[],
   faturasPorCartao: Array<{ cartao: ContaPluggy, faturas: FaturaPluggy[] }>,
 ) {
   const agora = new Date().toISOString()
 
+  // Saldo, conta corrente e perfil do cartão: de TODAS as contas, não só dos cartões.
+  for (const contaPluggy of contasPluggy) {
+    const conta = contaDoApp.get(contaPluggy.id)
+    if (!conta) continue
+    const campos = contaParaAtualizar(contaPluggy, agora)
+    if (Object.keys(campos).length) {
+      const { error } = await supabase.from('conta_bancaria').update(campos).eq('id', conta.id)
+      if (error) console.error(`saldo/limite da conta ${conta.id} não gravado:`, error.message)
+    }
+  }
+
   for (const { cartao, faturas } of faturasPorCartao) {
     const conta = contaDoApp.get(cartao.id)
     if (!conta) continue
-
-    const credito = creditoParaAtualizar(cartao)
-    if (Object.keys(credito).length) {
-      const { error } = await supabase.from('conta_bancaria').update(credito).eq('id', conta.id)
-      if (error) console.error(`limite do cartão ${conta.id} não gravado:`, error.message)
-    }
 
     const linhas = faturas.flatMap((f) => {
       const linha = faturaParaLinha(f, conta.id, userId)
@@ -266,6 +296,113 @@ async function gravarCreditoEFaturas(
         .upsert(linhas, { onConflict: 'conta_id,pluggy_bill_id' })
       if (error) console.error(`faturas do cartão ${conta.id} não gravadas:`, error.message)
     }
+  }
+}
+
+/**
+ * A última resposta crua da Pluggy de um recurso, para estudo (`amostra_pluggy`).
+ * Nunca derruba a sincronização: é diagnóstico.
+ */
+async function guardarAmostra(supabase: SupabaseClient, conexao: Conexao, recurso: string, dados: unknown) {
+  const { error } = await supabase.from('amostra_pluggy').upsert({
+    conexao_id: conexao.id,
+    user_id: conexao.user_id,
+    recurso,
+    dados: dados ?? null,
+    coletada_em: new Date().toISOString(),
+  }, { onConflict: 'conexao_id,recurso' })
+  if (error) console.error(`amostra ${recurso} não guardada:`, error.message)
+}
+
+/**
+ * Cria os cartões por final que ainda não existem e devolve todos os da conta,
+ * com o destino que a pessoa escolheu. `visto_em` marca o último dia em que o
+ * final apareceu — a tela pode esconder cartão que sumiu há meses.
+ */
+async function registrarCartoes(
+  supabase: SupabaseClient,
+  userId: string,
+  contaId: string,
+  finais: string[],
+): Promise<CartaoDoFinal[]> {
+  if (finais.length) {
+    const { error } = await supabase.from('cartao_bancario').upsert(
+      finais.map(final => ({ user_id: userId, conta_id: contaId, final, visto_em: new Date().toISOString() })),
+      { onConflict: 'conta_id,final', ignoreDuplicates: false },
+    )
+    if (error) console.error(`cartões da conta ${contaId} não registrados:`, error.message)
+  }
+  const { data, error } = await supabase
+    .from('cartao_bancario')
+    .select('id, final, destino')
+    .eq('conta_id', contaId)
+  if (error) {
+    console.error(`cartões da conta ${contaId} não lidos:`, error.message)
+    return []
+  }
+  return (data ?? []) as CartaoDoFinal[]
+}
+
+/**
+ * Investimentos (com os movimentos) e empréstimos do item. Bônus como a fatura:
+ * banco que não compartilhou devolve lista vazia, e uma falha aqui vai para o
+ * log sem impedir o extrato.
+ */
+async function gravarInvestimentosEEmprestimos(
+  supabase: SupabaseClient,
+  apiKey: string,
+  conexao: Conexao,
+  amostra: (recurso: string, dados: unknown) => Promise<void>,
+) {
+  const agora = new Date().toISOString()
+  try {
+    const investimentos = await listarInvestimentos(apiKey, conexao.item_id)
+    await amostra('investimentos', investimentos)
+    if (investimentos.length) {
+      const { data: gravados, error } = await supabase
+        .from('investimento')
+        .upsert(
+          investimentos.map(i => ({ ...investimentoParaLinha(i), user_id: conexao.user_id, conexao_id: conexao.id, atualizado_em: agora })),
+          { onConflict: 'pluggy_investment_id' },
+        )
+        .select('id, pluggy_investment_id')
+      if (error) throw new Error(error.message)
+
+      const idDoApp = new Map((gravados ?? []).map(g => [g.pluggy_investment_id as string, g.id as string]))
+      for (const inv of investimentos) {
+        const investimentoId = idDoApp.get(inv.id)
+        if (!investimentoId) continue
+        const movimentos = await listarMovimentosDoInvestimento(apiKey, inv.id)
+        if (movimentos.length) await amostra(`movimentos:${inv.id}`, movimentos.slice(0, 20))
+        const linhas = movimentos.flatMap((m) => {
+          const linha = movimentoParaLinha(m)
+          return linha ? [{ ...linha, user_id: conexao.user_id, investimento_id: investimentoId }] : []
+        })
+        if (!linhas.length) continue
+        const { error: erroMov } = await supabase
+          .from('investimento_movimento')
+          .upsert(linhas, { onConflict: 'investimento_id,pluggy_id' })
+        if (erroMov) console.error(`movimentos do investimento ${investimentoId} não gravados:`, erroMov.message)
+      }
+    }
+  }
+  catch (e) {
+    console.error('investimentos não gravados:', e instanceof Error ? e.message : e)
+  }
+
+  try {
+    const emprestimos = await listarEmprestimos(apiKey, conexao.item_id)
+    await amostra('emprestimos', emprestimos)
+    if (emprestimos.length) {
+      const { error } = await supabase.from('emprestimo').upsert(
+        emprestimos.map(e => ({ ...emprestimoParaLinha(e), user_id: conexao.user_id, conexao_id: conexao.id, atualizado_em: agora })),
+        { onConflict: 'pluggy_loan_id' },
+      )
+      if (error) throw new Error(error.message)
+    }
+  }
+  catch (e) {
+    console.error('empréstimos não gravados:', e instanceof Error ? e.message : e)
   }
 }
 
@@ -310,10 +447,20 @@ async function sincronizarConexao(supabase: SupabaseClient, apiKey: string, cone
     const faturas = faturasPorCartao.flatMap(f => f.faturas)
     const contexto = contextoDasContas(contasPluggy, vencimentosDasFaturas(faturas))
 
-    await gravarCreditoEFaturas(supabase, conexao.user_id, contaDoApp, faturasPorCartao)
+    await gravarCreditoEFaturas(supabase, conexao.user_id, contaDoApp, contasPluggy, faturasPorCartao)
+
+    const amostra = (recurso: string, dados: unknown) =>
+      guardarAmostra(supabase, conexao, recurso, dados)
+    await amostra('item', item)
+    await amostra('contas', contasPluggy)
+    for (const { cartao, faturas: doCartao } of faturasPorCartao) {
+      await amostra(`faturas:${cartao.id}`, doCartao.slice(0, 6))
+    }
 
     const hoje = dataLocal(new Date().toISOString())
-    const { de, ate } = janelaDeSincronizacao(conexao.sincronizado_em, hoje)
+    // Abaixo da versão da coleta, relê a janela inicial para preencher as colunas novas.
+    const releitura = (conexao.versao_coleta ?? 0) < VERSAO_COLETA
+    const { de, ate } = janelaDeSincronizacao(releitura ? null : conexao.sincronizado_em, hoje)
 
     /*
       As regras com "Classificar sozinha" ligado (regra_classificacao.automatica).
@@ -333,6 +480,7 @@ async function sincronizarConexao(supabase: SupabaseClient, apiKey: string, cone
       if (!conta) continue
 
       const transacoes = await listarTransacoes(apiKey, contaPluggy.id, de, ate)
+      await amostra(`transacoes:${contaPluggy.id}`, amostraDeTransacoes(transacoes))
       const linhas = linhasDaConta(transacoes, { pluggyId: contaPluggy.id, tipo: tipoDaConta(contaPluggy) }, contexto)
 
       const { data, error } = await supabase.rpc('ingerir_transacoes', {
@@ -344,19 +492,48 @@ async function sincronizarConexao(supabase: SupabaseClient, apiKey: string, cone
       total += Number(data ?? 0)
 
       /*
+        Os cartões por final (o físico, o virtual, os adicionais). Cada um pode ter
+        destino próprio; `herdar` segue a conta.
+      */
+      const cartoes = tipoDaConta(contaPluggy) === 'cartao'
+        ? await registrarCartoes(supabase, conexao.user_id, conta.id, finaisDosCartoes(contaPluggy, linhas))
+        : []
+      const destinoDoCartao = new Map(cartoes.map(c => [c.final, c]))
+      const destinoDaLinha = (l: TransacaoNormalizada) => {
+        const c = l.cartao_final ? destinoDoCartao.get(l.cartao_final) : undefined
+        return c && c.destino !== 'herdar' ? c.destino : conta.destino
+      }
+
+      /*
         O cartão designado (decisão nº 3 de 12/11/2026): as compras entram
         sozinhas no espaço do casal (50/50) ou no pessoal. O resto fica na caixa
-        de entrada. A RPC decide o que é elegível; aqui vai só o plano.
+        de entrada. A RPC decide o que é elegível; aqui vai só o plano. A da
+        conta pula as transações de cartão com destino próprio; a de cada
+        cartão, só as dele.
       */
       if (conta.destino === 'casal' || conta.destino === 'pessoal') {
         const { error: erroLancar } = await supabase.rpc('lancar_compras_do_cartao', {
           p_conta: conta.id,
-          p_compras: comprasParaLancar(linhas),
+          p_compras: comprasParaLancar(linhas.filter(l => destinoDaLinha(l) === conta.destino)),
         })
         if (erroLancar) throw new Error(erroLancar.message)
       }
-      else if (regrasAutomaticas?.length) {
-        const grupos = agruparPorRegra(linhas, regrasAutomaticas)
+      for (const cartao of cartoes) {
+        if (cartao.destino !== 'casal' && cartao.destino !== 'pessoal') continue
+        const doCartao = linhas.filter(l => l.cartao_final === cartao.final)
+        if (!doCartao.length) continue
+        const { error: erroCartao } = await supabase.rpc('lancar_compras_do_cartao', {
+          p_conta: conta.id,
+          p_compras: comprasParaLancar(doCartao),
+          p_cartao: cartao.id,
+        })
+        if (erroCartao) throw new Error(erroCartao.message)
+      }
+
+      // As regras automáticas valem para o que fica em "perguntar".
+      const aPerguntar = linhas.filter(l => destinoDaLinha(l) === 'perguntar')
+      if (aPerguntar.length && regrasAutomaticas?.length) {
+        const grupos = agruparPorRegra(aPerguntar, regrasAutomaticas)
         for (const [regraId, doGrupo] of grupos) {
           const regra = regrasAutomaticas.find(r => r.id === regraId)!
           const base = categoriaBaseDoNome(regra.categoria_nome)
@@ -379,13 +556,15 @@ async function sincronizarConexao(supabase: SupabaseClient, apiKey: string, cone
       voltar só 10 dias e perder o resto. Sem a marca, o cron relê a janela
       inteira — o upsert por `provider_id` torna a repetição inócua.
     */
-    const inicialIncompleta = !conexao.sincronizado_em && item.status !== 'UPDATED'
+    const inicialIncompleta = (!conexao.sincronizado_em || releitura) && item.status !== 'UPDATED'
+
+    await gravarInvestimentosEEmprestimos(supabase, apiKey, conexao, amostra)
 
     await supabase
       .from('conexao_bancaria')
       .update({
         ...camposDaConexao(item),
-        ...(inicialIncompleta ? {} : { sincronizado_em: new Date().toISOString() }),
+        ...(inicialIncompleta ? {} : { sincronizado_em: new Date().toISOString(), versao_coleta: VERSAO_COLETA }),
         erro_sincronizacao: null,
         atualizado_em: new Date().toISOString(),
       })

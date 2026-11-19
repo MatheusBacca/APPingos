@@ -43,6 +43,92 @@ export type Database = {
           },
         ]
       }
+      amostra_pluggy: {
+        Row: {
+          coletada_em: string
+          conexao_id: string
+          dados: Json
+          recurso: string
+          user_id: string
+        }
+        Insert: {
+          coletada_em?: string
+          conexao_id: string
+          dados: Json
+          recurso: string
+          user_id: string
+        }
+        Update: {
+          coletada_em?: string
+          conexao_id?: string
+          dados?: Json
+          recurso?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "amostra_pluggy_conexao_id_fkey"
+            columns: ["conexao_id"]
+            isOneToOne: false
+            referencedRelation: "conexao_bancaria"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cartao_bancario: {
+        Row: {
+          apelido: string | null
+          conta_id: string
+          criado_em: string
+          designada_em: string
+          destino: string
+          final: string
+          id: string
+          space_id: string | null
+          user_id: string
+          visto_em: string
+        }
+        Insert: {
+          apelido?: string | null
+          conta_id: string
+          criado_em?: string
+          designada_em?: string
+          destino?: string
+          final: string
+          id?: string
+          space_id?: string | null
+          user_id: string
+          visto_em?: string
+        }
+        Update: {
+          apelido?: string | null
+          conta_id?: string
+          criado_em?: string
+          designada_em?: string
+          destino?: string
+          final?: string
+          id?: string
+          space_id?: string | null
+          user_id?: string
+          visto_em?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cartao_bancario_conta_id_fkey"
+            columns: ["conta_id"]
+            isOneToOne: false
+            referencedRelation: "conta_bancaria"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cartao_bancario_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categoria: {
         Row: {
           cor: string
@@ -238,6 +324,7 @@ export type Database = {
       }
       conexao_bancaria: {
         Row: {
+          atualizada_na_pluggy_em: string | null
           atualizado_em: string
           banco: string
           banco_logo_url: string | null
@@ -247,10 +334,14 @@ export type Database = {
           id: string
           item_id: string
           sincronizado_em: string | null
+          situacao_execucao: string | null
+          situacao_produtos: Json | null
           status: string
           user_id: string
+          versao_coleta: number
         }
         Insert: {
+          atualizada_na_pluggy_em?: string | null
           atualizado_em?: string
           banco?: string
           banco_logo_url?: string | null
@@ -260,10 +351,14 @@ export type Database = {
           id?: string
           item_id: string
           sincronizado_em?: string | null
+          situacao_execucao?: string | null
+          situacao_produtos?: Json | null
           status?: string
           user_id?: string
+          versao_coleta?: number
         }
         Update: {
+          atualizada_na_pluggy_em?: string | null
           atualizado_em?: string
           banco?: string
           banco_logo_url?: string | null
@@ -273,14 +368,21 @@ export type Database = {
           id?: string
           item_id?: string
           sincronizado_em?: string | null
+          situacao_execucao?: string | null
+          situacao_produtos?: Json | null
           status?: string
           user_id?: string
+          versao_coleta?: number
         }
         Relationships: []
       }
       conta_bancaria: {
         Row: {
+          agencia_conta: string | null
           atualizado_em: string
+          bandeira: string | null
+          cheque_especial_limite: number | null
+          cheque_especial_usado: number | null
           conexao_id: string
           criado_em: string
           designada_em: string
@@ -291,20 +393,35 @@ export type Database = {
           id: string
           limite: number | null
           limite_disponivel: number | null
+          limite_flexivel: boolean | null
           limite_manual: number | null
+          limites_detalhados: Json | null
+          moeda: string | null
+          nivel: string | null
           nome: string
           numero: string | null
           pagamento_minimo: number | null
           pluggy_account_id: string
+          saldo: number | null
+          saldo_aplicado_automatico: number | null
+          saldo_atualizado_em: string | null
+          saldo_com_pendentes: number | null
+          saldo_moeda_estrangeira: number | null
+          situacao_cartao: string | null
           space_id: string | null
           tipo: string
           titular_documento: string | null
           titular_nome: string | null
+          titularidade: string | null
           user_id: string
           vence_em: string | null
         }
         Insert: {
+          agencia_conta?: string | null
           atualizado_em?: string
+          bandeira?: string | null
+          cheque_especial_limite?: number | null
+          cheque_especial_usado?: number | null
           conexao_id: string
           criado_em?: string
           designada_em?: string
@@ -315,20 +432,35 @@ export type Database = {
           id?: string
           limite?: number | null
           limite_disponivel?: number | null
+          limite_flexivel?: boolean | null
           limite_manual?: number | null
+          limites_detalhados?: Json | null
+          moeda?: string | null
+          nivel?: string | null
           nome: string
           numero?: string | null
           pagamento_minimo?: number | null
           pluggy_account_id: string
+          saldo?: number | null
+          saldo_aplicado_automatico?: number | null
+          saldo_atualizado_em?: string | null
+          saldo_com_pendentes?: number | null
+          saldo_moeda_estrangeira?: number | null
+          situacao_cartao?: string | null
           space_id?: string | null
           tipo: string
           titular_documento?: string | null
           titular_nome?: string | null
+          titularidade?: string | null
           user_id?: string
           vence_em?: string | null
         }
         Update: {
+          agencia_conta?: string | null
           atualizado_em?: string
+          bandeira?: string | null
+          cheque_especial_limite?: number | null
+          cheque_especial_usado?: number | null
           conexao_id?: string
           criado_em?: string
           designada_em?: string
@@ -339,15 +471,26 @@ export type Database = {
           id?: string
           limite?: number | null
           limite_disponivel?: number | null
+          limite_flexivel?: boolean | null
           limite_manual?: number | null
+          limites_detalhados?: Json | null
+          moeda?: string | null
+          nivel?: string | null
           nome?: string
           numero?: string | null
           pagamento_minimo?: number | null
           pluggy_account_id?: string
+          saldo?: number | null
+          saldo_aplicado_automatico?: number | null
+          saldo_atualizado_em?: string | null
+          saldo_com_pendentes?: number | null
+          saldo_moeda_estrangeira?: number | null
+          situacao_cartao?: string | null
           space_id?: string | null
           tipo?: string
           titular_documento?: string | null
           titular_nome?: string | null
+          titularidade?: string | null
           user_id?: string
           vence_em?: string | null
         }
@@ -441,6 +584,77 @@ export type Database = {
           },
         ]
       }
+      emprestimo: {
+        Row: {
+          atualizado_em: string
+          cet: number | null
+          conexao_id: string
+          contrato: string | null
+          data_contrato: string | null
+          id: string
+          juros: Json | null
+          moeda: string | null
+          pagamentos: Json | null
+          parcelas: Json | null
+          periodicidade: string | null
+          pluggy_loan_id: string
+          primeira_parcela_em: string | null
+          produto: string | null
+          tipo: string | null
+          user_id: string
+          valor_contratado: number | null
+          vencimento: string | null
+        }
+        Insert: {
+          atualizado_em?: string
+          cet?: number | null
+          conexao_id: string
+          contrato?: string | null
+          data_contrato?: string | null
+          id?: string
+          juros?: Json | null
+          moeda?: string | null
+          pagamentos?: Json | null
+          parcelas?: Json | null
+          periodicidade?: string | null
+          pluggy_loan_id: string
+          primeira_parcela_em?: string | null
+          produto?: string | null
+          tipo?: string | null
+          user_id: string
+          valor_contratado?: number | null
+          vencimento?: string | null
+        }
+        Update: {
+          atualizado_em?: string
+          cet?: number | null
+          conexao_id?: string
+          contrato?: string | null
+          data_contrato?: string | null
+          id?: string
+          juros?: Json | null
+          moeda?: string | null
+          pagamentos?: Json | null
+          parcelas?: Json | null
+          periodicidade?: string | null
+          pluggy_loan_id?: string
+          primeira_parcela_em?: string | null
+          produto?: string | null
+          tipo?: string | null
+          user_id?: string
+          valor_contratado?: number | null
+          vencimento?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emprestimo_conexao_id_fkey"
+            columns: ["conexao_id"]
+            isOneToOne: false
+            referencedRelation: "conexao_bancaria"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       entry: {
         Row: {
           added_by: string
@@ -526,30 +740,45 @@ export type Database = {
         Row: {
           atualizada_em: string
           conta_id: string
+          encargos: Json
+          fechamento: string | null
           id: string
           minimo: number | null
+          pagamentos: Json
+          permite_parcelar: boolean | null
           pluggy_bill_id: string
           total: number
+          total_encargos: number
           user_id: string
           vencimento: string
         }
         Insert: {
           atualizada_em?: string
           conta_id: string
+          encargos?: Json
+          fechamento?: string | null
           id?: string
           minimo?: number | null
+          pagamentos?: Json
+          permite_parcelar?: boolean | null
           pluggy_bill_id: string
           total: number
+          total_encargos?: number
           user_id: string
           vencimento: string
         }
         Update: {
           atualizada_em?: string
           conta_id?: string
+          encargos?: Json
+          fechamento?: string | null
           id?: string
           minimo?: number | null
+          pagamentos?: Json
+          permite_parcelar?: boolean | null
           pluggy_bill_id?: string
           total?: number
+          total_encargos?: number
           user_id?: string
           vencimento?: string
         }
@@ -917,6 +1146,158 @@ export type Database = {
             columns: ["produto_id"]
             isOneToOne: false
             referencedRelation: "interesse_produto"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      investimento: {
+        Row: {
+          atualizado_em: string
+          codigo: string | null
+          conexao_id: string
+          data_compra: string | null
+          data_referencia: string | null
+          emissor: string | null
+          id: string
+          impostos: number | null
+          indexador: string | null
+          meta_id: string | null
+          moeda: string | null
+          nome: string
+          numero: string | null
+          pluggy_investment_id: string
+          rendimento: number | null
+          saldo: number | null
+          situacao: string | null
+          subtipo: string | null
+          taxa: number | null
+          taxa_tipo: string | null
+          tipo: string | null
+          user_id: string
+          valor_bruto: number | null
+          valor_original: number | null
+          valor_resgatavel: number | null
+          vencimento: string | null
+        }
+        Insert: {
+          atualizado_em?: string
+          codigo?: string | null
+          conexao_id: string
+          data_compra?: string | null
+          data_referencia?: string | null
+          emissor?: string | null
+          id?: string
+          impostos?: number | null
+          indexador?: string | null
+          meta_id?: string | null
+          moeda?: string | null
+          nome: string
+          numero?: string | null
+          pluggy_investment_id: string
+          rendimento?: number | null
+          saldo?: number | null
+          situacao?: string | null
+          subtipo?: string | null
+          taxa?: number | null
+          taxa_tipo?: string | null
+          tipo?: string | null
+          user_id: string
+          valor_bruto?: number | null
+          valor_original?: number | null
+          valor_resgatavel?: number | null
+          vencimento?: string | null
+        }
+        Update: {
+          atualizado_em?: string
+          codigo?: string | null
+          conexao_id?: string
+          data_compra?: string | null
+          data_referencia?: string | null
+          emissor?: string | null
+          id?: string
+          impostos?: number | null
+          indexador?: string | null
+          meta_id?: string | null
+          moeda?: string | null
+          nome?: string
+          numero?: string | null
+          pluggy_investment_id?: string
+          rendimento?: number | null
+          saldo?: number | null
+          situacao?: string | null
+          subtipo?: string | null
+          taxa?: number | null
+          taxa_tipo?: string | null
+          tipo?: string | null
+          user_id?: string
+          valor_bruto?: number | null
+          valor_original?: number | null
+          valor_resgatavel?: number | null
+          vencimento?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "investimento_conexao_id_fkey"
+            columns: ["conexao_id"]
+            isOneToOne: false
+            referencedRelation: "conexao_bancaria"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "investimento_meta_id_fkey"
+            columns: ["meta_id"]
+            isOneToOne: false
+            referencedRelation: "meta"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      investimento_movimento: {
+        Row: {
+          data: string
+          descricao: string | null
+          id: string
+          investimento_id: string
+          pluggy_id: string
+          quantidade: number | null
+          sentido: string | null
+          tipo: string | null
+          user_id: string
+          valor: number | null
+          valor_liquido: number | null
+        }
+        Insert: {
+          data: string
+          descricao?: string | null
+          id?: string
+          investimento_id: string
+          pluggy_id: string
+          quantidade?: number | null
+          sentido?: string | null
+          tipo?: string | null
+          user_id: string
+          valor?: number | null
+          valor_liquido?: number | null
+        }
+        Update: {
+          data?: string
+          descricao?: string | null
+          id?: string
+          investimento_id?: string
+          pluggy_id?: string
+          quantidade?: number | null
+          sentido?: string | null
+          tipo?: string | null
+          user_id?: string
+          valor?: number | null
+          valor_liquido?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "investimento_movimento_investimento_id_fkey"
+            columns: ["investimento_id"]
+            isOneToOne: false
+            referencedRelation: "investimento"
             referencedColumns: ["id"]
           },
         ]
@@ -2224,6 +2605,8 @@ export type Database = {
       transacao_bancaria: {
         Row: {
           atualizada_em: string
+          boleto: Json | null
+          cartao_final: string | null
           categoria_pluggy: string | null
           categoria_pluggy_id: string | null
           chave_compra: string | null
@@ -2234,16 +2617,23 @@ export type Database = {
           conta_id: string
           contraparte_documento: string | null
           contraparte_nome: string | null
+          credito_tipo: string | null
           data: string
           data_compra: string | null
+          data_hora: string | null
           descricao: string
           destino: string | null
           estabelecimento_cnpj: string | null
           estabelecimento_nome: string | null
           fatura_id: string | null
+          fatura_prevista: string | null
           id: string
           importada_em: string
+          lancada_na_fatura_em: string | null
+          mcc: number | null
+          mensagem: string | null
           metodo: string | null
+          moeda: string | null
           motivo_exclusao: string | null
           parcela_numero: number | null
           parcelas_total: number | null
@@ -2251,12 +2641,17 @@ export type Database = {
           pluggy_id: string
           provider_id: string
           sentido: string
+          tarifa_tipo: string | null
+          tipo_cobranca: string | null
           user_id: string
           valor: number
+          valor_moeda_original: number | null
           valor_total_compra: number | null
         }
         Insert: {
           atualizada_em?: string
+          boleto?: Json | null
+          cartao_final?: string | null
           categoria_pluggy?: string | null
           categoria_pluggy_id?: string | null
           chave_compra?: string | null
@@ -2267,16 +2662,23 @@ export type Database = {
           conta_id: string
           contraparte_documento?: string | null
           contraparte_nome?: string | null
+          credito_tipo?: string | null
           data: string
           data_compra?: string | null
+          data_hora?: string | null
           descricao: string
           destino?: string | null
           estabelecimento_cnpj?: string | null
           estabelecimento_nome?: string | null
           fatura_id?: string | null
+          fatura_prevista?: string | null
           id?: string
           importada_em?: string
+          lancada_na_fatura_em?: string | null
+          mcc?: number | null
+          mensagem?: string | null
           metodo?: string | null
+          moeda?: string | null
           motivo_exclusao?: string | null
           parcela_numero?: number | null
           parcelas_total?: number | null
@@ -2284,12 +2686,17 @@ export type Database = {
           pluggy_id: string
           provider_id: string
           sentido: string
+          tarifa_tipo?: string | null
+          tipo_cobranca?: string | null
           user_id: string
           valor: number
+          valor_moeda_original?: number | null
           valor_total_compra?: number | null
         }
         Update: {
           atualizada_em?: string
+          boleto?: Json | null
+          cartao_final?: string | null
           categoria_pluggy?: string | null
           categoria_pluggy_id?: string | null
           chave_compra?: string | null
@@ -2300,16 +2707,23 @@ export type Database = {
           conta_id?: string
           contraparte_documento?: string | null
           contraparte_nome?: string | null
+          credito_tipo?: string | null
           data?: string
           data_compra?: string | null
+          data_hora?: string | null
           descricao?: string
           destino?: string | null
           estabelecimento_cnpj?: string | null
           estabelecimento_nome?: string | null
           fatura_id?: string | null
+          fatura_prevista?: string | null
           id?: string
           importada_em?: string
+          lancada_na_fatura_em?: string | null
+          mcc?: number | null
+          mensagem?: string | null
           metodo?: string | null
+          moeda?: string | null
           motivo_exclusao?: string | null
           parcela_numero?: number | null
           parcelas_total?: number | null
@@ -2317,8 +2731,11 @@ export type Database = {
           pluggy_id?: string
           provider_id?: string
           sentido?: string
+          tarifa_tipo?: string | null
+          tipo_cobranca?: string | null
           user_id?: string
           valor?: number
+          valor_moeda_original?: number | null
           valor_total_compra?: number | null
         }
         Relationships: [
@@ -2596,7 +3013,7 @@ export type Database = {
         Returns: Json
       }
       lancar_compras_do_cartao: {
-        Args: { p_compras: Json; p_conta: string }
+        Args: { p_cartao?: string; p_compras: Json; p_conta: string }
         Returns: number
       }
       lancar_compras_por_regra: {

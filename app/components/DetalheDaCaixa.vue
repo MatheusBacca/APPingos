@@ -43,6 +43,36 @@ const parcelas = computed(() => {
   return `Parcela ${numeros} de ${props.item.plano.parcelas} · ${formatarDinheiro(props.item.plano.valor_total)} no total`
 })
 
+/** A hora da compra, no fuso de Brasília, quando o banco informa. */
+const hora = computed(() => {
+  const iso = props.item.principal.data_hora
+  if (!iso) return null
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime())
+    ? null
+    : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
+})
+
+function formatarMoeda(valor: number, moeda: string): string {
+  try {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: moeda }).format(valor)
+  }
+  catch {
+    return `${moeda} ${valor.toFixed(2)}`
+  }
+}
+
+/** "pago com R$ 4,00 de multa e R$ 1,33 de juros" — o que o atraso custou. */
+const encargosDoBoleto = computed(() => {
+  const b = props.item.principal.boleto
+  if (!b) return null
+  const partes = [
+    b.multa ? `${formatarDinheiro(b.multa)} de multa` : null,
+    b.juros ? `${formatarDinheiro(b.juros)} de juros` : null,
+  ].filter(Boolean)
+  return partes.length ? `pago com ${partes.join(' e ')}` : null
+})
+
 const textoDaSugestao = computed(() => {
   const s = props.sugestao
   if (!s) return null
@@ -100,6 +130,30 @@ const destinos = computed(() => (props.item.sentido === 'saida' ? DESTINOS_SAIDA
       <div v-if="categoriaDoBanco" class="flex gap-2">
         <dt class="shrink-0 text-muted-foreground">Categoria do banco</dt>
         <dd>{{ categoriaDoBanco }}</dd>
+      </div>
+      <div v-if="item.principal.contraparte_nome" class="flex gap-2">
+        <dt class="shrink-0 text-muted-foreground">{{ item.sentido === 'entrada' ? 'De' : 'Para' }}</dt>
+        <dd class="min-w-0 break-words">{{ item.principal.contraparte_nome }}</dd>
+      </div>
+      <div v-if="item.principal.mensagem" class="flex gap-2">
+        <dt class="shrink-0 text-muted-foreground">Mensagem</dt>
+        <dd class="min-w-0 break-words italic">“{{ item.principal.mensagem }}”</dd>
+      </div>
+      <div v-if="item.principal.cartao_final" class="flex gap-2">
+        <dt class="shrink-0 text-muted-foreground">Cartão</dt>
+        <dd class="tracking-wider">•••• {{ item.principal.cartao_final }}</dd>
+      </div>
+      <div v-if="hora" class="flex gap-2">
+        <dt class="shrink-0 text-muted-foreground">Hora</dt>
+        <dd>{{ hora }}</dd>
+      </div>
+      <div v-if="item.principal.moeda && item.principal.valor_moeda_original" class="flex gap-2">
+        <dt class="shrink-0 text-muted-foreground">Moeda original</dt>
+        <dd>{{ formatarMoeda(item.principal.valor_moeda_original, item.principal.moeda) }}</dd>
+      </div>
+      <div v-if="encargosDoBoleto" class="flex gap-2">
+        <dt class="shrink-0 text-muted-foreground">Boleto</dt>
+        <dd class="text-amber-700 dark:text-amber-400">{{ encargosDoBoleto }}</dd>
       </div>
     </dl>
 
