@@ -445,6 +445,20 @@ function textoOuNulo(v: string | null | undefined): string | null {
 }
 
 /**
+ * Tipo de tarifa ou de crédito contratado, sem o enchimento do banco. O Nubank
+ * manda `"OTHER"` com informação adicional `"NA"` em TODA compra (amostra real
+ * de 20/11/2026) — isso não é tarifa nenhuma, e gravar faria toda compra parecer
+ * uma cobrança do banco.
+ */
+function tipoInformado(tipo: string | null | undefined, info: string | null | undefined): string | null {
+  const t = textoOuNulo(tipo)
+  if (!t) return null
+  const extra = textoOuNulo(info)
+  if (t === 'OTHER' && (!extra || /^n\/?a$/i.test(extra))) return null
+  return t
+}
+
+/**
  * Os campos que a importação só passou a guardar na onda 1 do plano
  * docs/plano-open-finance-campos-novos.md. Tudo é opcional na Pluggy, e o que
  * não veio sai `null` (a ingestão mantém o valor anterior nesse caso).
@@ -453,7 +467,8 @@ export function camposExtrasDaTransacao(t: TransacaoPluggy) {
   const c = t.creditCardMetadata ?? null
   const moeda = textoOuNulo(t.currencyCode)?.toUpperCase() ?? null
   const estrangeira = !!moeda && moeda !== 'BRL' && /^[A-Z]{3}$/.test(moeda)
-  const b = t.boletoMetadata ?? null
+  // Na resposta real (20/11/2026) o boleto vem DENTRO de `paymentData`; o de cima fica por garantia.
+  const b = t.paymentData?.boletoMetadata ?? t.boletoMetadata ?? null
   const boleto: BoletoPago | null = b && [b.baseAmount, b.penaltyAmount, b.interestAmount, b.discountAmount].some(v => typeof v === 'number')
     ? {
         valor_original: valorOuNulo(b.baseAmount),
@@ -478,8 +493,8 @@ export function camposExtrasDaTransacao(t: TransacaoPluggy) {
     // Na Pluggy, `amount` é na moeda da transação e `amountInAccountCurrency` em reais.
     valor_moeda_original: estrangeira ? valorOuNulo(Math.abs(t.amount)) : null,
     mensagem: textoOuNulo(t.paymentData?.reason),
-    tarifa_tipo: textoOuNulo(c?.feeType),
-    credito_tipo: textoOuNulo(c?.otherCreditsType),
+    tarifa_tipo: tipoInformado(c?.feeType, c?.feeTypeAdditionalInfo),
+    credito_tipo: tipoInformado(c?.otherCreditsType, c?.otherCreditsAdditionalInfo),
     boleto,
   }
 }
