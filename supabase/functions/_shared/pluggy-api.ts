@@ -152,8 +152,11 @@ export interface TransacaoPluggy {
     billPostDate?: string | null
     /** Quando a transação é tarifa (anuidade, saque...). */
     feeType?: string | null
+    /** O Nubank manda `"NA"` aqui junto de `feeType: "OTHER"` em toda compra. */
+    feeTypeAdditionalInfo?: string | null
     /** Quando é crédito contratado no cartão (rotativo, parcelamento da fatura...). */
     otherCreditsType?: string | null
+    otherCreditsAdditionalInfo?: string | null
   } | null
   paymentData?: {
     payer?: ParteDoPagamento | null
@@ -163,6 +166,8 @@ export interface TransacaoPluggy {
     /** A mensagem que quem pagou escreveu no Pix/TED. */
     reason?: string | null
     receiverReferenceId?: string | null
+    /** Na resposta real, o boleto vem aqui dentro (não no nível da transação). */
+    boletoMetadata?: TransacaoPluggy['boletoMetadata']
   } | null
   /** Valor na moeda da conta, quando a compra foi em outra moeda. */
   amountInAccountCurrency?: number | null

@@ -99,6 +99,22 @@ describe('campos extras da transação', () => {
     expect(extras.boleto).toEqual({ valor_original: 200, multa: 4, juros: 1.33, desconto: null })
   })
 
+  it('o enchimento do Nubank ("OTHER" + "NA" em toda compra) não vira tarifa', () => {
+    const extras = camposExtrasDaTransacao(transacao({
+      creditCardMetadata: { feeType: 'OTHER', feeTypeAdditionalInfo: 'NA', otherCreditsType: 'OTHER', otherCreditsAdditionalInfo: 'NA' },
+    }))
+    expect(extras).toMatchObject({ tarifa_tipo: null, credito_tipo: null })
+    const outra = camposExtrasDaTransacao(transacao({ creditCardMetadata: { feeType: 'OTHER', feeTypeAdditionalInfo: 'Tarifa de cartão adicional' } }))
+    expect(outra.tarifa_tipo).toBe('OTHER')
+  })
+
+  it('o boleto que vem dentro de paymentData (formato real)', () => {
+    const extras = camposExtrasDaTransacao(transacao({
+      paymentData: { paymentMethod: 'BOLETO', boletoMetadata: { baseAmount: 100, penaltyAmount: 2, interestAmount: 0.5 } },
+    }))
+    expect(extras.boleto).toEqual({ valor_original: 100, multa: 2, juros: 0.5, desconto: null })
+  })
+
   it('tarifa e crédito contratado no cartão', () => {
     const extras = camposExtrasDaTransacao(transacao({ creditCardMetadata: { feeType: 'ANNUAL_FEE', otherCreditsType: 'REVOLVING_CREDIT' } }))
     expect(extras).toMatchObject({ tarifa_tipo: 'ANNUAL_FEE', credito_tipo: 'REVOLVING_CREDIT' })
