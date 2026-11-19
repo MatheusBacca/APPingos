@@ -27,7 +27,8 @@ const COLUNAS = `
   pendente, parcela_numero, parcelas_total, valor_total_compra, data_compra, fatura_id,
   chave_compra, contraparte_nome, contraparte_documento, metodo, categoria_pluggy,
   categoria_pluggy_id, estabelecimento_nome, estabelecimento_cnpj,
-  motivo_exclusao, destino, compra_id, classificada_em
+  motivo_exclusao, destino, compra_id, classificada_em,
+  mensagem, cartao_final, mcc, data_hora, moeda, valor_moeda_original, boleto
 `
 
 export type LinhaDaCaixa = TransacaoDaCaixa & {

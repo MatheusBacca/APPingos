@@ -136,3 +136,51 @@ export function designacaoParaEspaco(spaceId: string): Designacao {
 export function designacaoPrivada(modo: ModoPrivado): Designacao {
   return { destino: modo, space_id: null }
 }
+
+// ---------------------------------------------------------------------------
+// Cartões por final (migration 20261120100000)
+// ---------------------------------------------------------------------------
+
+/**
+ * O destino de um cartão dentro de uma conta de cartão. `herdar` segue a conta;
+ * os outros valem só para as compras daquele final (o virtual do casal, o
+ * físico pessoal).
+ */
+export type DestinoCartao = 'herdar' | DestinoConta
+
+export interface CartaoDoFinal {
+  id: string
+  final: string
+  apelido: string | null
+  destino: DestinoCartao
+  space_id: string | null
+}
+
+/**
+ * O destino do cartão como UM valor de `<select>`: `herdar`, `perguntar`,
+ * `pessoal` ou `casal:<id do espaço>` — o espaço vai junto porque a pessoa pode
+ * estar em mais de um espaço de casal.
+ */
+export function valorDoCartao(c: Pick<CartaoDoFinal, 'destino' | 'space_id'>): string {
+  return c.destino === 'casal' && c.space_id ? `casal:${c.space_id}` : c.destino === 'casal' ? 'perguntar' : c.destino
+}
+
+export function designacaoDoValor(valor: string): { destino: DestinoCartao, space_id: string | null } {
+  if (valor.startsWith('casal:')) return { destino: 'casal', space_id: valor.slice('casal:'.length) || null }
+  if (valor === 'pessoal' || valor === 'perguntar') return { destino: valor, space_id: null }
+  return { destino: 'herdar', space_id: null }
+}
+
+/** O rótulo de "seguir a conta", dizendo para onde a conta manda. */
+export function rotuloDeHerdar(conta: { destino: DestinoConta, space_id: string | null }, espacos: ReadonlyArray<{ id: string, nome: string }>): string {
+  if (conta.destino === 'casal') return `Como a conta (${espacos.find(e => e.id === conta.space_id)?.nome ?? 'o casal'})`
+  return `Como a conta (${conta.destino === 'pessoal' ? 'pessoal' : 'perguntar'})`
+}
+
+/**
+ * Se vale mostrar os cartões da conta: só quando há mais de um final — com um
+ * só, ele É a conta, e a escolha já está na linha dela.
+ */
+export function mostraCartoesDaConta(conta: { numero: string | null }, cartoes: ReadonlyArray<CartaoDoFinal>): boolean {
+  return cartoes.length > 1 || (cartoes.length === 1 && cartoes[0]!.final !== conta.numero)
+}

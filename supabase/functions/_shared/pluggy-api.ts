@@ -62,6 +62,21 @@ export interface ContaPluggy {
   owner?: string | null
   /** CPF/CNPJ do titular — é o que reconhece transferência entre contas próprias. */
   taxNumber?: string | null
+  /** Conta: o saldo. Cartão: o valor da fatura aberta segundo o banco. */
+  balance?: number | null
+  currencyCode?: string | null
+  /** Só em conta corrente/poupança. */
+  bankData?: {
+    /** Agência/conta completas. */
+    transferNumber?: string | null
+    /** O saldo contando as transações ainda não lançadas. */
+    closingBalance?: number | null
+    /** O que o banco aplica sozinho (rende conta, "guardar automático"). */
+    automaticallyInvestedBalance?: number | null
+    overdraftContractedLimit?: number | null
+    overdraftUsedLimit?: number | null
+    unarrangedOverdraftAmount?: number | null
+  } | null
   /**
    * Só em cartão, e cada campo só quando o banco informa — a documentação dá
    * todos como opcionais. Datas em ISO 8601 UTC; valores em reais.
@@ -79,7 +94,13 @@ export interface ContaPluggy {
     minimumPayment?: number | null
     balanceForeignCurrency?: number | null
     isLimitFlexible?: boolean | null
-    status?: string | null
+    status?: 'ACTIVE' | 'BLOCKED' | 'CANCELLED' | string | null
+    /** Titular (MAIN) ou adicional (ADDITIONAL). */
+    holderType?: 'MAIN' | 'ADDITIONAL' | string | null
+    /** Os cartões adicionais (e, no Open Finance, os virtuais) da conta. */
+    additionalCards?: Array<{ number?: string | null }> | null
+    /** Limites por modalidade ou por cartão, quando o banco divide. */
+    disaggregatedCreditLimits?: Array<Record<string, unknown>> | null
   } | null
 }
 
@@ -114,14 +135,44 @@ export interface TransacaoPluggy {
     totalAmount?: number | null
     purchaseDate?: string | null
     billId?: string | null
+    /**
+     * O cartão que fez a compra. Difere do número da conta em cartão adicional
+     * ou VIRTUAL — é o que separa o virtual do casal do físico pessoal.
+     */
     cardNumber?: string | null
+    /** Merchant Category Code: dado regulado do Open Finance, não enriquecimento. */
+    payeeMCC?: number | null
+    /** Só Open Finance: `SINGLE` (à vista) ou `INSTALLMENT` (parcelada). */
+    paymentType?: 'SINGLE' | 'INSTALLMENT' | string | null
+    /** Só Open Finance: a hora da compra como o banco informou. */
+    transactionDateTime?: string | null
+    /** Só Open Finance: a fatura prevista (`YYYY-MM`), também para as pendentes. */
+    billForecastDate?: string | null
+    /** Só Open Finance: o dia em que entrou na fatura (`YYYY-MM-DD`). */
+    billPostDate?: string | null
+    /** Quando a transação é tarifa (anuidade, saque...). */
+    feeType?: string | null
+    /** Quando é crédito contratado no cartão (rotativo, parcelamento da fatura...). */
+    otherCreditsType?: string | null
   } | null
   paymentData?: {
     payer?: ParteDoPagamento | null
     receiver?: ParteDoPagamento | null
     paymentMethod?: 'PIX' | 'TED' | 'DOC' | 'BOLETO' | 'TEF' | string | null
     referenceNumber?: string | null
+    /** A mensagem que quem pagou escreveu no Pix/TED. */
     reason?: string | null
+    receiverReferenceId?: string | null
+  } | null
+  /** Valor na moeda da conta, quando a compra foi em outra moeda. */
+  amountInAccountCurrency?: number | null
+  boletoMetadata?: {
+    digitableLine?: string | null
+    barcode?: string | null
+    baseAmount?: number | null
+    penaltyAmount?: number | null
+    interestAmount?: number | null
+    discountAmount?: number | null
   } | null
   merchant?: { name?: string | null, businessName?: string | null, cnpj?: string | null } | null
   createdAt?: string
@@ -133,6 +184,8 @@ export interface FaturaPluggy {
   id: string
   /** ISO 8601 em UTC. */
   dueDate: string
+  /** O fechamento desta fatura — o `balanceCloseDate` da conta é sempre nulo no Open Finance. */
+  billClosingDate?: string | null
   totalAmount: number
   totalAmountCurrencyCode?: string | null
   minimumPaymentAmount?: number | null
@@ -143,8 +196,75 @@ export interface FaturaPluggy {
     currencyCode?: string | null
     additionalInfo?: string | null
   }> | null
+  payments?: Array<{
+    id?: string | null
+    valueType?: string | null
+    paymentDate?: string | null
+    paymentMode?: string | null
+    amount?: number | null
+    currencyCode?: string | null
+  }> | null
   createdAt?: string
   updatedAt?: string
+}
+
+/** Uma posição de investimento (`/investments`). */
+export interface InvestimentoPluggy {
+  id: string
+  itemId?: string
+  name: string
+  type?: string | null
+  subtype?: string | null
+  code?: string | null
+  number?: string | null
+  issuer?: string | null
+  currencyCode?: string | null
+  /** Líquido, depois de taxas e impostos. */
+  balance?: number | null
+  amount?: number | null
+  amountOriginal?: number | null
+  amountWithdrawal?: number | null
+  amountProfit?: number | null
+  taxes?: number | null
+  taxes2?: number | null
+  rate?: number | null
+  rateType?: string | null
+  indexerAdditionalInfo?: string | null
+  date?: string | null
+  purchaseDate?: string | null
+  dueDate?: string | null
+  status?: string | null
+}
+
+/** Um movimento de uma posição (`/investments/{id}/transactions`). */
+export interface MovimentoDeInvestimentoPluggy {
+  id: string
+  type?: 'BUY' | 'SELL' | 'TAX' | 'TRANSFER' | 'INTEREST' | 'AMORTIZATION' | string | null
+  movementType?: 'CREDIT' | 'DEBIT' | string | null
+  amount?: number | null
+  netAmount?: number | null
+  quantity?: number | null
+  date: string
+  description?: string | null
+}
+
+/** Um empréstimo ou financiamento (`/loans`). */
+export interface EmprestimoPluggy {
+  id: string
+  itemId?: string
+  productName?: string | null
+  type?: string | null
+  contractNumber?: string | null
+  currencyCode?: string | null
+  contractAmount?: number | null
+  contractDate?: string | null
+  dueDate?: string | null
+  firstInstallmentDueDate?: string | null
+  installmentPeriodicity?: string | null
+  CET?: number | null
+  installments?: unknown
+  payments?: unknown
+  interestRates?: unknown
 }
 
 interface Pagina<T> {
@@ -268,6 +388,40 @@ export async function listarFaturas(apiKey: string, accountId: string): Promise<
     if (e instanceof ErroPluggy && e.status !== 401) return []
     throw e
   }
+}
+
+/**
+ * Os produtos que não são extrato. Todos são bônus: o banco pode não ter
+ * compartilhado (o consentimento é por produto), e aí a lista volta vazia —
+ * nunca derruba a sincronização, salvo chave vencida (401).
+ */
+async function listaBonus<T>(caminho: string, apiKey: string): Promise<T[]> {
+  try {
+    const todos: T[] = []
+    for (let pagina = 1; pagina <= 20; pagina++) {
+      const sep = caminho.includes('?') ? '&' : '?'
+      const r = await pedir<Pagina<T>>(`${caminho}${sep}page=${pagina}`, { apiKey })
+      todos.push(...r.results)
+      if (!r.totalPages || pagina >= r.totalPages) break
+    }
+    return todos
+  }
+  catch (e) {
+    if (e instanceof ErroPluggy && e.status !== 401) return []
+    throw e
+  }
+}
+
+export function listarInvestimentos(apiKey: string, itemId: string): Promise<InvestimentoPluggy[]> {
+  return listaBonus<InvestimentoPluggy>(`/investments?itemId=${encodeURIComponent(itemId)}`, apiKey)
+}
+
+export function listarMovimentosDoInvestimento(apiKey: string, investimentoId: string): Promise<MovimentoDeInvestimentoPluggy[]> {
+  return listaBonus<MovimentoDeInvestimentoPluggy>(`/investments/${encodeURIComponent(investimentoId)}/transactions`, apiKey)
+}
+
+export function listarEmprestimos(apiKey: string, itemId: string): Promise<EmprestimoPluggy[]> {
+  return listaBonus<EmprestimoPluggy>(`/loans?itemId=${encodeURIComponent(itemId)}`, apiKey)
 }
 
 /**

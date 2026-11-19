@@ -48,6 +48,12 @@ export interface Lancamento {
  */
 export const LANCAMENTOS: Lancamento[] = [
   {
+    versao: '1.13.0',
+    titulo: 'Cada cartão no seu espaço',
+    descricao: 'O virtual do casal e o físico pessoal da mesma fatura agora vão cada um para o seu lugar. E chegaram o saldo das contas, o fechamento e os juros de cada fatura, a mensagem do Pix e a multa do boleto.',
+    data: '2026-11-19',
+  },
+  {
     versao: '1.12.0',
     titulo: 'A caixa por mês, e o que falta no acerto',
     descricao: 'A Caixa de entrada agora vai mês a mês, com um calendário ao lado que mostra quantas compras chegaram em cada dia — toque num dia para ver só ele, e o que ficou de meses anteriores está a um toque. No Chico Moedas, as compras do cartão do casal que ainda esperam destino aparecem antes do acerto, e os dois veem quantas faltam. E Orçamentos parou de escapar da tela no celular.',

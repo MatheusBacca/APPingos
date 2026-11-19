@@ -42,10 +42,41 @@ const TEXTO_DA_FAIXA = {
 const prazo = computed(() => {
   const { ciclo } = props.resumo
   if (ciclo.fonte === 'calendario') return 'no mês · informe o fechamento'
-  const partes = [quandoFecha(ciclo, hoje)]
+  // Estimado pelas datas das transações: "~" avisa que pode errar um dia.
+  const partes = [ciclo.fonte === 'estimado' ? `~${quandoFecha(ciclo, hoje)}` : quandoFecha(ciclo, hoje)]
   if (ciclo.vencimento) partes.push(`vence ${diaCurto(ciclo.vencimento)}`)
   return partes.join(' · ')
 })
+
+/**
+ * O que o banco diz da fatura aberta (`account.balance`), quando difere da
+ * nossa soma em mais de R$ 1. Diferença é sinal de compra que ainda não
+ * chegou ao extrato — ou de que o ciclo estimado errou.
+ */
+const saldoDoBanco = computed(() => {
+  const s = props.resumo.cartao.saldo
+  if (s == null || Math.abs(s - props.resumo.faturaAberta) < 1) return null
+  return s
+})
+
+const SITUACAO = { BLOCKED: 'bloqueado', CANCELLED: 'cancelado' } as const
+const situacao = computed(() => SITUACAO[props.resumo.cartao.situacao_cartao as keyof typeof SITUACAO] ?? null)
+
+const perfil = computed(() => [props.resumo.cartao.bandeira, props.resumo.cartao.nivel]
+  .filter(Boolean)
+  .map(t => t!.charAt(0) + t!.slice(1).toLowerCase())
+  .join(' '))
+
+const NOME_DO_ENCARGO: Record<string, string> = {
+  IOF: 'IOF',
+  LATE_PAYMENT_FEE: 'multa',
+  LATE_PAYMENT_INTEREST: 'juros de mora',
+  LATE_PAYMENT_REMUNERATIVE_INTEREST: 'juros',
+  OTHER: 'outros encargos',
+}
+function nomeDoEncargo(tipo: string): string {
+  return NOME_DO_ENCARGO[tipo] ?? tipo.toLowerCase()
+}
 </script>
 
 <template>
@@ -61,12 +92,19 @@ const prazo = computed(() => {
             <h3 class="line-clamp-2 font-medium leading-tight">{{ resumo.cartao.nome }}</h3>
             <p class="mt-0.5 text-xs text-muted-foreground">
               <span v-if="resumo.cartao.numero" class="tracking-wider">•••• {{ resumo.cartao.numero }}</span>
+              <span v-if="perfil"> · {{ perfil }}</span>
               <span v-if="fracaoDoTotal !== null"> · {{ formatarPercentual(fracaoDoTotal) }} das faturas</span>
+            </p>
+            <p v-if="situacao" class="mt-1 inline-block rounded bg-red-500/10 px-1.5 py-0.5 text-xs font-medium text-red-600 dark:text-red-400">
+              Cartão {{ situacao }}
             </p>
           </div>
           <div class="shrink-0 text-right">
             <p class="text-lg font-semibold tabular-nums leading-tight">{{ formatarDinheiro(resumo.faturaAberta) }}</p>
             <p class="text-xs text-muted-foreground">fatura aberta</p>
+            <p v-if="saldoDoBanco !== null" class="text-xs text-muted-foreground" title="O valor que o banco informa para a fatura aberta">
+              banco: {{ formatarDinheiro(saldoDoBanco) }}
+            </p>
           </div>
         </div>
 
@@ -135,12 +173,20 @@ const prazo = computed(() => {
         </div>
 
         <ul v-if="aberto" class="mt-2 space-y-1 text-xs">
-          <li v-for="f in resumo.faturas" :key="f.id" class="flex justify-between gap-3 rounded-md bg-muted/50 px-2.5 py-1.5">
-            <span class="text-muted-foreground">Vencimento {{ diaCurto(f.vencimento) }}</span>
-            <span class="tabular-nums">
-              {{ formatarDinheiro(f.total) }}
-              <span v-if="f.minimo" class="text-muted-foreground"> · mín. {{ formatarDinheiro(f.minimo) }}</span>
-            </span>
+          <li v-for="f in resumo.faturas" :key="f.id" class="rounded-md bg-muted/50 px-2.5 py-1.5">
+            <div class="flex justify-between gap-3">
+              <span class="text-muted-foreground">
+                Vencimento {{ diaCurto(f.vencimento) }}<span v-if="f.fechamento"> · fechou {{ diaCurto(f.fechamento) }}</span>
+              </span>
+              <span class="tabular-nums">
+                {{ formatarDinheiro(f.total) }}
+                <span v-if="f.minimo" class="text-muted-foreground"> · mín. {{ formatarDinheiro(f.minimo) }}</span>
+              </span>
+            </div>
+            <p v-if="f.total_encargos > 0" class="mt-0.5 text-red-600 dark:text-red-400">
+              {{ formatarDinheiro(f.total_encargos) }} em encargos:
+              {{ f.encargos.map(e => `${nomeDoEncargo(e.tipo)} ${formatarDinheiro(e.valor)}`).join(', ') }}
+            </p>
           </li>
         </ul>
       </div>
