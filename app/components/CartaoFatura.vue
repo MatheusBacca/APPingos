@@ -48,16 +48,11 @@ const prazo = computed(() => {
   return partes.join(' · ')
 })
 
-/**
- * O que o banco diz da fatura aberta (`account.balance`), quando difere da
- * nossa soma em mais de R$ 1. Diferença é sinal de compra que ainda não
- * chegou ao extrato — ou de que o ciclo estimado errou.
+/*
+ * O `account.balance` do cartão NÃO é a fatura aberta: na amostra real do
+ * Nubank (20/11/2026) ele é o limite tomado, parcelas futuras incluídas — o
+ * mesmo número que a barra do limite já mostra. Por isso não aparece aqui.
  */
-const saldoDoBanco = computed(() => {
-  const s = props.resumo.cartao.saldo
-  if (s == null || Math.abs(s - props.resumo.faturaAberta) < 1) return null
-  return s
-})
 
 const SITUACAO = { BLOCKED: 'bloqueado', CANCELLED: 'cancelado' } as const
 const situacao = computed(() => SITUACAO[props.resumo.cartao.situacao_cartao as keyof typeof SITUACAO] ?? null)
@@ -102,9 +97,6 @@ function nomeDoEncargo(tipo: string): string {
           <div class="shrink-0 text-right">
             <p class="text-lg font-semibold tabular-nums leading-tight">{{ formatarDinheiro(resumo.faturaAberta) }}</p>
             <p class="text-xs text-muted-foreground">fatura aberta</p>
-            <p v-if="saldoDoBanco !== null" class="text-xs text-muted-foreground" title="O valor que o banco informa para a fatura aberta">
-              banco: {{ formatarDinheiro(saldoDoBanco) }}
-            </p>
           </div>
         </div>
 
