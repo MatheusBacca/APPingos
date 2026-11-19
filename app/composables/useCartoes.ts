@@ -17,7 +17,7 @@ export interface CartaoDaPessoa extends DadosDoCartao {
   nome: string
   numero: string | null
   banco: string
-  /** O valor da fatura aberta segundo o banco (`account.balance`). */
+  /** `account.balance`: no Nubank, o limite tomado (parcelas futuras incluídas), não a fatura aberta. */
   saldo: number | null
   saldo_atualizado_em: string | null
   bandeira: string | null

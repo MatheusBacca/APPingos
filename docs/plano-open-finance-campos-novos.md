@@ -98,6 +98,28 @@ select recurso, coletada_em, jsonb_array_length(case jsonb_typeof(dados) when 'a
 from amostra_pluggy order by recurso;
 ```
 
+## Resultado da primeira rodada (20/11/2026, produção)
+
+| # | Pergunta | Resposta |
+| --- | --- | --- |
+| 1 | Final do cartão | **Vem.** Uma conta de cartão traz o físico e os virtuais na mesma fatura, cada transação com o seu final; os virtuais também vêm em `additionalCards`. `holderType` não vem. |
+| 2 | MCC | **Vem** em mais de 90% das compras de cartão. |
+| 3 | Fechamento | **Vem** em toda fatura (`billClosingDate`). A estimativa pelas compras errava em 2 a 3 dias; com o oficial, a fonte do ciclo é `fatura`. |
+| 4 | Cobrança, hora, fatura prevista, data na fatura | **Vêm** em quase todas. |
+| 5 | Compra em dólar | **Confirmado**: `amount` na moeda da compra e `amountInAccountCurrency` em reais. O IOF vem numa transação separada ("IOF de \"…\""). |
+| 6 | Encargos | Nenhum nas faturas pagas integralmente. `allowsInstallments` e `payments` vêm. |
+| 7 | Investimentos | **Vêm**: as caixinhas do Nubank como CDBs, com movimentos. |
+| 8 | Empréstimos | Nenhum na amostra. |
+
+E três surpresas:
+
+- O `account.balance` do cartão **não é a fatura aberta**: é o limite tomado, parcelas futuras
+  incluídas (bate com limite − disponível). A tela deixou de mostrá-lo.
+- O Nubank manda `feeType`/`otherCreditsType` `"OTHER"` com `"NA"` em toda compra. Isso é
+  enchimento: a importação ignora (migration `20261120120000_tarifa_sem_enchimento.sql`).
+- O `boletoMetadata` vem dentro de `paymentData`. E nenhum Pix trouxe `reason`, então a mensagem
+  depende do banco mandar.
+
 ## Onda 2 — depende da primeira rodada
 
 | # | Feature | Depende de |
