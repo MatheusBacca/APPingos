@@ -48,6 +48,12 @@ export interface Lancamento {
  */
 export const LANCAMENTOS: Lancamento[] = [
   {
+    versao: '1.12.0',
+    titulo: 'A caixa por mês, e o que falta no acerto',
+    descricao: 'A Caixa de entrada agora vai mês a mês, com um calendário ao lado que mostra quantas compras chegaram em cada dia — toque num dia para ver só ele, e o que ficou de meses anteriores está a um toque. No Chico Moedas, as compras do cartão do casal que ainda esperam destino aparecem antes do acerto, e os dois veem quantas faltam. E Orçamentos parou de escapar da tela no celular.',
+    data: '2026-11-19',
+  },
+  {
     versao: '1.11.0',
     titulo: 'Cartões, categorias e a caixa que aprende',
     descricao: 'Open Finance abre nos seus cartões: a fatura aberta, quando fecha e vence e quanto do limite já foi. As compras ganham o ícone da categoria e o selo da loja, e a caixa de entrada aprende com as suas escolhas — o que ela já sabe, você aceita num toque.',
