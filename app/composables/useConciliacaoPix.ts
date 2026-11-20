@@ -45,11 +45,12 @@ export function useConciliacaoPix(transacoes: Ref<LinhaDaCaixa[] | undefined>) {
 
   const casais = computed(() => store.espacos.filter(e => e.tipo === 'casal'))
   // O CPF da outra pessoa reconhecido no extrato (sem que o número chegue aqui).
-  const { data: contrapartes } = useContrapartes()
+  const { data: contrapartes, isPending: carregandoContrapartes } = useContrapartes()
 
   const { data: conciliacoes } = useQuery({
     queryKey: computed(() => ['caixa-de-entrada', 'conciliacao', pix.value.map(t => t.id), casais.value.map(e => e.id), [...(contrapartes.value?.keys() ?? [])]]),
-    enabled: computed(() => !!usuarioId.value && pix.value.length > 0 && casais.value.length > 0),
+    // Espera as contrapartes: sem elas, rodaria uma vez sem o CPF e outra com.
+    enabled: computed(() => !!usuarioId.value && pix.value.length > 0 && casais.value.length > 0 && !carregandoContrapartes.value),
     queryFn: async (): Promise<Conciliacao[]> => {
       const eu = usuarioId.value!
       const achadas: Conciliacao[] = []

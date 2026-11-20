@@ -13,12 +13,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { mensagemDeErro } from '@/lib/utils'
-import { ROTULO_TIPO_CHAVE, TIPOS_CHAVE_PIX, normalizarChavePix, problemaNaChavePix } from '~/lib/pix'
+import { ROTULO_TIPO_CHAVE, TIPOS_CHAVE_PIX, formatarCpf, normalizarChavePix, problemaNaChavePix } from '~/lib/pix'
 import type { TipoChavePix } from '~/lib/pix'
 import { useDefinirChavePix, usePerfil } from '~/composables/usePerfil'
 import { useMeuCpf } from '~/composables/useDocumento'
 import { useConexoesBancarias } from '~/composables/useContasBancarias'
-import { formatarCpf } from '~/lib/pix'
 import { INSTITUICOES, nomeDoBanco } from '~/lib/instituicoes'
 
 const perfil = usePerfil()
