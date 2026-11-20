@@ -11,6 +11,8 @@ import type { LinhaDaCaixa } from '~/composables/useCaixaDeEntrada'
 import { buscarComprasDoMes } from '~/composables/useOrcamento'
 import { useClassificar } from '~/composables/useCaixaDeEntrada'
 import { useUsuarioId } from '~/composables/useUsuarioId'
+import { useContrapartes } from '~/composables/useDocumento'
+import { documentosDe } from '~/lib/contrapartes'
 import { useSpaceStore } from '~/stores/space'
 
 interface Conciliacao {
@@ -42,10 +44,13 @@ export function useConciliacaoPix(transacoes: Ref<LinhaDaCaixa[] | undefined>) {
     !t.pendente && !!t.metodo && ['PIX', 'TED', 'TEF', 'DOC'].includes(t.metodo.toUpperCase())))
 
   const casais = computed(() => store.espacos.filter(e => e.tipo === 'casal'))
+  // O CPF da outra pessoa reconhecido no extrato (sem que o número chegue aqui).
+  const { data: contrapartes, isPending: carregandoContrapartes } = useContrapartes()
 
   const { data: conciliacoes } = useQuery({
-    queryKey: computed(() => ['caixa-de-entrada', 'conciliacao', pix.value.map(t => t.id), casais.value.map(e => e.id)]),
-    enabled: computed(() => !!usuarioId.value && pix.value.length > 0 && casais.value.length > 0),
+    queryKey: computed(() => ['caixa-de-entrada', 'conciliacao', pix.value.map(t => t.id), casais.value.map(e => e.id), [...(contrapartes.value?.keys() ?? [])]]),
+    // Espera as contrapartes: sem elas, rodaria uma vez sem o CPF e outra com.
+    enabled: computed(() => !!usuarioId.value && pix.value.length > 0 && casais.value.length > 0 && !carregandoContrapartes.value),
     queryFn: async (): Promise<Conciliacao[]> => {
       const eu = usuarioId.value!
       const achadas: Conciliacao[] = []
@@ -62,7 +67,7 @@ export function useConciliacaoPix(transacoes: Ref<LinhaDaCaixa[] | undefined>) {
         const outro = (membros as unknown as Array<{ user_id: string, profile: Omit<Parceiro, 'user_id'> | null }>)
           .find(m => m.user_id !== eu)
         if (!outro?.profile) continue
-        const parceiro: Parceiro = { user_id: outro.user_id, ...outro.profile }
+        const parceiro: Parceiro = { user_id: outro.user_id, ...outro.profile, documentos: documentosDe(contrapartes.value, outro.user_id) }
 
         const { data: acertos, error: erroAcertos } = await supabase
           .from('acerto_mes')

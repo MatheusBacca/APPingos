@@ -34,18 +34,25 @@ export interface Parceiro {
   nome: string
   chave_pix: string | null
   chave_pix_tipo: string | null
+  /**
+   * Os documentos que `contrapartes_reconhecidas` disse serem desta pessoa — o
+   * CPF que ela cadastrou, sem que ele chegue ao app de quem consulta.
+   */
+  documentos?: ReadonlyArray<string>
 }
 
 /**
  * Se a outra ponta do Pix é a outra pessoa do casal.
  *
- * Pelo CPF quando ela usa CPF como chave Pix (o documento casa exato); senão
+ * Pelo CPF cadastrado no app (`documento_pessoal`, reconhecido pela RPC) ou
+ * pelo CPF quando ela usa CPF como chave Pix (o documento casa exato); senão
  * pelo nome: todas as palavras do nome de cadastro dela aparecem no nome que o
  * banco mostra ("Ana Exemplo" dentro de "ANA MARIA EXEMPLO"). O valor e a janela
  * de data, conferidos junto, é que tornam isso seguro.
  */
 export function contraparteEhParceiro(t: Pick<TransacaoParaConciliar, 'contraparte_nome' | 'contraparte_documento'>, parceiro: Parceiro): boolean {
   const documento = (t.contraparte_documento ?? '').replace(/\D/g, '')
+  if (documento && parceiro.documentos?.includes(documento)) return true
   if (parceiro.chave_pix_tipo === 'cpf' && parceiro.chave_pix && documento === parceiro.chave_pix) return true
 
   const doBanco = new Set(normalizarNome(t.contraparte_nome).split(' ').filter(Boolean))

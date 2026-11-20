@@ -13,28 +13,69 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { mensagemDeErro } from '@/lib/utils'
-import { ROTULO_TIPO_CHAVE, TIPOS_CHAVE_PIX, normalizarChavePix, problemaNaChavePix } from '~/lib/pix'
+import { ROTULO_TIPO_CHAVE, TIPOS_CHAVE_PIX, formatarCpf, normalizarChavePix, problemaNaChavePix } from '~/lib/pix'
 import type { TipoChavePix } from '~/lib/pix'
 import { useDefinirChavePix, usePerfil } from '~/composables/usePerfil'
+import { useMeuCpf } from '~/composables/useDocumento'
+import { useConexoesBancarias } from '~/composables/useContasBancarias'
+import { INSTITUICOES, nomeDoBanco } from '~/lib/instituicoes'
 
 const perfil = usePerfil()
 const definir = useDefinirChavePix()
+const meuCpf = useMeuCpf()
+const usuario = useSupabaseUser()
+const { data: conexoes } = useConexoesBancarias()
 
 const tipo = ref<TipoChavePix>('cpf')
 const valor = ref('')
+const banco = ref<string>('')
 
 watch(() => perfil.data.value, (p) => {
   if (!p) return
   tipo.value = p.chave_pix_tipo ?? 'cpf'
   valor.value = p.chave_pix ?? ''
+  banco.value = p.chave_pix_instituicao ?? ''
 }, { immediate: true })
+
+/*
+ * As sugestões: o CPF que a pessoa cadastrou e o e-mail da conta são as chaves
+ * Pix mais comuns. Tocar preenche o campo; salvar continua sendo dela.
+ */
+const email = computed(() => usuario.value?.email ?? null)
+const sugestoes = computed(() => {
+  const lista: Array<{ tipo: TipoChavePix, valor: string, rotulo: string }> = []
+  const cpf = meuCpf.data.value
+  if (cpf && perfil.data.value?.chave_pix !== cpf) lista.push({ tipo: 'cpf', valor: cpf, rotulo: `Usar meu CPF (${formatarCpf(cpf)})` })
+  if (email.value && perfil.data.value?.chave_pix !== email.value.toLowerCase()) lista.push({ tipo: 'email', valor: email.value, rotulo: `Usar meu e-mail (${email.value})` })
+  return lista
+})
+
+function usarSugestao(s: { tipo: TipoChavePix, valor: string }) {
+  tipo.value = s.tipo
+  valor.value = s.valor
+}
+
+/*
+ * Em qual banco a chave cai. O Open Finance não informa as chaves Pix (elas
+ * ficam no DICT do Banco Central), então é a pessoa quem diz — primeiro os
+ * bancos que ela conectou, depois os outros.
+ */
+const bancosConectados = computed(() => {
+  const vistos = new Map<string, string>()
+  for (const c of conexoes.value ?? []) {
+    if (c.instituicao) vistos.set(c.instituicao, nomeDoBanco(c))
+  }
+  return [...vistos].map(([codigo, nome]) => ({ codigo, nome }))
+})
+const outrosBancos = computed(() => INSTITUICOES.filter(i => !bancosConectados.value.some(b => b.codigo === i.codigo)))
 
 const normalizada = computed(() => (valor.value.trim() ? normalizarChavePix(tipo.value, valor.value) : ''))
 const problema = computed(() => (normalizada.value ? problemaNaChavePix(tipo.value, normalizada.value) : null))
 
 const mudou = computed(() =>
   normalizada.value !== (perfil.data.value?.chave_pix ?? '')
-  || (!!normalizada.value && tipo.value !== perfil.data.value?.chave_pix_tipo),
+  || (!!normalizada.value && tipo.value !== perfil.data.value?.chave_pix_tipo)
+  || (!!normalizada.value && (banco.value || null) !== (perfil.data.value?.chave_pix_instituicao ?? null)),
 )
 
 const EXEMPLO: Record<TipoChavePix, string> = {
@@ -48,7 +89,7 @@ const EXEMPLO: Record<TipoChavePix, string> = {
 async function salvar() {
   if (!mudou.value || problema.value) return
   try {
-    await definir.mutateAsync(normalizada.value ? { chave: normalizada.value, tipo: tipo.value } : null)
+    await definir.mutateAsync(normalizada.value ? { chave: normalizada.value, tipo: tipo.value, instituicao: banco.value || null } : null)
     valor.value = normalizada.value
     toast.success(normalizada.value ? 'Chave Pix salva.' : 'Chave Pix removida.')
   }
@@ -105,6 +146,36 @@ async function salvar() {
           {{ definir.isPending.value ? 'Salvando…' : 'Salvar' }}
         </Button>
       </form>
+
+      <div v-if="sugestoes.length" class="mt-3 flex flex-wrap gap-2">
+        <button
+          v-for="s in sugestoes"
+          :key="s.tipo"
+          type="button"
+          class="rounded-full border border-dashed px-3 py-1 text-xs font-medium text-primary hover:bg-primary/10"
+          @click="usarSugestao(s)"
+        >
+          {{ s.rotulo }}
+        </button>
+      </div>
+
+      <label v-if="normalizada" class="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <span>Essa chave cai no</span>
+        <select
+          v-model="banco"
+          class="h-8 rounded-md border bg-background px-2 text-sm text-foreground"
+          aria-label="Banco em que a chave Pix cai"
+        >
+          <option value="">banco que não sei dizer</option>
+          <optgroup v-if="bancosConectados.length" label="Seus bancos conectados">
+            <option v-for="b in bancosConectados" :key="b.codigo" :value="b.codigo">{{ b.nome }}</option>
+          </optgroup>
+          <optgroup label="Outros bancos">
+            <option v-for="i in outrosBancos" :key="i.codigo" :value="i.codigo">{{ i.nome }}</option>
+          </optgroup>
+        </select>
+        <span>— aparece para quem te paga: "{{ ROTULO_TIPO_CHAVE[tipo] }}{{ banco ? ` · ${nomeDoBanco({ instituicao: banco })}` : '' }}".</span>
+      </label>
     </CardContent>
   </Card>
 </template>

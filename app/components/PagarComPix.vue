@@ -24,7 +24,8 @@ import {
 } from '@/components/ui/dialog'
 import { formatarMes } from '@/lib/datas'
 import { formatarDinheiro } from '@/lib/dinheiro'
-import { brCodePix, txidDoAcerto } from '~/lib/pix'
+import { ROTULO_TIPO_CHAVE, brCodePix, txidDoAcerto } from '~/lib/pix'
+import { nomeDoBanco } from '~/lib/instituicoes'
 import { useChavePixDe } from '~/composables/usePerfil'
 
 const props = defineProps<{
@@ -110,6 +111,9 @@ async function copiar() {
           :alt="`QR Code do Pix de ${formatarDinheiro(valor)} para ${credorNome}`"
           class="mx-auto size-60 rounded-md bg-white"
         >
+        <p v-if="chave" class="text-center text-xs text-muted-foreground">
+          Chave {{ ROTULO_TIPO_CHAVE[chave.tipo] }} de {{ credorNome }}<template v-if="chave.instituicao"> · cai no {{ nomeDoBanco({ instituicao: chave.instituicao }) }}</template>
+        </p>
         <div class="rounded-md border bg-muted/40 p-2 font-mono text-[11px] leading-snug break-all">
           {{ codigo }}
         </div>
