@@ -308,7 +308,7 @@ const CLASSE_TOM = {
             :key="conta.id"
             class="space-y-3 py-4 first:pt-0 last:pb-0"
           >
-            <div class="flex flex-wrap items-start gap-4">
+            <div class="flex flex-col items-start gap-4 sm:flex-row">
               <CartaoVisual
                 v-if="conta.tipo === 'cartao'"
                 :banco="bancoDaConexao(conexao)"
@@ -326,9 +326,9 @@ const CLASSE_TOM = {
                 <BanknoteIcon class="size-5" />
               </span>
 
-              <div class="min-w-0 flex-1 space-y-2">
+              <div class="w-full min-w-0 flex-1 space-y-2">
                 <div>
-                  <div class="flex items-center gap-1.5">
+                  <div class="flex min-w-0 items-center gap-1.5">
                     <span class="text-base" :title="ROTULO_DO_ICONE[iconeDaConta(conexao, conta)]">{{ iconeDaConta(conexao, conta) }}</span>
                     <ApelidoCampo
                       :apelido="conta.apelido"
@@ -366,7 +366,7 @@ const CLASSE_TOM = {
                 Compartilhar com
                 <select
                   v-if="estaCompartilhada(conta)"
-                  class="h-8 rounded-md border bg-background px-2 text-sm text-foreground"
+                  class="h-8 max-w-full rounded-md border bg-background px-2 text-sm text-foreground"
                   :value="conta.space_id ?? undefined"
                   :disabled="designar.isPending.value"
                   aria-label="Espaço que recebe as compras"
@@ -380,7 +380,7 @@ const CLASSE_TOM = {
               <label v-if="!estaCompartilhada(conta)" class="flex flex-wrap items-center gap-2">
                 Privado:
                 <select
-                  class="h-8 rounded-md border bg-background px-2 text-sm text-foreground"
+                  class="h-8 max-w-full rounded-md border bg-background px-2 text-sm text-foreground"
                   :value="conta.destino"
                   :disabled="designar.isPending.value"
                   aria-label="O que fazer com as compras privadas"
@@ -400,7 +400,7 @@ const CLASSE_TOM = {
                 Cartões desta fatura — dê um nome e escolha para onde vão as compras de cada um:
               </p>
               <ul class="grid gap-3 xl:grid-cols-2">
-                <li v-for="cartao in conta.cartoes" :key="cartao.id" class="flex items-start gap-3">
+                <li v-for="cartao in conta.cartoes" :key="cartao.id" class="flex flex-col items-start gap-2 min-[480px]:flex-row min-[480px]:gap-3">
                   <CartaoVisual
                     tamanho="sm"
                     :banco="bancoDaConexao(conexao)"
@@ -409,7 +409,7 @@ const CLASSE_TOM = {
                     :bandeira="conta.bandeira"
                     :destino="iconeDoCartao(conexao, conta, cartao.final)"
                   />
-                  <div class="min-w-0 flex-1 space-y-1.5">
+                  <div class="w-full min-w-0 flex-1 space-y-1.5">
                     <ApelidoCampo
                       :apelido="cartao.apelido"
                       :reserva="cartao.final === conta.numero ? 'O da conta' : `Final ${cartao.final}`"

@@ -29,7 +29,7 @@ const RESPIRO = { xs: 'p-0.5', sm: 'p-1', md: 'p-1.5' } as const
     :title="banco"
     aria-hidden="true"
   >
-    <img :src="selo.icone" alt="" class="size-full object-contain" loading="lazy" @error="falhou = true">
+    <img :src="selo.icone" alt="" class="size-full object-contain" @error="falhou = true">
   </span>
   <span
     v-else
