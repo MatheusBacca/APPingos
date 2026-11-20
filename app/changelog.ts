@@ -48,6 +48,12 @@ export interface Lancamento {
  */
 export const LANCAMENTOS: Lancamento[] = [
   {
+    versao: '1.14.0',
+    titulo: 'Cada banco com a sua cara, e as caixinhas no Planejamento',
+    descricao: 'Os bancos aparecem com nome, ícone e cores de verdade, e contas e cartões ganham apelido. O pagamento de fatura entre bancos é reconhecido e sai da caixa sozinho. O salário se ajusta no Planejamento e vale dali em diante. Com o CPF cadastrado, os Pix entre vocês aparecem como "Pinga Fogo transferiu para Bixo Pingo". E as aplicações e resgates do extrato agora vão para caixinhas, que podem alimentar uma meta.',
+    data: '2026-11-20',
+  },
+  {
     versao: '1.13.0',
     titulo: 'Cada cartão no seu espaço',
     descricao: 'O virtual do casal e o físico pessoal da mesma fatura agora vão cada um para o seu lugar. E chegaram o saldo das contas, o fechamento e os juros de cada fatura, a mensagem do Pix e a multa do boleto.',
