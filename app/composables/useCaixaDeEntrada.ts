@@ -134,8 +134,8 @@ export interface PagamentoDeFaturaDoMes {
   /** A ponta do cartão (`sentido = 'entrada'`) ou da conta (`'saida'`). */
   sentido: 'entrada' | 'saida'
   conta: LinhaDaCaixa['conta']
-  /** A outra ponta, quando o par foi achado. */
-  par: { data: string, conta: LinhaDaCaixa['conta'] } | null
+  /** A outra ponta, quando o par foi achado (e a pessoa não o devolveu à caixa). */
+  par: { data: string, destino: string | null, conta: LinhaDaCaixa['conta'] } | null
 }
 
 /**
@@ -157,15 +157,21 @@ export function usePagamentosDeFatura(mes: MaybeRefOrGetter<string>) {
         .select(`
           id, data, valor, sentido,
           conta:conta_bancaria(${CONTA_DA_LINHA}),
-          par:par_id(data, conta:conta_bancaria(${CONTA_DA_LINHA}))
+          par:par_id(data, destino, conta:conta_bancaria(${CONTA_DA_LINHA}))
         `)
         .eq('motivo_exclusao', 'pagamento_fatura')
+        // Devolvido à caixa (destino null) não é mais pagamento de fatura para a pessoa.
+        .eq('destino', 'ignorada')
         .gte('data', inicio)
         .lt('data', somarMeses(inicio, 1))
         .order('data', { ascending: false })
 
       if (error) throw error
-      return ((data ?? []) as unknown as PagamentoDeFaturaDoMes[]).map(p => ({ ...p, valor: Number(p.valor) }))
+      return ((data ?? []) as unknown as PagamentoDeFaturaDoMes[]).map(p => ({
+        ...p,
+        valor: Number(p.valor),
+        par: p.par?.destino === 'ignorada' ? p.par : null,
+      }))
     },
   })
 }

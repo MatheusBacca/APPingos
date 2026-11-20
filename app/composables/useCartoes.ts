@@ -71,7 +71,7 @@ interface LinhaDePagamento {
   conta_id: string
   valor: number
   data: string
-  par: { conta: ContaParaRotulo | null } | null
+  par: { destino: string | null, conta: ContaParaRotulo | null } | null
 }
 
 export function useCartoes() {
@@ -118,11 +118,13 @@ export function useCartoes() {
           .select(`
             id, conta_id, valor, data,
             par:par_id(
+              destino,
               conta:conta_bancaria(nome, tipo, numero, apelido, destino, space_id, conexao:conexao_bancaria(banco, instituicao))
             )
           `)
           .eq('motivo_exclusao', 'pagamento_fatura')
           .eq('sentido', 'entrada')
+          .eq('pendente', false)
           .gte('data', desde)
           .order('data', { ascending: false }),
       ])
@@ -157,7 +159,8 @@ export function useCartoes() {
               id: p.id,
               data: p.data,
               valor: Number(p.valor),
-              pagoPor: p.par?.conta ? rotuloDaConta(p.par.conta) : null,
+              // A saída devolvida à caixa deixou de ser o pagamento desta fatura.
+              pagoPor: p.par?.conta && p.par.destino === 'ignorada' ? rotuloDaConta(p.par.conta) : null,
             })),
         }
       })

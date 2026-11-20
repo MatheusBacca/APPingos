@@ -88,6 +88,9 @@ function pagamentoDa(f: FaturaFechada): PagamentoDaFatura | null {
   return [...candidatos].sort((a, b) => distancia(a) - distancia(b))[0]!
 }
 
+/** O pagamento de cada fatura, calculado uma vez por render. */
+const pagamentoPorFatura = computed(() => new Map(props.resumo.faturas.map(f => [f.id, pagamentoDa(f)])))
+
 const pagamentoDaUltima = computed(() => props.resumo.ultimaFechada ? pagamentoDa(props.resumo.ultimaFechada) : null)
 </script>
 
@@ -196,9 +199,9 @@ const pagamentoDaUltima = computed(() => props.resumo.ultimaFechada ? pagamentoD
                 <span v-if="f.minimo" class="text-muted-foreground"> · mín. {{ formatarDinheiro(f.minimo) }}</span>
               </span>
             </div>
-            <p v-if="pagamentoDa(f)" class="mt-0.5 text-muted-foreground">
-              Paga em {{ diaCurto(pagamentoDa(f)!.data) }} · {{ formatarDinheiro(pagamentoDa(f)!.valor) }}
-              <template v-if="pagamentoDa(f)!.pagoPor">pela conta <span class="text-foreground">{{ pagamentoDa(f)!.pagoPor }}</span></template>
+            <p v-if="pagamentoPorFatura.get(f.id)" class="mt-0.5 text-muted-foreground">
+              Paga em {{ diaCurto(pagamentoPorFatura.get(f.id)!.data) }} · {{ formatarDinheiro(pagamentoPorFatura.get(f.id)!.valor) }}
+              <template v-if="pagamentoPorFatura.get(f.id)!.pagoPor">pela conta <span class="text-foreground">{{ pagamentoPorFatura.get(f.id)!.pagoPor }}</span></template>
             </p>
             <p v-if="f.total_encargos > 0" class="mt-0.5 text-red-600 dark:text-red-400">
               {{ formatarDinheiro(f.total_encargos) }} em encargos:

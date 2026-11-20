@@ -11,7 +11,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { MaybeRefOrGetter } from 'vue'
-import type { RecebimentoTipo, Renda, RendaRecebida } from '~/types/planejamento'
+import type { RecebimentoTipo, Renda, RendaAnterior, RendaRecebida } from '~/types/planejamento'
 import { useUsuarioId } from '~/composables/useUsuarioId'
 
 export interface NovaRenda {
@@ -53,6 +53,30 @@ export function useMinhaRenda() {
       if (error) throw error
       if (!data) return null
       return { ...data, valor_liquido: Number(data.valor_liquido) } as Renda
+    },
+  })
+}
+
+/**
+ * As versões anteriores do salário (`renda_historico`, gravado por gatilho a cada
+ * troca): é o que faz o ajuste valer só dali em diante.
+ */
+export function useHistoricoDaRenda() {
+  const supabase = useSupabaseClient()
+  const usuarioId = useUsuarioId()
+
+  return useQuery({
+    queryKey: ['renda', 'historico', usuarioId],
+    enabled: computed(() => !!usuarioId.value),
+    queryFn: async (): Promise<RendaAnterior[]> => {
+      const { data, error } = await supabase
+        .from('renda_historico')
+        .select('valor_liquido, recebimento_tipo, recebimento_dia, vigente_ate')
+        .eq('user_id', usuarioId.value!)
+        .order('vigente_ate')
+
+      if (error) throw error
+      return (data ?? []).map(h => ({ ...h, valor_liquido: Number(h.valor_liquido) }) as RendaAnterior)
     },
   })
 }

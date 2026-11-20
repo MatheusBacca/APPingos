@@ -31,14 +31,14 @@ import { formatarDia, formatarMes, hojeIso, primeiroDoMes, somarMeses } from '@/
 import { dataPrevistaDoSalario, descreverRecebimento } from '@/lib/salario'
 import { totalDoMes } from '~/types/orcamento'
 import { somaDosAportes } from '~/types/meta'
-import { projecaoDoCasal, projecaoPessoal, valorCentral, valorDaContribuicao } from '~/types/planejamento'
+import { projecaoDoCasal, projecaoPessoal, rendaDaCompetencia, valorCentral, valorDaContribuicao } from '~/types/planejamento'
 import type { LinhaDaProjecao } from '~/components/ProjecaoCartao.vue'
 import { useGastosPessoais } from '~/composables/useGastosPessoais'
 import { useMembros } from '~/composables/useMembros'
 import { useAportesDoMes } from '~/composables/useMetas'
 import { useComprasDoMes } from '~/composables/useOrcamento'
 import { useContribuicoesDoEspaco, useMinhasContribuicoes } from '~/composables/usePlanejamento'
-import { useMeusCompartilhamentos, useMinhaRenda } from '~/composables/useRenda'
+import { useHistoricoDaRenda, useMeusCompartilhamentos, useMinhaRenda } from '~/composables/useRenda'
 import { useSpaceStore } from '~/stores/space'
 
 useHead({ title: 'Planejamento · Orçamentos · APPingos' })
@@ -57,14 +57,23 @@ const espacoCasal = computed(() =>
 
 // ---- A pessoa -------------------------------------------------------------------
 
-const renda = useMinhaRenda()
+const rendaAtual = useMinhaRenda()
+const historicoDaRenda = useHistoricoDaRenda()
 const minhasContribuicoes = useMinhasContribuicoes()
 const compartilhamentos = useMeusCompartilhamentos()
 
 const { data: comprasPessoais, isPending: carregandoPessoais } = useComprasDoMes(competencia, espacoPessoalId)
 const { data: aportesPessoais } = useAportesDoMes(espacoPessoalId, competencia)
 
-const salario = computed(() => renda.data.value?.valor_liquido ?? null)
+/*
+ * O salário que valia no mês da tela: ajustar vale dali em diante, então um mês
+ * que já passou usa a versão de antes do ajuste (`renda_historico`).
+ */
+const rendaDoMes = computed(() =>
+  rendaDaCompetencia(rendaAtual.data.value ?? null, historicoDaRenda.data.value ?? [], competencia.value),
+)
+
+const salario = computed(() => rendaDoMes.value?.valor_liquido ?? null)
 
 /*
  * O salário se ajusta daqui também, sem passar por Espaços: muda o valor dali
@@ -94,13 +103,13 @@ const meuMes = computed(() => projecaoPessoal({
 }))
 
 const dataDoSalario = computed(() => {
-  const r = renda.data.value
+  const r = rendaDoMes.value
   if (!r) return null
   return dataPrevistaDoSalario(competencia.value, r.recebimento_tipo, r.recebimento_dia)
 })
 
 const linhasDoMeuMes = computed<LinhaDaProjecao[]>(() => {
-  const r = renda.data.value
+  const r = rendaDoMes.value
   if (!r || !meuMes.value) return []
 
   return [
@@ -193,7 +202,7 @@ const situacao = computed(() => {
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <!-- ---- Meu mês ---- -->
-      <div v-if="renda.isPending.value || carregandoPessoais" class="space-y-3 rounded-lg border bg-card p-4">
+      <div v-if="rendaAtual.isPending.value || carregandoPessoais" class="space-y-3 rounded-lg border bg-card p-4">
         <Skeleton v-for="i in 5" :key="i" class="h-6 w-full" />
       </div>
 

@@ -18,6 +18,8 @@
 --    o boleto do banco 2 pago pelo banco 1, desde que os dois estejam conectados.
 --    O pagamento de fatura nunca é gasto (as compras da fatura já são); ele sai
 --    da caixa e aparece em "Pagamentos de fatura" e na fatura do cartão.
+-- 4. `renda_historico`: ajustar o salário vale dali em diante — a versão
+--    anterior fica valendo para os meses que já passaram.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -47,6 +49,7 @@ from (
       when c.nome ~* 'ita[uú]' then 'itau'
       when c.nome ~* '(bradesco|bradescard)' then 'bradesco'
       when c.nome ~* 'santander' then 'santander'
+      when c.nome ~* '(caixa econ|^caixa\M|caixa tem)' then 'caixa'
       when c.nome ~* '(banco do brasil|\mbb\M)' then 'bb'
       when c.nome ~* '\minter\M' then 'inter'
       when c.nome ~* 'btg' then 'btg'
@@ -122,12 +125,16 @@ begin
         and d.valor = c.valor
         and abs(d.data - c.data) <= 3
         and (d.destino is null or (d.destino = 'ignorada' and d.motivo_exclusao = 'pagamento_fatura'))
-      order by abs(d.data - c.data), d.data, d.id
+      -- O que a importação já reconheceu como pagamento de fatura ganha do Pix de
+      -- mesmo valor que só coincidiu; depois, o mais perto em dias.
+      order by (d.motivo_exclusao = 'pagamento_fatura') desc nulls last, abs(d.data - c.data), d.data, d.id
       limit 1
     ) d
     where c.user_id = p_user
       and c.sentido = 'entrada'
       and c.motivo_exclusao = 'pagamento_fatura'
+      -- Pendente não: a versão lançada chega com outro provider_id, e o par ficaria na pendente.
+      and not c.pendente
       and c.par_id is null
     order by c.data, c.id
   loop
@@ -283,7 +290,69 @@ revoke all on function public.ingerir_transacoes(uuid, date, jsonb) from public,
 grant execute on function public.ingerir_transacoes(uuid, date, jsonb) to service_role;
 
 -- ----------------------------------------------------------------------------
--- 5. O que já está no banco
+-- 5. O salário vale dali em diante
+-- ----------------------------------------------------------------------------
+
+/*
+  `renda` é uma linha por pessoa. Trocar o valor (ou a regra do dia) não pode
+  reescrever os meses que já passaram: antes da troca, a versão anterior vai para
+  `renda_historico`, valendo até o fim do mês anterior. A tela de um mês passado
+  usa a versão que valia nele; o mês corrente e os próximos usam `renda`.
+
+  Duas trocas no mesmo mês: só a primeira guarda histórico (`do nothing`) — o que
+  valia nos meses anteriores é o valor de antes da primeira troca.
+*/
+create table public.renda_historico (
+  user_id           uuid not null references auth.users (id) on delete cascade,
+  valor_liquido     numeric(12,2) not null check (valor_liquido > 0),
+  recebimento_tipo  text not null check (recebimento_tipo in ('dia_fixo', 'dia_util')),
+  recebimento_dia   int not null,
+  -- O último dia em que esta versão valeu (o fim do mês anterior à troca).
+  vigente_ate       date not null,
+  criado_em         timestamptz not null default now(),
+  primary key (user_id, vigente_ate)
+);
+
+comment on table public.renda_historico is
+  'As versões anteriores do salário (`renda`), cada uma com o último dia em que valeu. Gravada pelo gatilho de `renda`.';
+
+alter table public.renda_historico enable row level security;
+
+create policy renda_historico_select on public.renda_historico
+  for select to authenticated using (user_id = auth.uid());
+
+grant select on public.renda_historico to authenticated;
+grant all on public.renda_historico to service_role;
+
+create function public.guardar_renda_anterior()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if old.valor_liquido is distinct from new.valor_liquido
+     or old.recebimento_tipo is distinct from new.recebimento_tipo
+     or old.recebimento_dia is distinct from new.recebimento_dia then
+    insert into public.renda_historico (user_id, valor_liquido, recebimento_tipo, recebimento_dia, vigente_ate)
+    values (
+      old.user_id, old.valor_liquido, old.recebimento_tipo, old.recebimento_dia,
+      (date_trunc('month', (now() at time zone 'America/Sao_Paulo'))::date - 1)
+    )
+    on conflict (user_id, vigente_ate) do nothing;
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.guardar_renda_anterior() from public, anon, authenticated;
+
+create trigger renda_guardar_anterior
+  before update on public.renda
+  for each row execute function public.guardar_renda_anterior();
+
+-- ----------------------------------------------------------------------------
+-- 6. O que já está no banco
 -- ----------------------------------------------------------------------------
 
 select public.parear_pagamentos_de_fatura(u.user_id)

@@ -2402,6 +2402,33 @@ export type Database = {
           },
         ]
       }
+      renda_historico: {
+        Row: {
+          criado_em: string
+          recebimento_dia: number
+          recebimento_tipo: string
+          user_id: string
+          valor_liquido: number
+          vigente_ate: string
+        }
+        Insert: {
+          criado_em?: string
+          recebimento_dia: number
+          recebimento_tipo: string
+          user_id: string
+          valor_liquido: number
+          vigente_ate: string
+        }
+        Update: {
+          criado_em?: string
+          recebimento_dia?: number
+          recebimento_tipo?: string
+          user_id?: string
+          valor_liquido?: number
+          vigente_ate?: string
+        }
+        Relationships: []
+      }
       renda_recebida: {
         Row: {
           competencia: string

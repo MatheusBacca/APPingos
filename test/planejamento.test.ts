@@ -11,6 +11,7 @@ import {
   projecaoDoCasal,
   projecaoPessoal,
   recebimentoValido,
+  rendaDaCompetencia,
   valorCentral,
   valorDaContribuicao,
 } from '~/types/planejamento'
@@ -120,5 +121,33 @@ describe('projecaoDoCasal', () => {
 
   it('mês vazio e sem plano não estoura nada', () => {
     expect(projecaoDoCasal({ valorCentral: 0, parcelas: 0, aportes: 0 }).uso).toBe(0)
+  })
+})
+
+describe('rendaDaCompetencia — o ajuste do salário vale dali em diante', () => {
+  const atual = { valor_liquido: 9000, recebimento_tipo: 'dia_util' as const, recebimento_dia: 5 }
+  const historico = [
+    { valor_liquido: 7000, recebimento_tipo: 'dia_util' as const, recebimento_dia: 5, vigente_ate: '2026-08-31' },
+    { valor_liquido: 8000, recebimento_tipo: 'dia_fixo' as const, recebimento_dia: 10, vigente_ate: '2026-11-30' },
+  ]
+
+  it('sem histórico, vale o atual', () => {
+    expect(rendaDaCompetencia(atual, [], '2026-01-01')).toBe(atual)
+  })
+
+  it('o mês corrente e os próximos usam o atual', () => {
+    expect(rendaDaCompetencia(atual, historico, '2026-12-01')).toBe(atual)
+    expect(rendaDaCompetencia(atual, historico, '2027-03-01')).toBe(atual)
+  })
+
+  it('um mês passado usa a versão que valia nele', () => {
+    expect(rendaDaCompetencia(atual, historico, '2026-11-01')?.valor_liquido).toBe(8000)
+    expect(rendaDaCompetencia(atual, historico, '2026-09-01')?.valor_liquido).toBe(8000)
+    expect(rendaDaCompetencia(atual, historico, '2026-08-01')?.valor_liquido).toBe(7000)
+    expect(rendaDaCompetencia(atual, historico, '2025-01-01')?.valor_liquido).toBe(7000)
+  })
+
+  it('sem salário cadastrado, nada', () => {
+    expect(rendaDaCompetencia(null, historico, '2026-08-01')).toBeNull()
   })
 })

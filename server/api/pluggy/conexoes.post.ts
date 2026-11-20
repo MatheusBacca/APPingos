@@ -46,6 +46,9 @@ export default defineEventHandler(async (event) => {
 
   const supabase = await serverSupabaseClient<Database>(event)
 
+  // Pelo MeuPluggy o conector é sempre "MeuPluggy": o banco sai do nome da conta corrente.
+  const instituicao = instituicaoDasContas(contas)
+
   /*
    * Se o item já tem dono (outra pessoa), a RLS esconde a linha dela e o upsert
    * vira um insert que bate no `unique (item_id)` — o 23505 abaixo.
@@ -55,8 +58,7 @@ export default defineEventHandler(async (event) => {
     .upsert(
       {
         ...camposDaConexao(item),
-        // Pelo MeuPluggy o conector é sempre "MeuPluggy": o banco sai do nome da conta corrente.
-        ...(instituicaoDasContas(contas) ? { instituicao: instituicaoDasContas(contas) } : {}),
+        ...(instituicao ? { instituicao } : {}),
         user_id: userId,
         atualizado_em: new Date().toISOString(),
       },
