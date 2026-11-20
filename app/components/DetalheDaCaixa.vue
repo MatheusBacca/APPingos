@@ -10,7 +10,7 @@
  * O texto CRU do extrato aparece aqui, inteiro: é ele que se confere contra a
  * fatura do banco, e é o que a linha encurtou para "iFood".
  */
-import { ArrowRightIcon, CheckIcon, EyeOffIcon, LinkIcon, PiggyBankIcon, SparklesIcon, UserIcon, UsersIcon, WalletIcon } from '@lucide/vue'
+import { ArrowRightIcon, CheckIcon, EyeOffIcon, LinkIcon, PiggyBankIcon, SparklesIcon, UserIcon, UsersIcon, WalletIcon, LandmarkIcon } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { formatarDiaCompleto } from '@/lib/datas'
 import { formatarDinheiro } from '@/lib/dinheiro'
@@ -19,6 +19,7 @@ import type { Sugestao } from '~/lib/auto-tag'
 import type { ItemDaCaixa, ModoClassificacao } from '~/lib/caixa-de-entrada'
 import { textoParaSelo, valorDoItem } from '~/lib/caixa-lista'
 import { rotuloDaCategoriaNaCaixa } from '~/lib/categorias-pluggy'
+import { pareceInvestimento } from '~/lib/investimentos'
 
 const props = defineProps<{
   item: ItemDaCaixa
@@ -91,14 +92,21 @@ const DESTINOS_SAIDA = [
   { modo: 'pessoal' as const, rotulo: 'Pessoal', detalhe: 'Só nos seus gastos', icone: UserIcon },
   { modo: 'ja-lancei' as const, rotulo: 'Já lancei', detalhe: 'Ligar a uma compra lançada à mão', icone: LinkIcon },
   { modo: 'meta' as const, rotulo: 'Aporte em meta', detalhe: 'Dinheiro guardado numa meta', icone: PiggyBankIcon },
+  { modo: 'investimento' as const, rotulo: 'Aplicação em investimento', detalhe: 'Foi para uma caixinha', icone: LandmarkIcon },
 ]
 
 const DESTINOS_ENTRADA = [
   { modo: 'salario' as const, rotulo: 'Salário', detalhe: 'Marca o salário do mês como recebido', icone: WalletIcon },
   { modo: 'meta' as const, rotulo: 'Resgate de meta', detalhe: 'Dinheiro que saiu de uma meta', icone: PiggyBankIcon },
+  { modo: 'investimento' as const, rotulo: 'Resgate de investimento', detalhe: 'Saiu de uma caixinha', icone: LandmarkIcon },
 ]
 
-const destinos = computed(() => (props.item.sentido === 'saida' ? DESTINOS_SAIDA : DESTINOS_ENTRADA))
+/* "Aplicação RDB", "Resgate RDB": o investimento sobe para o primeiro lugar. */
+const destinos = computed(() => {
+  const lista = props.item.sentido === 'saida' ? DESTINOS_SAIDA : DESTINOS_ENTRADA
+  if (!pareceInvestimento(props.item.principal)) return lista
+  return [...lista.filter(d => d.modo === 'investimento'), ...lista.filter(d => d.modo !== 'investimento')]
+})
 </script>
 
 <template>

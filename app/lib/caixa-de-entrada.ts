@@ -61,13 +61,13 @@ export interface TransacaoDaCaixa {
   boleto?: { valor_original: number | null, multa: number | null, juros: number | null, desconto: number | null } | null
   /** `acerto` é o Pix do acerto do mês, reconhecido pela conciliação (B5). */
   motivo_exclusao: MotivoExclusao | 'acerto' | null
-  destino: 'compra' | 'ignorada' | 'renda' | 'aporte' | null
+  destino: 'compra' | 'ignorada' | 'renda' | 'aporte' | 'investimento' | null
   compra_id: string | null
   classificada_em: string | null
 }
 
 /** Os destinos que abrem o diálogo de classificação (Ignorar é um toque só). */
-export type ModoClassificacao = 'casal' | 'pessoal' | 'ja-lancei' | 'salario' | 'meta'
+export type ModoClassificacao = 'casal' | 'pessoal' | 'ja-lancei' | 'salario' | 'meta' | 'investimento'
 
 /** O que a caixa mostra numa linha: uma transação, ou as parcelas de uma compra. */
 export interface ItemDaCaixa {

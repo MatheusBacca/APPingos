@@ -75,6 +75,109 @@ export type Database = {
           },
         ]
       }
+      caixinha: {
+        Row: {
+          arquivada: boolean
+          criado_em: string
+          criado_por: string
+          id: string
+          instituicao: string | null
+          meta_id: string | null
+          nome: string
+          space_id: string
+        }
+        Insert: {
+          arquivada?: boolean
+          criado_em?: string
+          criado_por?: string
+          id?: string
+          instituicao?: string | null
+          meta_id?: string | null
+          nome: string
+          space_id: string
+        }
+        Update: {
+          arquivada?: boolean
+          criado_em?: string
+          criado_por?: string
+          id?: string
+          instituicao?: string | null
+          meta_id?: string | null
+          nome?: string
+          space_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "caixinha_meta_id_fkey"
+            columns: ["meta_id"]
+            isOneToOne: false
+            referencedRelation: "meta"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "caixinha_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "space"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      caixinha_movimento: {
+        Row: {
+          caixinha_id: string
+          criado_em: string
+          data: string
+          id: string
+          meta_aporte_id: string | null
+          transacao_id: string | null
+          user_id: string
+          valor: number
+        }
+        Insert: {
+          caixinha_id: string
+          criado_em?: string
+          data?: string
+          id?: string
+          meta_aporte_id?: string | null
+          transacao_id?: string | null
+          user_id?: string
+          valor: number
+        }
+        Update: {
+          caixinha_id?: string
+          criado_em?: string
+          data?: string
+          id?: string
+          meta_aporte_id?: string | null
+          transacao_id?: string | null
+          user_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "caixinha_movimento_caixinha_id_fkey"
+            columns: ["caixinha_id"]
+            isOneToOne: false
+            referencedRelation: "caixinha"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "caixinha_movimento_meta_aporte_id_fkey"
+            columns: ["meta_aporte_id"]
+            isOneToOne: false
+            referencedRelation: "meta_aporte"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "caixinha_movimento_transacao_id_fkey"
+            columns: ["transacao_id"]
+            isOneToOne: true
+            referencedRelation: "transacao_bancaria"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cartao_bancario: {
         Row: {
           apelido: string | null
@@ -1628,6 +1731,7 @@ export type Database = {
       }
       meta_aporte: {
         Row: {
+          caixinha_id: string | null
           competencia: string | null
           created_at: string
           data: string
@@ -1639,6 +1743,7 @@ export type Database = {
           valor: number
         }
         Insert: {
+          caixinha_id?: string | null
           competencia?: string | null
           created_at?: string
           data?: string
@@ -1650,6 +1755,7 @@ export type Database = {
           valor: number
         }
         Update: {
+          caixinha_id?: string | null
           competencia?: string | null
           created_at?: string
           data?: string
@@ -1661,6 +1767,13 @@ export type Database = {
           valor?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "meta_aporte_caixinha_id_fkey"
+            columns: ["caixinha_id"]
+            isOneToOne: false
+            referencedRelation: "caixinha"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "meta_aporte_meta_id_fkey"
             columns: ["meta_id"]
@@ -2962,6 +3075,10 @@ export type Database = {
         }
         Returns: string
       }
+      classificar_investimento: {
+        Args: { p_caixinha: string; p_transacao: string }
+        Returns: string
+      }
       classificar_renda: {
         Args: { p_competencia: string; p_transacao: string }
         Returns: undefined
@@ -3232,6 +3349,10 @@ export type Database = {
           p_space: string
           p_titulo: string
         }
+        Returns: string
+      }
+      registrar_movimento_caixinha: {
+        Args: { p_caixinha: string; p_data?: string; p_valor: number }
         Returns: string
       }
       registrar_preco_lido: {

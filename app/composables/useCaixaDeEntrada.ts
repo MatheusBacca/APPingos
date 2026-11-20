@@ -319,6 +319,7 @@ export type Classificacao = (
   | { tipo: 'ignorar', transacoes: string[] }
   | { tipo: 'renda', transacao: string, competencia: string }
   | { tipo: 'aporte', transacao: string, meta: string }
+  | { tipo: 'investimento', transacao: string, caixinha: string }
   | { tipo: 'devolver', transacao: string }
   | { tipo: 'reclassificar', compra: string, space: string, participantes: Participante[] }
   | { tipo: 'acerto', transacao: string, space: string, competencia: string }
@@ -363,6 +364,8 @@ export function useClassificar() {
             return supabase.rpc('classificar_renda', { p_transacao: c.transacao, p_competencia: c.competencia })
           case 'aporte':
             return supabase.rpc('classificar_aporte', { p_transacao: c.transacao, p_meta: c.meta })
+          case 'investimento':
+            return supabase.rpc('classificar_investimento', { p_transacao: c.transacao, p_caixinha: c.caixinha })
           case 'devolver':
             return supabase.rpc('devolver_para_caixa', { p_transacao: c.transacao })
           case 'acerto':
@@ -414,6 +417,7 @@ export function useClassificar() {
       queryClient.invalidateQueries({ predicate: q => q.queryKey[0] === 'space' }),
       queryClient.invalidateQueries({ queryKey: ['renda'] }),
       queryClient.invalidateQueries({ queryKey: ['metas'] }),
+      queryClient.invalidateQueries({ queryKey: ['caixinhas'] }),
     ]),
   })
 }
