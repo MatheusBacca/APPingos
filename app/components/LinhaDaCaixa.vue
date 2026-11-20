@@ -208,7 +208,7 @@ const passouDoLimiar = computed(() => {
             <span class="truncate">{{ conta }}</span>
             <!-- Só quando a compra foi de outro cartão da fatura (o virtual, um adicional). -->
             <span
-              v-if="item.principal.cartao_final && !conta.endsWith(item.principal.cartao_final)"
+              v-if="item.principal.cartao_final && !conta.includes(item.principal.cartao_final)"
               class="shrink-0 rounded bg-muted px-1.5 py-px font-medium text-foreground/80"
             >cartão {{ item.principal.cartao_final }}</span>
             <span v-if="parcela" class="shrink-0 rounded bg-muted px-1.5 py-px font-medium tabular-nums text-foreground/80">{{ parcela }}</span>

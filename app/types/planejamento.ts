@@ -44,6 +44,31 @@ export function recebimentoValido(tipo: RecebimentoTipo, dia: number): boolean {
   return Number.isInteger(dia) && dia >= 1 && dia <= diaMaximoDoRecebimento(tipo)
 }
 
+/** Uma versão anterior do salário, que valeu até `vigente_ate` (o fim de um mês). */
+export interface RendaAnterior {
+  valor_liquido: number
+  recebimento_tipo: RecebimentoTipo
+  recebimento_dia: number
+  vigente_ate: string
+}
+
+/**
+ * O salário que valia numa competência (YYYY-MM-01). Ajustar o salário vale dali
+ * em diante: um mês que já passou usa a versão mais antiga que ainda valia no fim
+ * dele; sem nenhuma, a atual.
+ */
+export function rendaDaCompetencia<T extends Pick<Renda, 'valor_liquido' | 'recebimento_tipo' | 'recebimento_dia'>>(
+  atual: T | null,
+  historico: ReadonlyArray<RendaAnterior>,
+  competencia: string,
+): T | RendaAnterior | null {
+  if (!atual) return null
+  const valia = historico
+    .filter(h => h.vigente_ate >= competencia)
+    .sort((a, b) => a.vigente_ate.localeCompare(b.vigente_ate))[0]
+  return valia ?? atual
+}
+
 /** "O salário de novembro caiu." A presença da linha é o fato. */
 export interface RendaRecebida {
   user_id: string

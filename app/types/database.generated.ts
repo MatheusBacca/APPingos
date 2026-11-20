@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.15"
+    PostgrestVersion: "14.18"
   }
   public: {
     Tables: {
@@ -332,6 +332,7 @@ export type Database = {
           consentimento_expira_em: string | null
           erro_sincronizacao: string | null
           id: string
+          instituicao: string | null
           item_id: string
           sincronizado_em: string | null
           situacao_execucao: string | null
@@ -349,6 +350,7 @@ export type Database = {
           consentimento_expira_em?: string | null
           erro_sincronizacao?: string | null
           id?: string
+          instituicao?: string | null
           item_id: string
           sincronizado_em?: string | null
           situacao_execucao?: string | null
@@ -366,6 +368,7 @@ export type Database = {
           consentimento_expira_em?: string | null
           erro_sincronizacao?: string | null
           id?: string
+          instituicao?: string | null
           item_id?: string
           sincronizado_em?: string | null
           situacao_execucao?: string | null
@@ -379,6 +382,7 @@ export type Database = {
       conta_bancaria: {
         Row: {
           agencia_conta: string | null
+          apelido: string | null
           atualizado_em: string
           bandeira: string | null
           cheque_especial_limite: number | null
@@ -418,6 +422,7 @@ export type Database = {
         }
         Insert: {
           agencia_conta?: string | null
+          apelido?: string | null
           atualizado_em?: string
           bandeira?: string | null
           cheque_especial_limite?: number | null
@@ -457,6 +462,7 @@ export type Database = {
         }
         Update: {
           agencia_conta?: string | null
+          apelido?: string | null
           atualizado_em?: string
           bandeira?: string | null
           cheque_especial_limite?: number | null
@@ -2396,6 +2402,33 @@ export type Database = {
           },
         ]
       }
+      renda_historico: {
+        Row: {
+          criado_em: string
+          recebimento_dia: number
+          recebimento_tipo: string
+          user_id: string
+          valor_liquido: number
+          vigente_ate: string
+        }
+        Insert: {
+          criado_em?: string
+          recebimento_dia: number
+          recebimento_tipo: string
+          user_id: string
+          valor_liquido: number
+          vigente_ate: string
+        }
+        Update: {
+          criado_em?: string
+          recebimento_dia?: number
+          recebimento_tipo?: string
+          user_id?: string
+          valor_liquido?: number
+          vigente_ate?: string
+        }
+        Relationships: []
+      }
       renda_recebida: {
         Row: {
           competencia: string
@@ -2635,6 +2668,7 @@ export type Database = {
           metodo: string | null
           moeda: string | null
           motivo_exclusao: string | null
+          par_id: string | null
           parcela_numero: number | null
           parcelas_total: number | null
           pendente: boolean
@@ -2680,6 +2714,7 @@ export type Database = {
           metodo?: string | null
           moeda?: string | null
           motivo_exclusao?: string | null
+          par_id?: string | null
           parcela_numero?: number | null
           parcelas_total?: number | null
           pendente?: boolean
@@ -2725,6 +2760,7 @@ export type Database = {
           metodo?: string | null
           moeda?: string | null
           motivo_exclusao?: string | null
+          par_id?: string | null
           parcela_numero?: number | null
           parcelas_total?: number | null
           pendente?: boolean
@@ -2765,6 +2801,13 @@ export type Database = {
             columns: ["conta_id"]
             isOneToOne: false
             referencedRelation: "conta_bancaria"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transacao_bancaria_par_id_fkey"
+            columns: ["par_id"]
+            isOneToOne: false
+            referencedRelation: "transacao_bancaria"
             referencedColumns: ["id"]
           },
         ]
@@ -3082,6 +3125,7 @@ export type Database = {
         Args: { p_cor?: string; p_nome: string; p_space: string }
         Returns: string
       }
+      parear_pagamentos_de_fatura: { Args: { p_user: string }; Returns: number }
       pendencias_do_espaco: {
         Args: { p_competencia: string; p_space: string }
         Returns: {
@@ -3207,6 +3251,8 @@ export type Database = {
         Args: { p_transacao: string }
         Returns: {
           atualizada_em: string
+          boleto: Json | null
+          cartao_final: string | null
           categoria_pluggy: string | null
           categoria_pluggy_id: string | null
           chave_compra: string | null
@@ -3217,25 +3263,36 @@ export type Database = {
           conta_id: string
           contraparte_documento: string | null
           contraparte_nome: string | null
+          credito_tipo: string | null
           data: string
           data_compra: string | null
+          data_hora: string | null
           descricao: string
           destino: string | null
           estabelecimento_cnpj: string | null
           estabelecimento_nome: string | null
           fatura_id: string | null
+          fatura_prevista: string | null
           id: string
           importada_em: string
+          lancada_na_fatura_em: string | null
+          mcc: number | null
+          mensagem: string | null
           metodo: string | null
+          moeda: string | null
           motivo_exclusao: string | null
+          par_id: string | null
           parcela_numero: number | null
           parcelas_total: number | null
           pendente: boolean
           pluggy_id: string
           provider_id: string
           sentido: string
+          tarifa_tipo: string | null
+          tipo_cobranca: string | null
           user_id: string
           valor: number
+          valor_moeda_original: number | null
           valor_total_compra: number | null
         }
         SetofOptions: {

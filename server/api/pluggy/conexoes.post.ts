@@ -14,6 +14,7 @@ import { serverSupabaseClient } from '#supabase/server'
 import type { Database } from '~~/app/types/database.types'
 import { buscarItem, listarContas } from '~~/supabase/functions/_shared/pluggy-api'
 import { camposDaConexao, camposDaConta, creditoParaAtualizar } from '~~/supabase/functions/_shared/importacao-bancaria'
+import { instituicaoDasContas } from '~~/supabase/functions/_shared/instituicoes'
 import {
   apiKeyPluggy,
   erroPluggy,
@@ -45,6 +46,9 @@ export default defineEventHandler(async (event) => {
 
   const supabase = await serverSupabaseClient<Database>(event)
 
+  // Pelo MeuPluggy o conector é sempre "MeuPluggy": o banco sai do nome da conta corrente.
+  const instituicao = instituicaoDasContas(contas)
+
   /*
    * Se o item já tem dono (outra pessoa), a RLS esconde a linha dela e o upsert
    * vira um insert que bate no `unique (item_id)` — o 23505 abaixo.
@@ -52,7 +56,12 @@ export default defineEventHandler(async (event) => {
   const { data: conexao, error } = await supabase
     .from('conexao_bancaria')
     .upsert(
-      { ...camposDaConexao(item), user_id: userId, atualizado_em: new Date().toISOString() },
+      {
+        ...camposDaConexao(item),
+        ...(instituicao ? { instituicao } : {}),
+        user_id: userId,
+        atualizado_em: new Date().toISOString(),
+      },
       { onConflict: 'item_id' },
     )
     .select('id')

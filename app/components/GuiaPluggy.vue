@@ -19,6 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { hojeIso } from '@/lib/datas'
 import { estadoDoGuia, mostraSetupDoAdministrador } from '~/lib/guia-pluggy'
 import { situacaoDaConexao } from '~/lib/contas-bancarias'
+import { nomeDoBanco } from '~/lib/instituicoes'
 import { useConexoesBancarias, usePluggyConfigurada } from '~/composables/useContasBancarias'
 import { useSpaceStore } from '~/stores/space'
 
@@ -47,7 +48,7 @@ const passoAPassoAberto = computed(() => estado.value === 'sem-conexao' || estad
         </CardTitle>
         <CardDescription>
           <template v-for="c in pedindoAtencao" :key="c.id">
-            <strong>{{ c.banco || 'Banco' }}</strong>: {{ situacaoDaConexao(c, hoje).texto }}
+            <strong>{{ nomeDoBanco(c, c.contas[0]?.nome ?? '') || 'Banco' }}</strong>: {{ situacaoDaConexao(c, hoje).texto }}
           </template>
         </CardDescription>
       </CardHeader>

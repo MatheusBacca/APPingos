@@ -31,3 +31,9 @@ extensao/lib/config.gerado.js
 .env.*
 .env*
 !.env.example
+
+# Cópias locais de dados da produção (amostras da Pluggy etc.). Dado financeiro real: nunca no git.
+dados-prod/
+
+# Prints das telas para revisão das PRs (locais).
+prints-pr/

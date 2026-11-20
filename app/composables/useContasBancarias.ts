@@ -7,11 +7,16 @@ export interface ContaBancaria {
   tipo: 'conta' | 'cartao'
   nome: string
   numero: string | null
+  /** O nome que a pessoa deu à conta (ou ao cartão principal). */
+  apelido: string | null
   destino: DestinoConta
   space_id: string | null
   /** Conta: o saldo. Cartão: a fatura aberta segundo o banco. */
   saldo: number | null
   saldo_atualizado_em: string | null
+  /** Cartão: bandeira e nível ("MASTERCARD", "PLATINUM"), para o desenho do cartão. */
+  bandeira: string | null
+  nivel: string | null
   /** Os cartões por final (físico, virtual, adicional) desta conta de cartão. */
   cartoes: CartaoDoFinal[]
 }
@@ -20,6 +25,8 @@ export interface ConexaoBancaria {
   id: string
   item_id: string
   banco: string
+  /** O código do banco de verdade (`~/lib/instituicoes`); pelo MeuPluggy, `banco` é "MeuPluggy". */
+  instituicao: string | null
   banco_logo_url: string | null
   status: string
   consentimento_expira_em: string | null
@@ -48,10 +55,10 @@ export function useConexoesBancarias() {
       const { data, error } = await supabase
         .from('conexao_bancaria')
         .select(`
-          id, item_id, banco, banco_logo_url, status, consentimento_expira_em,
+          id, item_id, banco, instituicao, banco_logo_url, status, consentimento_expira_em,
           sincronizado_em, erro_sincronizacao, conectado_em,
           contas:conta_bancaria(
-            id, tipo, nome, numero, destino, space_id, saldo, saldo_atualizado_em,
+            id, tipo, nome, numero, apelido, destino, space_id, saldo, saldo_atualizado_em, bandeira, nivel,
             cartoes:cartao_bancario(id, final, apelido, destino, space_id)
           )
         `)
@@ -122,6 +129,28 @@ export function useDesignarCartao() {
       if (error) throw error
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [CHAVE] }),
+  })
+}
+
+/**
+ * O apelido de uma conta (ou do cartão principal dela) ou de um cartão por final.
+ * Vazio volta ao nome do banco. A sincronização nunca toca no apelido.
+ */
+export function useApelidar() {
+  const supabase = useSupabaseClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (v: { tabela: 'conta_bancaria' | 'cartao_bancario', id: string, apelido: string }) => {
+      const apelido = v.apelido.trim().slice(0, 40) || null
+      const { error } = await supabase.from(v.tabela).update({ apelido }).eq('id', v.id)
+      if (error) throw error
+    },
+    onSuccess: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: [CHAVE] }),
+      queryClient.invalidateQueries({ queryKey: ['caixa-de-entrada'] }),
+      queryClient.invalidateQueries({ queryKey: ['cartoes'] }),
+    ]),
   })
 }
 

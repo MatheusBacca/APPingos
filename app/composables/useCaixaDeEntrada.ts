@@ -6,7 +6,7 @@ import type { Participante } from '~/types/orcamento'
 import type { CompraCandidata, TransacaoDaCaixa } from '~/lib/caixa-de-entrada'
 import type { PlanoDaCompra } from '~/lib/importacao-bancaria'
 import type { DestinoDaRegra, RegraAprendida } from '~/lib/auto-tag'
-import { somarDias } from '~/lib/datas'
+import { somarDias, somarMeses } from '~/lib/datas'
 import { JANELA_JA_LANCEI_DIAS } from '~/lib/caixa-de-entrada'
 import { useEspacoQuery } from '~/composables/useSpaceQuery'
 import { useUsuarioId } from '~/composables/useUsuarioId'
@@ -31,6 +31,13 @@ const COLUNAS = `
   mensagem, cartao_final, mcc, data_hora, moeda, valor_moeda_original, boleto
 `
 
+/** O que a linha precisa da conta para o rótulo da origem (`rotuloDaConta`). */
+const CONTA_DA_LINHA = `
+  nome, tipo, numero, apelido, destino, space_id,
+  conexao:conexao_bancaria(banco, instituicao),
+  cartoes:cartao_bancario(final, apelido, destino, space_id)
+`
+
 export type LinhaDaCaixa = TransacaoDaCaixa & {
   /**
    * O número e o banco dão o "Itaú •••• 1234" da linha, e o filtro por cartão.
@@ -41,9 +48,12 @@ export type LinhaDaCaixa = TransacaoDaCaixa & {
     nome: string
     tipo: 'conta' | 'cartao'
     numero?: string | null
+    apelido?: string | null
     destino?: 'casal' | 'pessoal' | 'perguntar'
     space_id?: string | null
-    conexao?: { banco: string } | null
+    conexao?: { banco: string, instituicao?: string | null } | null
+    /** Os cartões por final: o destino e o apelido de cada um dão o "👥 Nubank •••• 0750". */
+    cartoes?: Array<{ final: string, apelido: string | null, destino: string, space_id: string | null }> | null
   } | null
 }
 
@@ -83,7 +93,7 @@ export function useTransacoesDaCaixa() {
       for (let desde = 0; ; desde += PAGINA_DO_BANCO) {
         const { data, error } = await supabase
           .from('transacao_bancaria')
-          .select(`${COLUNAS}, conta:conta_bancaria(nome, tipo, numero, destino, space_id, conexao:conexao_bancaria(banco))`)
+          .select(`${COLUNAS}, conta:conta_bancaria(${CONTA_DA_LINHA})`)
           .is('destino', null)
           .order('data', { ascending: false })
           .order('id')
@@ -117,6 +127,55 @@ export function usePendenciasDoEspaco(espaco: MaybeRefOrGetter<string | null>, c
   })
 }
 
+export interface PagamentoDeFaturaDoMes {
+  id: string
+  data: string
+  valor: number
+  /** A ponta do cartão (`sentido = 'entrada'`) ou da conta (`'saida'`). */
+  sentido: 'entrada' | 'saida'
+  conta: LinhaDaCaixa['conta']
+  /** A outra ponta, quando o par foi achado (e a pessoa não o devolveu à caixa). */
+  par: { data: string, destino: string | null, conta: LinhaDaCaixa['conta'] } | null
+}
+
+/**
+ * Os pagamentos de fatura de um mês: o que entrou nos cartões e o que saiu das
+ * contas para pagá-los. Não são gasto (as compras da fatura já são) e por isso
+ * saem da caixa sozinhos; aqui eles ficam à vista, cada um com a conta que pagou.
+ */
+export function usePagamentosDeFatura(mes: MaybeRefOrGetter<string>) {
+  const supabase = useSupabaseClient()
+  const usuarioId = useUsuarioId()
+
+  return useQuery({
+    queryKey: [CHAVE, usuarioId, 'pagamentos-de-fatura', computed(() => toValue(mes))],
+    enabled: computed(() => !!usuarioId.value),
+    queryFn: async (): Promise<PagamentoDeFaturaDoMes[]> => {
+      const inicio = toValue(mes)
+      const { data, error } = await supabase
+        .from('transacao_bancaria')
+        .select(`
+          id, data, valor, sentido,
+          conta:conta_bancaria(${CONTA_DA_LINHA}),
+          par:par_id(data, destino, conta:conta_bancaria(${CONTA_DA_LINHA}))
+        `)
+        .eq('motivo_exclusao', 'pagamento_fatura')
+        // Devolvido à caixa (destino null) não é mais pagamento de fatura para a pessoa.
+        .eq('destino', 'ignorada')
+        .gte('data', inicio)
+        .lt('data', somarMeses(inicio, 1))
+        .order('data', { ascending: false })
+
+      if (error) throw error
+      return ((data ?? []) as unknown as PagamentoDeFaturaDoMes[]).map(p => ({
+        ...p,
+        valor: Number(p.valor),
+        par: p.par?.destino === 'ignorada' ? p.par : null,
+      }))
+    },
+  })
+}
+
 /**
  * O que foi classificado nos últimos 30 dias — inclusive pela regra de contagem
  * dupla e pela entrada automática do cartão designado. É daqui que se desfaz ou
@@ -133,7 +192,7 @@ export function useClassificadasRecentes() {
       const desde = new Date(Date.now() - 30 * 86_400_000).toISOString()
       const { data, error } = await supabase
         .from('transacao_bancaria')
-        .select(`${COLUNAS}, conta:conta_bancaria(nome, tipo), compra:compra(id, space_id, descricao)`)
+        .select(`${COLUNAS}, conta:conta_bancaria(${CONTA_DA_LINHA}), compra:compra(id, space_id, descricao)`)
         .not('destino', 'is', null)
         .gte('classificada_em', desde)
         .order('classificada_em', { ascending: false })

@@ -120,6 +120,68 @@ E três surpresas:
 - O `boletoMetadata` vem dentro de `paymentData`. E nenhum Pix trouxe `reason`, então a mensagem
   depende do banco mandar.
 
+## Segunda rodada (20/11/2026, cron das 07:00, produção)
+
+Primeira sincronização diária com a migration `20261120120000` aplicada (a produção está igual ao
+`main`). O cron `appingos-sincronizar-pluggy` rodou às 10:00 UTC sem erro; as 3 conexões ficaram
+`UPDATED`, `executionStatus: SUCCESS`, `versao_coleta = 1` (a releitura de 90 dias já foi feita).
+A resposta crua de cada recurso está em `dados-prod/2026-11-20/amostra_pluggy.json` (pasta local,
+fora do git).
+
+| Medida | Valor |
+| --- | --- |
+| Transações no banco | 484 (397 postadas, 87 pendentes) |
+| Novas hoje | 2 (ônibus, cartão 7450, MCC 4111, ainda pendentes) |
+| Relidas e atualizadas hoje | 57 |
+| Compras de cartão com final / hora / fatura prevista | 352 de 352 |
+| Com MCC | 344 de 352 (98%) |
+| Com mensagem do Pix | 0 |
+| Cartões | 5 finais (0025, 0750 → casal, 1683, 4079, 7450) |
+| Investimentos | 74 CDBs (23 ativos, 51 resgatados), 48 movimentos (38 `SELL`, 10 `BUY`) |
+| Empréstimos | 0 |
+| Encargos de fatura | 0 nas 12 faturas; cada uma com 1 pagamento |
+
+O que a rodada ensinou:
+
+- **Pendente não é duplicata.** As 87 pendentes são compras da fatura aberta (a mais velha é de
+  02/11); nenhuma tem gêmea postada (mesma conta, valor, final e data ±3 dias). A Pluggy mantém o
+  mesmo id quando a compra posta, então o upsert resolve.
+- **Resgates poluem a caixa.** ~50 entradas "Resgate RDB" e "Valor recebido de Investimento"
+  (`operationType` `RESGATE_APLIC_FINANCEIRA`, categoria Pluggy *Investments* / *Third party
+  transfers*) estão na caixa sem destino. São dinheiro do próprio investimento voltando, não renda.
+  Os movimentos `SELL` dos investimentos têm as mesmas datas e valores → candidato direto à onda 3
+  ("aplicação/resgate na caixa") e, antes disso, a um `motivo_exclusao` automático.
+- **"C6 BANK" mensal na caixa.** 3 saídas de ~R$ 3 mil (uma por mês), categoria Pluggy *Loans* e
+  `operationType` `ENCARGOS_JUROS_CHEQUE_ESPECIAL`. O `/loans` vem vazio porque o crédito é de
+  outro banco, não conectado. Não é juro de cheque especial (o `overdraftUsedLimit` é 0): o
+  `operationType` do banco não serve para classificar encargo. Tratar como pagamento recorrente
+  (regra por contraparte) e não confiar no `operationType` para a onda 2.4.
+- **Investimentos sem rendimento.** `amountProfit` vem nulo em todos; `rateType` `CDI`/`DAILY` e
+  `dueDate` vêm em 22 dos 23 ativos. O rendimento tem de ser calculado (saldo − aplicado).
+- **Conta corrente.** `bankData` traz `automaticallyInvestedBalance` (saldo que rende sozinho) e o
+  cheque especial contratado/usado — dá para o painel (onda 4) mostrar "disponível de verdade".
+- `statusDetail` do item vem `null` no MeuPluggy, então `situacao_produtos` fica vazia; a onda 2.9
+  depende só de `lastUpdatedAt` / `nextAutoSyncAt`, que vêm.
+
+Consulta usada (só leitura): `npx supabase db query --remote=<ref da produção> --read-only "<sql>"`.
+
+## Feito em 21/11 — identidade dos bancos e pagamento de fatura (PR A)
+
+- **O banco de verdade.** Pelo MeuPluggy o conector é sempre "MeuPluggy"; a instituição sai do nome
+  da conta corrente da conexão (`conexao_bancaria.instituicao`, `_shared/instituicoes.ts`). Cada
+  banco tem cor, ícone da Pluggy (`cdn.pluggy.ai/assets/connector-icons/<id>.svg`) e o visual do
+  cartão (`CartaoVisual.vue`). Daycoval e Revolut ficaram de fora: não transmitem dados no Open
+  Finance e a Pluggy não tem conector para eles.
+- **De onde veio o valor.** `👤 C6 •••• 7450`, `👥 Nubank "Mercado do casal"`, `🔀 C6 •••• 1683`
+  (`rotuloDaConta`): o destino do cartão daquele final (ou da conta), o banco e o apelido ou o final.
+  Apelido novo em `conta_bancaria.apelido`; o dos finais já existia.
+- **Pagamento de fatura em par.** `transacao_bancaria.par_id` + `parear_pagamentos_de_fatura`: a saída
+  da conta (o "C6 BANK" mensal, um Pix ou boleto de outro banco) liga à entrada no cartão — mesmo
+  valor, até 3 dias. Sai da caixa, aparece em "Pagamentos de fatura" na caixa e como "paga pela conta
+  …" na fatura. A ingestão preserva o motivo de quem tem par.
+- **Salário no Planejamento.** "Ajustar salário" abre o mesmo formulário de Espaços
+  (`SalarioFormulario.vue`); vale dali em diante.
+
 ## Onda 2 — depende da primeira rodada
 
 | # | Feature | Depende de |
