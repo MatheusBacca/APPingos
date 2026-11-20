@@ -60,6 +60,24 @@ export function useSalvarCaixinha() {
   })
 }
 
+/**
+ * Arquivar: a caixinha com histórico não se apaga (as transações do extrato
+ * ligadas a ela ficariam sem dono); sai das listas e guarda os movimentos.
+ */
+export function useArquivarCaixinha() {
+  const supabase = useSupabaseClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('caixinha').update({ arquivada: true }).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [CHAVE] }),
+  })
+}
+
+/** Só a caixinha vazia (sem movimentos) se apaga — a RLS garante. */
 export function useRemoverCaixinha() {
   const supabase = useSupabaseClient()
   const queryClient = useQueryClient()
@@ -107,21 +125,23 @@ export function useInvestimentosDosBancos() {
     queryKey: ['investimentos-dos-bancos', usuarioId],
     enabled: computed(() => !!usuarioId.value),
     queryFn: async (): Promise<PosicaoDoBanco[]> => {
-      const { data, error } = await supabase
-        .from('investimento')
-        .select(`
-          id, nome, subtipo, saldo, valor_original, vencimento, situacao,
-          conexao:conexao_bancaria(banco, instituicao, contas:conta_bancaria(nome, tipo))
-        `)
-      if (error) throw error
-      type Linha = Omit<PosicaoDoBanco, 'banco'> & {
-        conexao: { banco: string, instituicao: string | null, contas: Array<{ nome: string, tipo: string }> } | null
-      }
-      return ((data ?? []) as unknown as Linha[]).map(({ conexao, ...p }) => ({
+      // As conexões uma vez só (o nome do banco), e as posições só com o id da conexão.
+      const [posicoes, conexoes] = await Promise.all([
+        supabase.from('investimento').select('id, conexao_id, nome, subtipo, saldo, valor_original, vencimento, situacao'),
+        supabase.from('conexao_bancaria').select('id, banco, instituicao, contas:conta_bancaria(nome, tipo)'),
+      ])
+      if (posicoes.error) throw posicoes.error
+      if (conexoes.error) throw conexoes.error
+
+      const bancoDa = new Map((conexoes.data ?? []).map((c) => {
+        const contas = (c.contas ?? []) as Array<{ nome: string, tipo: string }>
+        return [c.id, nomeDoBanco(c, contas.find(x => x.tipo === 'conta')?.nome ?? c.banco ?? 'Banco')]
+      }))
+      return (posicoes.data ?? []).map(({ conexao_id, ...p }) => ({
         ...p,
         saldo: p.saldo === null ? null : Number(p.saldo),
         valor_original: p.valor_original === null ? null : Number(p.valor_original),
-        banco: nomeDoBanco(conexao, conexao?.contas.find(c => c.tipo === 'conta')?.nome ?? conexao?.banco ?? 'Banco'),
+        banco: bancoDa.get(conexao_id) ?? 'Banco',
       }))
     },
   })

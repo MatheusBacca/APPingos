@@ -19,7 +19,8 @@
 -- 3. `meta_aporte.caixinha_id`: o aporte em meta aponta para o investimento em
 --    que o dinheiro foi aplicado.
 -- 4. `classificar_investimento`: o destino novo da caixa de entrada. Com meta
---    ligada, a aplicação vira também aporte na meta (e o resgate, retirada).
+--    ligada, a aplicação vira também aporte na meta (e o resgate, retirada) —
+--    no que a meta aceitar (`aporte_da_caixinha`).
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -73,8 +74,14 @@ create policy caixinha_insert on public.caixinha
   for insert to authenticated with check (public.is_space_member(space_id) and criado_por = auth.uid());
 create policy caixinha_update on public.caixinha
   for update to authenticated using (public.is_space_member(space_id)) with check (public.is_space_member(space_id));
+-- Só a vazia se apaga: com movimentos, as transações do extrato ficariam com
+-- destino 'investimento' e sem caixinha. A que tem histórico se arquiva.
 create policy caixinha_delete on public.caixinha
-  for delete to authenticated using (public.is_space_member(space_id) and criado_por = auth.uid());
+  for delete to authenticated using (
+    public.is_space_member(space_id)
+    and criado_por = auth.uid()
+    and not exists (select 1 from public.caixinha_movimento m where m.caixinha_id = caixinha.id)
+  );
 
 grant select, insert, update, delete on public.caixinha to authenticated;
 grant all on public.caixinha to service_role;
@@ -152,6 +159,61 @@ $$;
 revoke all on function public.ligar_aporte_a_caixinha(uuid, uuid) from public, anon;
 grant execute on function public.ligar_aporte_a_caixinha(uuid, uuid) to authenticated;
 
+/*
+  O aporte que a caixinha leva para a meta ligada — quando a meta aceita. A
+  caixinha é o dinheiro de verdade; a meta acompanha o que dá:
+
+  - resgate maior que o guardado na meta (o resgate traz o rendimento: aplicou
+    3.000, resgatou 3.090) sai da meta só até zerá-la;
+  - aplicação numa meta cumprida ou abandonada fica só na caixinha.
+
+  Sem isso, `registrar_aporte` recusaria e a classificação inteira falharia.
+  Devolve o aporte criado, ou null quando a meta não leva nada.
+*/
+create function public.aporte_da_caixinha(
+  p_caixinha  uuid,
+  p_meta      uuid,
+  p_valor     numeric,
+  p_data      date,
+  p_origem    text,
+  p_transacao uuid
+)
+returns uuid
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_estado    text;
+  v_guardado  numeric;
+  v_valor     numeric := p_valor;
+  v_aporte    uuid;
+begin
+  select m.estado into v_estado from public.meta m where m.id = p_meta;
+  if v_estado is null then
+    return null;
+  end if;
+
+  if v_valor > 0 and v_estado in ('cumprida', 'abandonada') then
+    return null;
+  end if;
+
+  if v_valor < 0 then
+    select coalesce(sum(a.valor), 0) into v_guardado from public.meta_aporte a where a.meta_id = p_meta;
+    v_valor := greatest(v_valor, -v_guardado);
+    if v_valor >= 0 then
+      return null;
+    end if;
+  end if;
+
+  v_aporte := public.registrar_aporte(p_meta, v_valor, p_data, p_origem, p_transacao);
+  perform public.ligar_aporte_a_caixinha(v_aporte, p_caixinha);
+  return v_aporte;
+end;
+$$;
+
+revoke all on function public.aporte_da_caixinha(uuid, uuid, numeric, date, text, uuid) from public, anon;
+grant execute on function public.aporte_da_caixinha(uuid, uuid, numeric, date, text, uuid) to authenticated;
+
 -- ----------------------------------------------------------------------------
 -- 4. O destino "investimento" na caixa de entrada
 -- ----------------------------------------------------------------------------
@@ -189,8 +251,7 @@ begin
   v_valor := case when v.sentido = 'saida' then v.valor else -v.valor end;
 
   if v_cx.meta_id is not null then
-    v_aporte := public.registrar_aporte(v_cx.meta_id, v_valor, v.data, 'pluggy', v.id);
-    perform public.ligar_aporte_a_caixinha(v_aporte, v_cx.id);
+    v_aporte := public.aporte_da_caixinha(v_cx.id, v_cx.meta_id, v_valor, v.data, 'pluggy', v.id);
   end if;
 
   insert into public.caixinha_movimento (caixinha_id, user_id, valor, data, transacao_id, meta_aporte_id)
@@ -232,8 +293,7 @@ begin
   end if;
 
   if v_cx.meta_id is not null then
-    v_aporte := public.registrar_aporte(v_cx.meta_id, p_valor, p_data, 'manual', null);
-    perform public.ligar_aporte_a_caixinha(v_aporte, v_cx.id);
+    v_aporte := public.aporte_da_caixinha(v_cx.id, v_cx.meta_id, p_valor, p_data, 'manual', null);
   end if;
 
   insert into public.caixinha_movimento (caixinha_id, user_id, valor, data, meta_aporte_id)

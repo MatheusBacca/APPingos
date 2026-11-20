@@ -3006,6 +3006,17 @@ export type Database = {
         Args: { p_descricao: string; p_titulo: string; p_versao: string }
         Returns: number
       }
+      aporte_da_caixinha: {
+        Args: {
+          p_caixinha: string
+          p_data: string
+          p_meta: string
+          p_origem: string
+          p_transacao: string
+          p_valor: number
+        }
+        Returns: string
+      }
       aprender_classificacao: {
         Args: {
           p_categoria_nome?: string
@@ -3216,6 +3227,10 @@ export type Database = {
       lembrete_semanal_filmes: { Args: never; Returns: number }
       liberar_interesse: { Args: { p_interesse: string }; Returns: undefined }
       liberar_roteiro: { Args: { p_roteiro: string }; Returns: undefined }
+      ligar_aporte_a_caixinha: {
+        Args: { p_aporte: string; p_caixinha: string }
+        Returns: undefined
+      }
       marcar_assistiram_comigo: {
         Args: { p_entry: string; p_usuarios: string[] }
         Returns: number

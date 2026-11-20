@@ -259,14 +259,17 @@ async function salvar() {
         break
       case 'investimento': {
         // A caixinha nova nasce com o banco da conta de onde a transação veio.
-        const caixinha = novaCaixinha.value
-          ? await salvarCaixinha.mutateAsync({
-              space_id: novaCaixinha.value.space_id,
-              nome: novaCaixinha.value.nome,
-              instituicao: props.instituicao ?? null,
-              meta_id: null,
-            })
-          : caixinhaEscolhida.value!
+        if (novaCaixinha.value) {
+          caixinhaEscolhida.value = await salvarCaixinha.mutateAsync({
+            space_id: novaCaixinha.value.space_id,
+            nome: novaCaixinha.value.nome,
+            instituicao: props.instituicao ?? null,
+            meta_id: null,
+          })
+          // Já criada: se o passo seguinte falhar, tentar de novo usa esta, e não cria outra.
+          novaCaixinha.value = null
+        }
+        const caixinha = caixinhaEscolhida.value!
         await classificar.mutateAsync({ tipo: 'investimento', transacao: item.principal.id, caixinha })
         toast.success(item.sentido === 'entrada' ? 'Resgate registrado na caixinha.' : 'Aplicação registrada na caixinha.')
         break

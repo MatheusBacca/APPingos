@@ -19,7 +19,7 @@ import {
 import { mensagemDeErro } from '@/lib/utils'
 import { INSTITUICOES } from '~/lib/instituicoes'
 import type { Caixinha } from '~/lib/investimentos'
-import { useRemoverCaixinha, useSalvarCaixinha } from '~/composables/useCaixinhas'
+import { useArquivarCaixinha, useRemoverCaixinha, useSalvarCaixinha } from '~/composables/useCaixinhas'
 import { useMetas } from '~/composables/useMetas'
 import { useSpaceStore } from '~/stores/space'
 
@@ -35,6 +35,9 @@ const emit = defineEmits<{ fechar: [] }>()
 const store = useSpaceStore()
 const salvar = useSalvarCaixinha()
 const remover = useRemoverCaixinha()
+const arquivar = useArquivarCaixinha()
+/** Com movimentos, a caixinha se arquiva: apagar deixaria as transações do extrato sem dono. */
+const temHistorico = computed(() => !!props.caixinha && props.caixinha.movimentos.length > 0)
 
 const nome = ref('')
 const instituicao = ref('')
@@ -78,12 +81,18 @@ async function onSalvar() {
 async function onRemover() {
   if (!props.caixinha) return
   try {
-    await remover.mutateAsync(props.caixinha.id)
-    toast.success('Caixinha removida. As transações do extrato ligadas a ela continuam classificadas.')
+    if (temHistorico.value) {
+      await arquivar.mutateAsync(props.caixinha.id)
+      toast.success('Caixinha arquivada. Os movimentos e os aportes dela continuam guardados.')
+    }
+    else {
+      await remover.mutateAsync(props.caixinha.id)
+      toast.success('Caixinha removida.')
+    }
     emit('fechar')
   }
   catch (e) {
-    toast.error(mensagemDeErro(e, 'Não deu para remover a caixinha.'))
+    toast.error(mensagemDeErro(e, temHistorico.value ? 'Não deu para arquivar a caixinha.' : 'Não deu para remover a caixinha.'))
   }
 }
 </script>
@@ -134,8 +143,8 @@ async function onRemover() {
         </div>
 
         <DialogFooter class="gap-2">
-          <Button v-if="caixinha" type="button" variant="ghost" class="mr-auto text-destructive" :disabled="remover.isPending.value" @click="onRemover">
-            Remover
+          <Button v-if="caixinha" type="button" variant="ghost" class="mr-auto text-destructive" :disabled="remover.isPending.value || arquivar.isPending.value" @click="onRemover">
+            {{ temHistorico ? 'Arquivar' : 'Remover' }}
           </Button>
           <Button type="button" variant="ghost" @click="emit('fechar')">Cancelar</Button>
           <Button type="submit" :disabled="!nome.trim() || !espaco || salvar.isPending.value">
