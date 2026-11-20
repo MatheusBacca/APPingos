@@ -26,13 +26,15 @@ const props = defineProps<{
   podeAceitar: boolean
   banco: string
   conta: string
+  /** "Pinga Fogo transferiu para Bixo Pingo": a contraparte é alguém dos meus espaços (`transferenciaEntrePessoas`). */
+  pessoas?: string | null
   selecionada?: boolean
   ocupado?: boolean
 }>()
 
 const emit = defineEmits<{ abrir: [], aceitar: [], ignorar: [] }>()
 
-const titulo = computed(() => rotuloParaRegra(props.item.principal))
+const titulo = computed(() => props.pessoas || rotuloParaRegra(props.item.principal))
 const valor = computed(() => valorDoItem(props.item))
 
 /** "3/10", ou "2–3/10" quando o extrato trouxe mais de uma parcela de uma vez. */

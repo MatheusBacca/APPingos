@@ -590,6 +590,24 @@ export type Database = {
           },
         ]
       }
+      documento_pessoal: {
+        Row: {
+          atualizado_em: string
+          cpf: string
+          user_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          cpf: string
+          user_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          cpf?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       emprestimo: {
         Row: {
           atualizado_em: string
@@ -2228,6 +2246,7 @@ export type Database = {
           apelido: string | null
           avatar_url: string | null
           chave_pix: string | null
+          chave_pix_instituicao: string | null
           chave_pix_tipo: string | null
           created_at: string
           id: string
@@ -2237,6 +2256,7 @@ export type Database = {
           apelido?: string | null
           avatar_url?: string | null
           chave_pix?: string | null
+          chave_pix_instituicao?: string | null
           chave_pix_tipo?: string | null
           created_at?: string
           id: string
@@ -2246,6 +2266,7 @@ export type Database = {
           apelido?: string | null
           avatar_url?: string | null
           chave_pix?: string | null
+          chave_pix_instituicao?: string | null
           chave_pix_tipo?: string | null
           created_at?: string
           id?: string
@@ -2987,6 +3008,13 @@ export type Database = {
         Returns: undefined
       }
       concluir_memoria: { Args: { p_memoria: string }; Returns: undefined }
+      contrapartes_reconhecidas: {
+        Args: never
+        Returns: {
+          documento: string
+          user_id: string
+        }[]
+      }
       contribuicoes_do_espaco: {
         Args: { p_space: string }
         Returns: {

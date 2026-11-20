@@ -54,7 +54,8 @@ export function normalizarChavePix(tipo: TipoChavePix, valor: string): string {
   }
 }
 
-function cpfValido(cpf: string): boolean {
+/** Os dígitos verificadores do CPF (11 dígitos, sem máscara). */
+export function cpfValido(cpf: string): boolean {
   if (!/^\d{11}$/.test(cpf) || /^(\d)\1{10}$/.test(cpf)) return false
   const digito = (n: number) => {
     let soma = 0
@@ -182,4 +183,10 @@ export function brCodePix(dados: DadosDoPix): string {
 /** O identificador do acerto de um mês: `ACERTO202611`. Ajuda a conferir no extrato. */
 export function txidDoAcerto(competencia: string): string {
   return `ACERTO${competencia.slice(0, 4)}${competencia.slice(5, 7)}`
+}
+
+/** "12345678909" → "123.456.789-09"; qualquer outra coisa volta como veio. */
+export function formatarCpf(cpf: string): string {
+  const d = cpf.replace(/\D/g, '')
+  return d.length === 11 ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}` : cpf
 }

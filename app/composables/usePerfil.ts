@@ -13,6 +13,8 @@ export interface Perfil {
   /** Já normalizada (`normalizarChavePix`). Vai no Pix do acerto de quem paga você. */
   chave_pix: string | null
   chave_pix_tipo: TipoChavePix | null
+  /** Em qual banco a chave cai (código de `~/lib/instituicoes`). */
+  chave_pix_instituicao: string | null
 }
 
 /**
@@ -32,7 +34,7 @@ export function usePerfil() {
     queryFn: async (): Promise<Perfil | null> => {
       const { data, error } = await supabase
         .from('profile')
-        .select('id, nome, apelido, chave_pix, chave_pix_tipo')
+        .select('id, nome, apelido, chave_pix, chave_pix_tipo, chave_pix_instituicao')
         .eq('id', usuarioId.value!)
         .maybeSingle()
 
@@ -99,12 +101,16 @@ export function useDefinirChavePix() {
   const usuarioId = useUsuarioId()
 
   return useMutation({
-    mutationFn: async (v: { chave: string, tipo: TipoChavePix } | null) => {
+    mutationFn: async (v: { chave: string, tipo: TipoChavePix, instituicao?: string | null } | null) => {
       if (!usuarioId.value) throw new Error('Não autenticado')
 
       const { error } = await supabase
         .from('profile')
-        .update({ chave_pix: v?.chave ?? null, chave_pix_tipo: v?.tipo ?? null })
+        .update({
+          chave_pix: v?.chave ?? null,
+          chave_pix_tipo: v?.tipo ?? null,
+          chave_pix_instituicao: v ? v.instituicao ?? null : null,
+        })
         .eq('id', usuarioId.value)
 
       if (error) throw error
@@ -131,13 +137,13 @@ export function useChavePixDe(userId: Ref<string | null>) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profile')
-        .select('nome, chave_pix, chave_pix_tipo')
+        .select('nome, chave_pix, chave_pix_tipo, chave_pix_instituicao')
         .eq('id', userId.value!)
         .maybeSingle()
 
       if (error) throw error
       if (!data?.chave_pix) return null
-      return { nome: data.nome, chave: data.chave_pix, tipo: data.chave_pix_tipo as TipoChavePix }
+      return { nome: data.nome, chave: data.chave_pix, tipo: data.chave_pix_tipo as TipoChavePix, instituicao: data.chave_pix_instituicao }
     },
   })
 }

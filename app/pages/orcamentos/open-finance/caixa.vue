@@ -88,6 +88,8 @@ import { useConciliacaoPix } from '~/composables/useConciliacaoPix'
 import { useConexoesBancarias, useSincronizacaoInicial } from '~/composables/useContasBancarias'
 import { aguardandoSincronizacaoInicial } from '~/lib/contas-bancarias'
 import { useUsuarioId } from '~/composables/useUsuarioId'
+import { useContrapartes, usePessoasDosMeusEspacos } from '~/composables/useDocumento'
+import { transferenciaEntrePessoas } from '~/lib/contrapartes'
 import { useSpaceStore } from '~/stores/space'
 import { rotuloDaCategoriaNaCaixa } from '~/lib/categorias-pluggy'
 
@@ -152,6 +154,16 @@ const contaDe = (contaId: string): LinhaDaCaixa['conta'] =>
 const nomeDaConta = (contaId: string) => contaDe(contaId)?.nome ?? ''
 const rotuloDe = (item: ItemDaCaixa) => rotuloDaConta(contaDe(item.principal.conta_id), item.principal.cartao_final)
 const bancoDe = (item: ItemDaCaixa) => bancoDaConta(contaDe(item.principal.conta_id))
+
+/*
+ * "Pinga Fogo transferiu para Bixo Pingo": a contraparte do Pix é alguém dos meus
+ * espaços (o CPF dela, reconhecido por `contrapartes_reconhecidas`).
+ */
+const { data: contrapartes } = useContrapartes()
+const { data: pessoas } = usePessoasDosMeusEspacos()
+const euNoApp = computed(() => pessoas.value?.find(p => p.user_id === usuarioId.value) ?? null)
+const pessoasDe = (item: ItemDaCaixa) =>
+  transferenciaEntrePessoas(item.principal, contrapartes.value, euNoApp.value, pessoas.value ?? [])?.frase ?? null
 
 /** As contas que têm algo na caixa — viram os chips de filtro, na cor do banco. */
 const contasNaCaixa = computed(() => {
@@ -563,6 +575,7 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
                 :pode-aceitar="podeAceitar(item)"
                 :banco="bancoDe(item)"
                 :conta="rotuloDe(item)"
+                :pessoas="pessoasDe(item)"
                 :selecionada="largo && selecionada === item.chave"
                 :ocupado="aceite.ocupado.value"
                 @abrir="abrir(item)"
@@ -589,6 +602,7 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
               :aviso-do-aceite="avisoDoAceite(itemSelecionado)"
               :banco="bancoDe(itemSelecionado)"
               :conta="rotuloDe(itemSelecionado)"
+              :pessoas="pessoasDe(itemSelecionado)"
               :ocupado="aceite.ocupado.value"
               @escolher="(modo) => abrir(itemSelecionado!, modo)"
               @aceitar="aceitar(itemSelecionado!)"
@@ -616,6 +630,7 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
           :aviso-do-aceite="avisoDoAceite(itemSelecionado)"
           :banco="bancoDe(itemSelecionado)"
           :conta="rotuloDe(itemSelecionado)"
+          :pessoas="pessoasDe(itemSelecionado)"
           :ocupado="aceite.ocupado.value"
           @escolher="(modo) => abrir(itemSelecionado!, modo)"
           @aceitar="() => { const i = itemSelecionado!; selecionada = null; aceitar(i) }"

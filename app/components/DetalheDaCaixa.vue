@@ -26,6 +26,8 @@ const props = defineProps<{
   podeAceitar: boolean
   banco: string
   conta: string
+  /** "Pinga Fogo transferiu para Bixo Pingo": a contraparte é alguém dos meus espaços (`transferenciaEntrePessoas`). */
+  pessoas?: string | null
   /** Por que o Aceitar não aparece, quando há sugestão completa mas o mês já foi acertado. */
   avisoDoAceite?: string | null
   ocupado?: boolean
@@ -33,7 +35,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ escolher: [modo: ModoClassificacao], aceitar: [], ignorar: [] }>()
 
-const titulo = computed(() => rotuloParaRegra(props.item.principal))
+const titulo = computed(() => props.pessoas || rotuloParaRegra(props.item.principal))
 const valor = computed(() => valorDoItem(props.item))
 const categoriaDoBanco = computed(() => rotuloDaCategoriaNaCaixa(props.item.principal.categoria_pluggy))
 

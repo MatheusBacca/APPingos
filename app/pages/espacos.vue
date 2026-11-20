@@ -417,6 +417,8 @@ async function onResgatar() {
 
     <SalarioCartao />
 
+    <CpfCartao />
+
     <ChavePixCampo />
 
     <Dialog v-model:open="dialogExcluir">
