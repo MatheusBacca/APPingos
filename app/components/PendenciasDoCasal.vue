@@ -25,7 +25,7 @@ import { nomeDoMes, partesDaData } from '@/lib/datas'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { itensDaCaixa } from '~/lib/caixa-de-entrada'
 import type { ItemDaCaixa } from '~/lib/caixa-de-entrada'
-import { mesDoItem, pendentesDoCasal, rotuloDaConta, textoParaSelo, valorDoItem } from '~/lib/caixa-lista'
+import { bancoDaConta, mesDoItem, pendentesDoCasal, rotuloDaConta, textoParaSelo, valorDoItem } from '~/lib/caixa-lista'
 import { rotuloParaRegra, sugerirClassificacao } from '~/lib/auto-tag'
 import { iconeDaCategoria } from '~/lib/icones-categoria'
 import { rotuloDaCategoriaNaCaixa } from '~/lib/categorias-pluggy'
@@ -92,8 +92,7 @@ function categoriaDe(item: ItemDaCaixa): string | null {
 }
 
 function bancoDe(item: ItemDaCaixa): string {
-  const conta = contaDe(item.principal.conta_id)
-  return conta?.conexao?.banco ?? conta?.nome ?? ''
+  return bancoDaConta(contaDe(item.principal.conta_id))
 }
 
 /** "22/11" e "Sáb" — o dia como na fatura, e a semana para reconhecer a compra. */
@@ -165,7 +164,7 @@ const nomeDaFatura = computed(() => nomeDoMes(props.competencia).toLowerCase())
 
             <span class="min-w-0 flex-1">
               <span class="block truncate font-medium">{{ rotuloParaRegra(item.principal) }}</span>
-              <span class="block truncate text-xs text-muted-foreground">{{ rotuloDaConta(contaDe(item.principal.conta_id)) }}</span>
+              <span class="block truncate text-xs text-muted-foreground">{{ rotuloDaConta(contaDe(item.principal.conta_id), item.principal.cartao_final) }}</span>
             </span>
 
             <span class="hidden shrink-0 border-l pl-3 text-xs leading-tight sm:block">

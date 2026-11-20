@@ -14,6 +14,7 @@
  *     cartão é a dona dele.
  * Sem nenhum dos dois, o ciclo cai no mês do calendário e a tela diz isso.
  */
+import { iconeDaInstituicao, instituicaoPorNome } from '~/lib/instituicoes'
 import { paraIso, partesDaData, somarDias, somarMeses, primeiroDoMes, ultimoDiaDoMes } from '@/lib/datas'
 
 export interface DadosDoCartao {
@@ -265,32 +266,32 @@ export function distribuicao(itens: { id: string, valor: number }[]): Fatia[] {
     .sort((a, b) => b.valor - a.valor)
 }
 
+export interface SeloDeBanco {
+  cor: string
+  texto: string
+  sigla: string
+  /** O ícone da Pluggy, quando a instituição tem conector conhecido. */
+  icone: string | null
+  /** O visual do cartão daquela instituição. */
+  cartao: { fundo: string, texto: string }
+}
+
 /**
- * A cor e a sigla de cada banco, para o selo do cartão. É identificação, não
- * logo: um quadrado na cor que todo mundo associa ao banco, com as letras.
+ * A cor, a sigla, o ícone e o cartão de cada banco (`~/lib/instituicoes`). É
+ * identificação: um quadrado na cor que todo mundo associa ao banco, com o ícone
+ * que a Pluggy mostra no widget quando há.
  */
-const BANCOS: { teste: RegExp, cor: string, texto: string, sigla: string }[] = [
-  { teste: /ita[uú]/i, cor: '#EC7000', texto: '#FFFFFF', sigla: 'itaú' },
-  { teste: /bradesco/i, cor: '#CC092F', texto: '#FFFFFF', sigla: 'b' },
-  { teste: /nu ?bank|^nu\b/i, cor: '#820AD1', texto: '#FFFFFF', sigla: 'nu' },
-  { teste: /santander/i, cor: '#EC0000', texto: '#FFFFFF', sigla: 'S' },
-  { teste: /banco do brasil|\bbb\b/i, cor: '#FCFC30', texto: '#003DA5', sigla: 'BB' },
-  { teste: /caixa/i, cor: '#005CA9', texto: '#F39200', sigla: 'CX' },
-  { teste: /inter\b/i, cor: '#FF7A00', texto: '#FFFFFF', sigla: 'in' },
-  { teste: /c6/i, cor: '#242424', texto: '#FFFFFF', sigla: 'C6' },
-  { teste: /btg/i, cor: '#0B2340', texto: '#FFFFFF', sigla: 'btg' },
-  { teste: /xp\b/i, cor: '#000000', texto: '#FFD400', sigla: 'XP' },
-  { teste: /picpay/i, cor: '#21C25E', texto: '#FFFFFF', sigla: 'pp' },
-  { teste: /mercado ?pago/i, cor: '#00B1EA', texto: '#FFFFFF', sigla: 'MP' },
-  { teste: /sicredi/i, cor: '#3FA110', texto: '#FFFFFF', sigla: 'sc' },
-  { teste: /sicoob/i, cor: '#003641', texto: '#00AE9D', sigla: 'sb' },
-]
-
-export interface SeloDeBanco { cor: string, texto: string, sigla: string }
-
 export function seloDoBanco(nome: string): SeloDeBanco {
-  const achado = BANCOS.find(b => b.teste.test(nome))
-  if (achado) return { cor: achado.cor, texto: achado.texto, sigla: achado.sigla }
+  const achado = instituicaoPorNome(nome)
+  if (achado) {
+    return { cor: achado.cor, texto: achado.texto, sigla: achado.sigla, icone: iconeDaInstituicao(achado), cartao: achado.cartao }
+  }
   const sigla = nome.trim().slice(0, 2) || '?'
-  return { cor: '#52525B', texto: '#FFFFFF', sigla }
+  return {
+    cor: '#52525B',
+    texto: '#FFFFFF',
+    sigla,
+    icone: null,
+    cartao: { fundo: 'linear-gradient(135deg, #71717A 0%, #52525B 55%, #27272A 100%)', texto: '#FFFFFF' },
+  }
 }

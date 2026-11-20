@@ -17,8 +17,15 @@
  * Chico Moedas. No espaço pessoal de quem não está em casal, a tela continua
  * inteira: é só o "meu mês".
  */
-import { ChevronLeftIcon, ChevronRightIcon } from '@lucide/vue'
+import { ChevronLeftIcon, ChevronRightIcon, PencilIcon } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatarDia, formatarMes, hojeIso, primeiroDoMes, somarMeses } from '@/lib/datas'
 import { dataPrevistaDoSalario, descreverRecebimento } from '@/lib/salario'
@@ -58,6 +65,12 @@ const { data: comprasPessoais, isPending: carregandoPessoais } = useComprasDoMes
 const { data: aportesPessoais } = useAportesDoMes(espacoPessoalId, competencia)
 
 const salario = computed(() => renda.data.value?.valor_liquido ?? null)
+
+/*
+ * O salário se ajusta daqui também, sem passar por Espaços: muda o valor dali
+ * em diante. O "Quem vê" continua só em Espaços, ao lado do resto do perfil.
+ */
+const editandoSalario = ref(false)
 
 /**
  * O que sai do salário para os espaços compartilhados — todos eles, e não só o
@@ -200,15 +213,22 @@ const situacao = computed(() => {
           :previsto="meuMes.salario"
           :data-prevista="dataDoSalario"
         />
+        <div class="flex justify-end">
+          <Button size="sm" variant="ghost" class="gap-1.5 text-muted-foreground" @click="editandoSalario = true">
+            <PencilIcon class="size-3.5" />
+            Ajustar salário
+          </Button>
+        </div>
       </ProjecaoCartao>
 
       <section v-else class="space-y-2 rounded-lg border border-dashed bg-card p-4">
         <h2 class="text-sm font-medium">Meu mês</h2>
         <p class="text-sm text-muted-foreground">
-          Sem o salário, não há o que planejar. Cadastre o valor líquido e quando ele cai em
-          <NuxtLink to="/espacos" class="text-primary underline-offset-2 hover:underline">Espaços › Seu salário</NuxtLink>
-          — ele fica privado, a menos que você compartilhe.
+          Sem o salário, não há o que planejar. Cadastre o valor líquido e quando ele cai — ele
+          fica privado, a menos que você compartilhe em
+          <NuxtLink to="/espacos" class="text-primary underline-offset-2 hover:underline">Espaços › Seu salário</NuxtLink>.
         </p>
+        <Button size="sm" @click="editandoSalario = true">Cadastrar salário</Button>
       </section>
 
       <!-- ---- Mês do casal ---- -->
@@ -244,5 +264,23 @@ const situacao = computed(() => {
       Aqui o aporte numa meta conta como dinheiro que saiu do mês — mas não é compra: não entra no
       gasto do espaço, no gráfico de categorias nem no acerto de Chico Moedas.
     </p>
+
+    <Dialog v-model:open="editandoSalario">
+      <DialogContent class="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Seu salário</DialogTitle>
+          <DialogDescription>
+            O novo valor vale daqui em diante. Os meses já marcados como recebidos guardam o que
+            caiu de verdade. Quem vê o salário continua sendo escolhido em Espaços.
+          </DialogDescription>
+        </DialogHeader>
+        <SalarioFormulario
+          id-base="planejamento-salario"
+          :permite-remover="false"
+          @salvo="editandoSalario = false"
+          @cancelar="editandoSalario = false"
+        />
+      </DialogContent>
+    </Dialog>
   </div>
 </template>

@@ -3,6 +3,9 @@ import { hojeIso, somarDias } from '@/lib/datas'
 import { cicloAtual, distribuicao, fechamentoPelasFaturas, limiteDoCartao, totalDoCiclo, usoDoLimite } from '~/lib/cartoes'
 import type { Ciclo, DadosDoCartao, LancamentoDoCartao, UsoDoLimite } from '~/lib/cartoes'
 import { useUsuarioId } from '~/composables/useUsuarioId'
+import { nomeDoBanco } from '~/lib/instituicoes'
+import { rotuloDaConta } from '~/lib/caixa-lista'
+import type { ContaParaRotulo } from '~/lib/caixa-lista'
 
 /**
  * Os cartões de quem está logado, com a fatura aberta de cada um.
@@ -23,6 +26,7 @@ export interface CartaoDaPessoa extends DadosDoCartao {
   bandeira: string | null
   nivel: string | null
   situacao_cartao: string | null
+  apelido: string | null
 }
 
 export interface FaturaFechada {
@@ -39,6 +43,15 @@ export interface FaturaFechada {
   permite_parcelar: boolean | null
 }
 
+/** Um pagamento que entrou no cartão, com a conta que pagou quando o par foi achado. */
+export interface PagamentoDaFatura {
+  id: string
+  data: string
+  valor: number
+  /** "👤 C6 •••• 8160" — a conta corrente que pagou; `null` sem par (conta de banco não conectado). */
+  pagoPor: string | null
+}
+
 export interface ResumoDoCartao {
   cartao: CartaoDaPessoa
   ciclo: Ciclo
@@ -47,9 +60,19 @@ export interface ResumoDoCartao {
   /** A última fatura fechada, se o banco mandou. */
   ultimaFechada: FaturaFechada | null
   faturas: FaturaFechada[]
+  /** Os pagamentos recebidos nos últimos 120 dias, o mais novo primeiro. */
+  pagamentos: PagamentoDaFatura[]
 }
 
 const CHAVE = 'cartoes'
+
+interface LinhaDePagamento {
+  id: string
+  conta_id: string
+  valor: number
+  data: string
+  par: { conta: ContaParaRotulo | null } | null
+}
 
 export function useCartoes() {
   const supabase = useSupabaseClient()
@@ -67,14 +90,14 @@ export function useCartoes() {
       */
       const desde = somarDias(hoje, -120)
 
-      const [contas, lancamentos, faturas] = await Promise.all([
+      const [contas, lancamentos, faturas, pagamentos] = await Promise.all([
         supabase
           .from('conta_bancaria')
           .select(`
             id, nome, numero, limite, limite_disponivel, fecha_em, vence_em, pagamento_minimo,
             limite_manual, dia_fechamento_manual, dia_vencimento_manual,
-            saldo, saldo_atualizado_em, bandeira, nivel, situacao_cartao,
-            conexao:conexao_bancaria(banco)
+            saldo, saldo_atualizado_em, bandeira, nivel, situacao_cartao, apelido,
+            conexao:conexao_bancaria(banco, instituicao)
           `)
           .eq('tipo', 'cartao')
           .order('nome'),
@@ -86,11 +109,28 @@ export function useCartoes() {
           .from('fatura_cartao')
           .select('id, conta_id, pluggy_bill_id, vencimento, fechamento, total, minimo, encargos, total_encargos, permite_parcelar')
           .order('vencimento', { ascending: false }),
+        /*
+          O pagamento que entrou no cartão e a saída da conta que o pagou
+          (`par_id`, ligado por `parear_pagamentos_de_fatura`).
+        */
+        supabase
+          .from('transacao_bancaria')
+          .select(`
+            id, conta_id, valor, data,
+            par:par_id(
+              conta:conta_bancaria(nome, tipo, numero, apelido, destino, space_id, conexao:conexao_bancaria(banco, instituicao))
+            )
+          `)
+          .eq('motivo_exclusao', 'pagamento_fatura')
+          .eq('sentido', 'entrada')
+          .gte('data', desde)
+          .order('data', { ascending: false }),
       ])
 
       if (contas.error) throw contas.error
       if (lancamentos.error) throw lancamentos.error
       if (faturas.error) throw faturas.error
+      if (pagamentos.error) throw pagamentos.error
 
       const linhas = (lancamentos.data ?? []) as Array<LancamentoDoCartao & { parcelas_total: number | null }>
       const todasFaturas = (faturas.data ?? []) as unknown as FaturaFechada[]
@@ -99,7 +139,7 @@ export function useCartoes() {
         const doCartao = todasFaturas.filter(f => f.conta_id === c.id)
         const cartao: CartaoDaPessoa = {
           ...c,
-          banco: (c.conexao as { banco: string } | null)?.banco ?? '',
+          banco: nomeDoBanco(c.conexao as { banco: string, instituicao: string | null } | null, c.nome),
           fechamento_das_faturas: fechamentoPelasFaturas(doCartao, linhas.filter(l => l.conta_id === c.id)),
         }
         const ciclo = cicloAtual(cartao, hoje)
@@ -111,6 +151,14 @@ export function useCartoes() {
           uso: usoDoLimite(cartao, faturaAberta),
           ultimaFechada: doCartao[0] ?? null,
           faturas: doCartao,
+          pagamentos: ((pagamentos.data ?? []) as unknown as LinhaDePagamento[])
+            .filter(p => p.conta_id === c.id)
+            .map(p => ({
+              id: p.id,
+              data: p.data,
+              valor: Number(p.valor),
+              pagoPor: p.par?.conta ? rotuloDaConta(p.par.conta) : null,
+            })),
         }
       })
 

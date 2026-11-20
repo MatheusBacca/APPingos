@@ -8,10 +8,11 @@
  * para digitá-lo: o banco nem sempre informa, e quem sabe o limite é a dona.
  */
 import { ChevronDownIcon, SlidersHorizontalIcon } from '@lucide/vue'
-import { hojeIso, partesDaData } from '@/lib/datas'
+import { hojeIso, partesDaData, somarDias } from '@/lib/datas'
+import { diasEntre } from '~/lib/contas-bancarias'
 import { formatarDinheiro, formatarPercentual } from '@/lib/dinheiro'
 import { quandoFecha, seloDoBanco } from '~/lib/cartoes'
-import type { ResumoDoCartao } from '~/composables/useCartoes'
+import type { FaturaFechada, PagamentoDaFatura, ResumoDoCartao } from '~/composables/useCartoes'
 
 const props = defineProps<{ resumo: ResumoDoCartao, fracaoDoTotal: number | null }>()
 const emit = defineEmits<{ ajustar: [] }>()
@@ -72,6 +73,22 @@ const NOME_DO_ENCARGO: Record<string, string> = {
 function nomeDoEncargo(tipo: string): string {
   return NOME_DO_ENCARGO[tipo] ?? tipo.toLowerCase()
 }
+
+/*
+ * O pagamento de cada fatura fechada: o que entrou no cartão entre o fechamento
+ * e uns dias depois do vencimento (quem paga atrasado também conta), o mais
+ * perto do vencimento. A conta que pagou vem do par (`par_id`).
+ */
+function pagamentoDa(f: FaturaFechada): PagamentoDaFatura | null {
+  const desde = f.fechamento ?? somarDias(f.vencimento, -12)
+  const ate = somarDias(f.vencimento, 10)
+  const candidatos = props.resumo.pagamentos.filter(p => p.data >= desde && p.data <= ate)
+  if (!candidatos.length) return null
+  const distancia = (p: PagamentoDaFatura) => Math.abs(diasEntre(f.vencimento, p.data))
+  return [...candidatos].sort((a, b) => distancia(a) - distancia(b))[0]!
+}
+
+const pagamentoDaUltima = computed(() => props.resumo.ultimaFechada ? pagamentoDa(props.resumo.ultimaFechada) : null)
 </script>
 
 <template>
@@ -84,7 +101,10 @@ function nomeDoEncargo(tipo: string): string {
         <div class="flex items-start gap-3">
           <SeloDoBanco :banco="resumo.cartao.banco" />
           <div class="min-w-0 flex-1">
-            <h3 class="line-clamp-2 font-medium leading-tight">{{ resumo.cartao.nome }}</h3>
+            <h3 class="line-clamp-2 font-medium leading-tight">
+              {{ resumo.cartao.apelido || resumo.cartao.nome }}
+              <span v-if="resumo.cartao.apelido" class="text-xs font-normal text-muted-foreground">· {{ resumo.cartao.banco }}</span>
+            </h3>
             <p class="mt-0.5 text-xs text-muted-foreground">
               <span v-if="resumo.cartao.numero" class="tracking-wider">•••• {{ resumo.cartao.numero }}</span>
               <span v-if="perfil"> · {{ perfil }}</span>
@@ -148,7 +168,8 @@ function nomeDoEncargo(tipo: string): string {
             <ChevronDownIcon class="size-3.5 shrink-0 transition-transform" :class="aberto && 'rotate-180'" />
             <span class="truncate">
               Última fechada: <strong class="font-medium text-foreground">{{ formatarDinheiro(resumo.ultimaFechada!.total) }}</strong>
-              · {{ resumo.ultimaFechada!.vencimento < hoje ? 'venceu' : 'vence' }} {{ diaCurto(resumo.ultimaFechada!.vencimento) }}
+              · <template v-if="pagamentoDaUltima">paga {{ diaCurto(pagamentoDaUltima.data) }}</template>
+              <template v-else>{{ resumo.ultimaFechada!.vencimento < hoje ? 'venceu' : 'vence' }} {{ diaCurto(resumo.ultimaFechada!.vencimento) }}</template>
             </span>
           </button>
           <span v-else class="text-muted-foreground">O banco ainda não mandou faturas fechadas.</span>
@@ -175,6 +196,10 @@ function nomeDoEncargo(tipo: string): string {
                 <span v-if="f.minimo" class="text-muted-foreground"> · mín. {{ formatarDinheiro(f.minimo) }}</span>
               </span>
             </div>
+            <p v-if="pagamentoDa(f)" class="mt-0.5 text-muted-foreground">
+              Paga em {{ diaCurto(pagamentoDa(f)!.data) }} · {{ formatarDinheiro(pagamentoDa(f)!.valor) }}
+              <template v-if="pagamentoDa(f)!.pagoPor">pela conta <span class="text-foreground">{{ pagamentoDa(f)!.pagoPor }}</span></template>
+            </p>
             <p v-if="f.total_encargos > 0" class="mt-0.5 text-red-600 dark:text-red-400">
               {{ formatarDinheiro(f.total_encargos) }} em encargos:
               {{ f.encargos.map(e => `${nomeDoEncargo(e.tipo)} ${formatarDinheiro(e.valor)}`).join(', ') }}

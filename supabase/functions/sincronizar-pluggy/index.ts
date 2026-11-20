@@ -39,6 +39,7 @@
  * NADA AQUI FOI EXECUTADO CONTRA A PLUGGY DE VERDADE: o código segue a
  * documentação v2 e as regras testadas no vitest. Validar com o trial (fase 2).
  */
+import { instituicaoDasContas } from '../_shared/instituicoes.ts'
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0'
 import { chamadaDeServico, chaveParaOBanco, tokenBearer } from '../_shared/chaves-supabase.ts'
 import {
@@ -560,10 +561,24 @@ async function sincronizarConexao(supabase: SupabaseClient, apiKey: string, cone
 
     await gravarInvestimentosEEmprestimos(supabase, apiKey, conexao, amostra)
 
+    /*
+      O pagamento de fatura entre contas: a saída da conta que pagou o cartão
+      ("C6 BANK" pagando o C6, um Pix do Nubank pagando o Itaú) vira par da
+      entrada no cartão e sai da caixa. Pega todas as contas da pessoa, não só
+      as desta conexão — o cartão pode ser de outro banco. Falhar aqui deixa a
+      saída na caixa, sem perder nada.
+    */
+    const { error: erroPar } = await supabase.rpc('parear_pagamentos_de_fatura', { p_user: conexao.user_id })
+    if (erroPar) console.error('pagamentos de fatura não pareados:', erroPar.message)
+
+    // Pelo MeuPluggy o conector é sempre "MeuPluggy": o banco sai do nome da conta corrente.
+    const instituicao = instituicaoDasContas(contasPluggy)
+
     await supabase
       .from('conexao_bancaria')
       .update({
         ...camposDaConexao(item),
+        ...(instituicao ? { instituicao } : {}),
         ...(inicialIncompleta ? {} : { sincronizado_em: new Date().toISOString(), versao_coleta: VERSAO_COLETA }),
         erro_sincronizacao: null,
         atualizado_em: new Date().toISOString(),

@@ -11,7 +11,7 @@
  * 12/11/2026); "perguntar" manda cada uma para a caixa de entrada.
  */
 import { toast } from 'vue-sonner'
-import { BanknoteIcon, CreditCardIcon, LandmarkIcon, PlugZapIcon, RefreshCwIcon, UnplugIcon } from '@lucide/vue'
+import { BanknoteIcon, LandmarkIcon, PlugZapIcon, RefreshCwIcon, UnplugIcon } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -45,6 +45,7 @@ import {
   abrirWidgetPluggy,
   useConexoesBancarias,
   useDesconectarBanco,
+  useApelidar,
   useDesignarCartao,
   useDesignarConta,
   usePluggyConfigurada,
@@ -53,6 +54,9 @@ import {
 import type { ConexaoBancaria, ContaBancaria } from '~/composables/useContasBancarias'
 import { useSpaceStore } from '~/stores/space'
 import { mostraSetupDoAdministrador } from '~/lib/guia-pluggy'
+import { nomeDoBanco } from '~/lib/instituicoes'
+import { seloDoBanco } from '~/lib/cartoes'
+import { ICONE_DO_DESTINO, origemDaConta } from '~/lib/caixa-lista'
 
 useHead({ title: 'Contas conectadas · APPingos' })
 
@@ -152,6 +156,42 @@ async function onDesconectar() {
   }
 }
 
+// ---- identidade e apelidos -----------------------------------------------------
+
+/** "C6", "Nubank": o banco de verdade; pelo MeuPluggy o conector não diz. */
+function bancoDaConexao(conexao: ConexaoBancaria): string {
+  const corrente = conexao.contas.find(c => c.tipo === 'conta') ?? conexao.contas[0]
+  return nomeDoBanco(conexao, corrente?.nome ?? '')
+}
+
+/** O conector é um agregador (MeuPluggy) e não o banco — vale dizer por onde veio. */
+const viaAgregador = (conexao: ConexaoBancaria) =>
+  !!conexao.banco && conexao.banco !== bancoDaConexao(conexao)
+
+const iconeDaConta = (conexao: ConexaoBancaria, conta: ContaBancaria) =>
+  origemDaConta({ ...conta, conexao }).icone
+
+const iconeDoCartao = (conexao: ConexaoBancaria, conta: ContaBancaria, final: string) =>
+  origemDaConta({ ...conta, conexao }, final).icone
+
+const ROTULO_DO_ICONE: Record<string, string> = {
+  [ICONE_DO_DESTINO.pessoal]: 'Pessoal',
+  [ICONE_DO_DESTINO.casal]: 'Compartilhado com um espaço',
+  [ICONE_DO_DESTINO.perguntar]: 'Perguntar a cada compra',
+}
+
+const apelidar = useApelidar()
+
+async function onApelidar(tabela: 'conta_bancaria' | 'cartao_bancario', id: string, apelido: string) {
+  try {
+    await apelidar.mutateAsync({ tabela, id, apelido })
+    toast.success(apelido.trim() ? `Agora é "${apelido.trim()}".` : 'Apelido removido.')
+  }
+  catch (e) {
+    toast.error(mensagemDeErro(e, 'Não deu para salvar o apelido.'))
+  }
+}
+
 const CLASSE_TOM = {
   ok: 'text-muted-foreground',
   aviso: 'text-amber-700 dark:text-amber-400',
@@ -216,17 +256,13 @@ const CLASSE_TOM = {
       <CardHeader class="pb-3">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="flex items-center gap-3">
-            <img
-              v-if="conexao.banco_logo_url"
-              :src="conexao.banco_logo_url"
-              alt=""
-              class="size-9 rounded-md border bg-white object-contain p-1"
-            >
-            <LandmarkIcon v-else class="size-9 rounded-md border p-2 text-muted-foreground" />
+            <SeloDoBanco v-if="bancoDaConexao(conexao)" :banco="bancoDaConexao(conexao)" />
+            <LandmarkIcon v-else class="size-11 rounded-xl border p-2.5 text-muted-foreground" />
             <div>
-              <CardTitle class="text-base">{{ conexao.banco || 'Banco' }}</CardTitle>
+              <CardTitle class="text-base">{{ bancoDaConexao(conexao) || 'Banco' }}</CardTitle>
               <p class="text-xs" :class="CLASSE_TOM[situacaoDaConexao(conexao, hoje).tom]">
                 {{ situacaoDaConexao(conexao, hoje).texto }}
+                <span v-if="viaAgregador(conexao)" class="text-muted-foreground"> · via {{ conexao.banco }}</span>
               </p>
             </div>
           </div>
@@ -270,26 +306,54 @@ const CLASSE_TOM = {
           <li
             v-for="conta in conexao.contas"
             :key="conta.id"
-            class="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+            class="space-y-3 py-4 first:pt-0 last:pb-0"
           >
-            <div class="flex min-w-0 items-center gap-2">
-              <CreditCardIcon v-if="conta.tipo === 'cartao'" class="size-4 shrink-0 text-muted-foreground" />
-              <BanknoteIcon v-else class="size-4 shrink-0 text-muted-foreground" />
-              <span class="truncate text-sm font-medium">{{ conta.nome }}</span>
-              <span v-if="conta.numero" class="text-xs text-muted-foreground">
-                {{ conta.tipo === 'cartao' ? `•••• ${conta.numero}` : conta.numero }}
-              </span>
+            <div class="flex flex-wrap items-start gap-4">
+              <CartaoVisual
+                v-if="conta.tipo === 'cartao'"
+                :banco="bancoDaConexao(conexao)"
+                :titulo="conta.apelido || conta.nome"
+                :final="conta.numero"
+                :bandeira="conta.bandeira"
+                :destino="iconeDaConta(conexao, conta)"
+              />
               <span
-                v-if="conta.tipo === 'conta' && conta.saldo !== null"
-                class="text-xs font-medium tabular-nums"
-                :class="conta.saldo < 0 ? 'text-destructive' : 'text-foreground'"
-                :title="conta.saldo_atualizado_em ? `Saldo lido em ${formatarDia(dataLocal(conta.saldo_atualizado_em))}` : undefined"
+                v-else
+                class="grid size-12 shrink-0 place-items-center rounded-xl shadow-sm"
+                :style="{ background: seloDoBanco(bancoDaConexao(conexao)).cartao.fundo, color: seloDoBanco(bancoDaConexao(conexao)).cartao.texto }"
+                aria-hidden="true"
               >
-                · saldo {{ formatarDinheiro(conta.saldo) }}
+                <BanknoteIcon class="size-5" />
               </span>
-            </div>
 
-            <div class="flex w-full flex-col items-start gap-1.5 text-xs text-muted-foreground sm:w-auto sm:items-end">
+              <div class="min-w-0 flex-1 space-y-2">
+                <div>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-base" :title="ROTULO_DO_ICONE[iconeDaConta(conexao, conta)]">{{ iconeDaConta(conexao, conta) }}</span>
+                    <ApelidoCampo
+                      :apelido="conta.apelido"
+                      :reserva="conta.tipo === 'cartao' ? conta.nome : 'Conta corrente'"
+                      :salvando="apelidar.isPending.value"
+                      :rotulo="`Apelido de ${conta.tipo === 'cartao' ? 'cartão' : 'conta'} ${conta.nome}`"
+                      @salvar="(a) => onApelidar('conta_bancaria', conta.id, a)"
+                    />
+                  </div>
+                  <p class="mt-0.5 text-xs text-muted-foreground">
+                    {{ conta.tipo === 'cartao' ? 'Cartão de crédito' : 'Conta corrente' }}
+                    <template v-if="conta.apelido"> · {{ conta.nome }}</template>
+                    <template v-if="conta.numero"> · {{ conta.tipo === 'cartao' ? `•••• ${conta.numero}` : conta.numero }}</template>
+                    <span
+                      v-if="conta.tipo === 'conta' && conta.saldo !== null"
+                      class="font-medium tabular-nums"
+                      :class="conta.saldo < 0 ? 'text-destructive' : 'text-foreground'"
+                      :title="conta.saldo_atualizado_em ? `Saldo lido em ${formatarDia(dataLocal(conta.saldo_atualizado_em))}` : undefined"
+                    >
+                      · saldo {{ formatarDinheiro(conta.saldo) }}
+                    </span>
+                  </p>
+                </div>
+
+            <div class="flex flex-col items-start gap-1.5 text-xs text-muted-foreground">
               <label class="flex flex-wrap items-center gap-2">
                 <input
                   type="checkbox"
@@ -327,30 +391,45 @@ const CLASSE_TOM = {
                 </select>
               </label>
             </div>
+              </div>
+            </div>
 
-            <!-- Os cartões desta fatura: físico, virtual, adicional — cada um pode ir para um lugar. -->
-            <div v-if="conta.tipo === 'cartao' && mostraCartoesDaConta(conta, conta.cartoes)" class="w-full rounded-md bg-muted/50 px-3 py-2">
-              <p class="mb-1.5 text-xs text-muted-foreground">
-                Cartões desta fatura — escolha para onde vão as compras de cada um:
+            <!-- Os cartões desta fatura: físico, virtual, adicional — cada um pode ir para um lugar e ter um nome. -->
+            <div v-if="conta.tipo === 'cartao' && mostraCartoesDaConta(conta, conta.cartoes)" class="rounded-lg bg-muted/50 p-3">
+              <p class="mb-2.5 text-xs text-muted-foreground">
+                Cartões desta fatura — dê um nome e escolha para onde vão as compras de cada um:
               </p>
-              <ul class="space-y-1.5">
-                <li v-for="cartao in conta.cartoes" :key="cartao.id" class="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <span class="font-medium tracking-wider">
-                    •••• {{ cartao.final }}
-                    <span v-if="cartao.final === conta.numero" class="font-normal tracking-normal text-muted-foreground">(o da conta)</span>
-                  </span>
-                  <select
-                    class="h-8 max-w-full rounded-md border bg-background px-2 text-sm text-foreground"
-                    :value="valorDoCartao(cartao)"
-                    :disabled="designarCartao.isPending.value"
-                    :aria-label="`Para onde vão as compras do cartão final ${cartao.final}`"
-                    @change="onDesignarCartao(cartao, ($event.target as HTMLSelectElement).value)"
-                  >
-                    <option value="herdar">{{ rotuloDeHerdar(conta, espacosDeCasal) }}</option>
-                    <option v-for="espaco in espacosDeCasal" :key="espaco.id" :value="`casal:${espaco.id}`">Compartilhado com {{ espaco.nome }}</option>
-                    <option value="pessoal">{{ ROTULO_DESTINO.pessoal }}</option>
-                    <option value="perguntar">{{ ROTULO_DESTINO.perguntar }}</option>
-                  </select>
+              <ul class="grid gap-3 xl:grid-cols-2">
+                <li v-for="cartao in conta.cartoes" :key="cartao.id" class="flex items-start gap-3">
+                  <CartaoVisual
+                    tamanho="sm"
+                    :banco="bancoDaConexao(conexao)"
+                    :titulo="cartao.apelido || (cartao.final === conta.numero ? (conta.apelido || conta.nome) : 'Cartão')"
+                    :final="cartao.final"
+                    :bandeira="conta.bandeira"
+                    :destino="iconeDoCartao(conexao, conta, cartao.final)"
+                  />
+                  <div class="min-w-0 flex-1 space-y-1.5">
+                    <ApelidoCampo
+                      :apelido="cartao.apelido"
+                      :reserva="cartao.final === conta.numero ? 'O da conta' : `Final ${cartao.final}`"
+                      :salvando="apelidar.isPending.value"
+                      :rotulo="`Apelido do cartão final ${cartao.final}`"
+                      @salvar="(a) => onApelidar('cartao_bancario', cartao.id, a)"
+                    />
+                    <select
+                      class="h-8 w-full max-w-full rounded-md border bg-background px-2 text-xs text-foreground"
+                      :value="valorDoCartao(cartao)"
+                      :disabled="designarCartao.isPending.value"
+                      :aria-label="`Para onde vão as compras do cartão final ${cartao.final}`"
+                      @change="onDesignarCartao(cartao, ($event.target as HTMLSelectElement).value)"
+                    >
+                      <option value="herdar">{{ rotuloDeHerdar(conta, espacosDeCasal) }}</option>
+                      <option v-for="espaco in espacosDeCasal" :key="espaco.id" :value="`casal:${espaco.id}`">Compartilhado com {{ espaco.nome }}</option>
+                      <option value="pessoal">{{ ROTULO_DESTINO.pessoal }}</option>
+                      <option value="perguntar">{{ ROTULO_DESTINO.perguntar }}</option>
+                    </select>
+                  </div>
                 </li>
               </ul>
             </div>
@@ -360,7 +439,9 @@ const CLASSE_TOM = {
         <p
           class="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground"
         >
-          Tudo começa privado: o extrato é só seu. Um cartão compartilhado manda as compras novas
+          Tudo começa privado: o extrato é só seu. {{ ICONE_DO_DESTINO.pessoal }} pessoal,
+          {{ ICONE_DO_DESTINO.casal }} compartilhado com um espaço, {{ ICONE_DO_DESTINO.perguntar }} perguntar a cada
+          compra. Um cartão compartilhado manda as compras novas
           direto para o espaço escolhido, metade para cada um, editáveis depois como uma compra
           lançada à mão. Desmarcar volta a ser privado e não mexe no que já entrou.
           <template v-if="!espacosDeCasal.length">Para compartilhar, você precisa estar num espaço de casal.</template>
@@ -385,7 +466,7 @@ const CLASSE_TOM = {
     <Dialog :open="!!desconectando" @update:open="(v) => { if (!v) desconectando = null }">
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Desconectar {{ desconectando?.banco || 'este banco' }}?</DialogTitle>
+          <DialogTitle>Desconectar {{ (desconectando && bancoDaConexao(desconectando)) || 'este banco' }}?</DialogTitle>
           <DialogDescription>
             O extrato importado sai do APPingos. As compras que já nasceram dele continuam no
             espaço onde estão. O consentimento em si se revoga no MeuPluggy ou no app do banco.

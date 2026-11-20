@@ -5,6 +5,7 @@
  * Fica fora do componente para ser testável sem Vue, como o resto de
  * `~/lib/caixa-de-entrada`.
  */
+import { nomeDoBanco } from '~/lib/instituicoes'
 import { formatarDia, primeiroDoMes, somarDias } from '@/lib/datas'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import type { Sugestao } from '~/lib/auto-tag'
@@ -150,12 +151,81 @@ export function pendentesDoCasal<T extends ItemDaCaixa>(
   })
 }
 
-/** "Itaú •••• 1234"; sem número, o nome da conta. */
-export function rotuloDaConta(conta: { nome: string, numero?: string | null, conexao?: { banco: string } | null } | null | undefined): string {
+export type DestinoDaOrigem = 'casal' | 'pessoal' | 'perguntar'
+
+/**
+ * O ícone do destino, na frente do banco: 👤 pessoal, 👥 compartilhado com um
+ * espaço, 🔀 "perguntar a cada compra" — o caminho ainda não escolhido.
+ */
+export const ICONE_DO_DESTINO: Record<DestinoDaOrigem, string> = {
+  pessoal: '👤',
+  casal: '👥',
+  perguntar: '🔀',
+}
+
+export interface ContaParaRotulo {
+  nome: string
+  tipo?: 'conta' | 'cartao'
+  numero?: string | null
+  apelido?: string | null
+  destino?: DestinoDaOrigem
+  space_id?: string | null
+  conexao?: { banco: string, instituicao?: string | null } | null
+  cartoes?: ReadonlyArray<{ final: string, apelido: string | null, destino: string, space_id: string | null }> | null
+}
+
+export interface OrigemDaTransacao {
+  icone: string
+  destino: DestinoDaOrigem
+  /** "C6", "Nubank"; sem instituição reconhecida, o nome da conta. */
+  banco: string
+  /** `•••• 7450` ou `"Uber"`; vazio quando não há número nem apelido. */
+  identificador: string
+}
+
+/** Os 4 últimos dígitos: "29190816-0" vira "8160", "7450" fica "7450". */
+const ultimosQuatro = (numero: string) => numero.replace(/\D/g, '').slice(-4) || numero.slice(-4)
+
+/**
+ * De onde veio o valor: o destino (do cartão daquele final, ou da conta), o
+ * banco de verdade e o apelido ou o final.
+ *
+ * O cartão por final ganha da conta: o virtual do casal e o físico pessoal
+ * faturam na mesma conta, e cada um vai para um lugar. `herdar` segue a conta.
+ * O apelido do final ganha do da conta; o da conta vale para o cartão principal
+ * (o final que é o número da conta) e para a conta corrente.
+ */
+export function origemDaConta(conta: ContaParaRotulo, final?: string | null): OrigemDaTransacao {
+  const cartao = final ? conta.cartoes?.find(c => c.final === final) : undefined
+  const destinoDoCartao = cartao && cartao.destino !== 'herdar' ? cartao.destino as DestinoDaOrigem : null
+  const destinoBase = destinoDoCartao ?? conta.destino ?? 'perguntar'
+  // "casal" sem espaço não existe no banco (o gatilho volta para perguntar); aqui só por garantia.
+  const destino: DestinoDaOrigem = destinoBase === 'casal' && !(destinoDoCartao ? cartao!.space_id : conta.space_id)
+    ? 'perguntar'
+    : destinoBase
+
+  const numero = final || conta.numero || null
+  const principal = !final || final === conta.numero
+  const apelido = cartao?.apelido?.trim() || (principal ? conta.apelido?.trim() : '') || ''
+
+  return {
+    icone: ICONE_DO_DESTINO[destino],
+    destino,
+    banco: nomeDoBanco(conta.conexao, conta.nome),
+    identificador: apelido ? `"${apelido}"` : numero ? `•••• ${ultimosQuatro(numero)}` : '',
+  }
+}
+
+/** `👤 C6 •••• 7450`, `👥 Nubank "Mercado"`; sem conta, vazio. */
+export function rotuloDaConta(conta: ContaParaRotulo | null | undefined, final?: string | null): string {
   if (!conta) return ''
-  const banco = conta.conexao?.banco?.trim()
-  if (conta.numero) return `${banco || conta.nome} •••• ${conta.numero.slice(-4)}`
-  return conta.nome
+  const o = origemDaConta(conta, final)
+  return [o.icone, o.banco, o.identificador].filter(Boolean).join(' ')
+}
+
+/** O nome do banco para o selo (ícone e cor), ou o nome da conta quando não há instituição. */
+export function bancoDaConta(conta: ContaParaRotulo | null | undefined): string {
+  return conta ? nomeDoBanco(conta.conexao, conta.nome) : ''
 }
 
 /**

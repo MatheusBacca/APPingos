@@ -63,6 +63,7 @@ import {
   mesesDaCaixa,
   recortarPorData,
   resumoDaCaixa,
+  bancoDaConta,
   rotuloDaConta,
   textoParaSelo,
   valorDoItem,
@@ -71,6 +72,7 @@ import type { FiltroDaCaixa, Origem } from '~/lib/caixa-lista'
 import { ROTULO_DESTINO_DA_REGRA, rotuloParaRegra, sugerirClassificacao } from '~/lib/auto-tag'
 import type { Sugestao } from '~/lib/auto-tag'
 import { seloDoBanco } from '~/lib/cartoes'
+import { nomeDoBanco } from '~/lib/instituicoes'
 import { useCategorias } from '~/composables/useOrcamento'
 import { rateioIgual } from '~/types/orcamento'
 import {
@@ -148,8 +150,8 @@ const sugestoes = computed(() => {
 const contaDe = (contaId: string): LinhaDaCaixa['conta'] =>
   transacoes.value?.find(t => t.conta_id === contaId)?.conta ?? null
 const nomeDaConta = (contaId: string) => contaDe(contaId)?.nome ?? ''
-const rotuloDe = (item: ItemDaCaixa) => rotuloDaConta(contaDe(item.principal.conta_id))
-const bancoDe = (item: ItemDaCaixa) => contaDe(item.principal.conta_id)?.conexao?.banco ?? ''
+const rotuloDe = (item: ItemDaCaixa) => rotuloDaConta(contaDe(item.principal.conta_id), item.principal.cartao_final)
+const bancoDe = (item: ItemDaCaixa) => bancoDaConta(contaDe(item.principal.conta_id))
 
 /** As contas que têm algo na caixa — viram os chips de filtro, na cor do banco. */
 const contasNaCaixa = computed(() => {
@@ -159,7 +161,7 @@ const contasNaCaixa = computed(() => {
     if (vistas.has(id)) continue
     const conta = contaDe(id)
     if (!conta) continue
-    vistas.set(id, { id, rotulo: rotuloDaConta(conta), cor: seloDoBanco(conta.conexao?.banco ?? conta.nome).cor, tipo: conta.tipo })
+    vistas.set(id, { id, rotulo: rotuloDaConta(conta), cor: seloDoBanco(bancoDaConta(conta)).cor, tipo: conta.tipo })
   }
   return [...vistas.values()]
 })
@@ -422,7 +424,7 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
       <CardContent class="flex flex-wrap items-center justify-between gap-3 text-sm">
         <p class="text-muted-foreground">
           <template v-if="semSincronizacaoInicial.length === 1">
-            O extrato de {{ semSincronizacaoInicial[0]!.banco }} ainda não chegou.
+            O extrato de {{ nomeDoBanco(semSincronizacaoInicial[0], semSincronizacaoInicial[0]!.banco) }} ainda não chegou.
           </template>
           <template v-else>
             O extrato de {{ semSincronizacaoInicial.length }} bancos ainda não chegou.
@@ -650,6 +652,8 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <PagamentosDeFatura v-if="!isPending" :mes="mes" />
 
     <details v-if="!isPending && pendentesDoMes.length && mostrarPendentes" class="group rounded-lg border bg-card">
       <summary class="flex cursor-pointer list-none items-center justify-between gap-2 p-3 text-sm">

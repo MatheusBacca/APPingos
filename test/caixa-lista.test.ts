@@ -102,10 +102,52 @@ describe('filtrarCaixa', () => {
   })
 })
 
-it('rotuloDaConta', () => {
-  expect(rotuloDaConta({ nome: 'Itaú Itaucard', numero: '1234', conexao: { banco: 'Itaú' } })).toBe('Itaú •••• 1234')
-  expect(rotuloDaConta({ nome: 'Conta corrente', numero: null })).toBe('Conta corrente')
-  expect(rotuloDaConta(null)).toBe('')
+describe('rotuloDaConta — de onde veio o valor', () => {
+  const nubank = {
+    nome: 'platinum',
+    tipo: 'cartao' as const,
+    numero: '0025',
+    destino: 'pessoal' as const,
+    space_id: null,
+    conexao: { banco: 'MeuPluggy', instituicao: 'nubank' },
+    cartoes: [
+      { final: '0025', apelido: null, destino: 'herdar', space_id: null },
+      { final: '0750', apelido: 'Mercado', destino: 'casal', space_id: 'casal-1' },
+      { final: '4079', apelido: null, destino: 'perguntar', space_id: null },
+    ],
+  }
+
+  it('troca "MeuPluggy" pelo banco de verdade, com o ícone do destino', () => {
+    expect(rotuloDaConta(nubank)).toBe('👤 Nubank •••• 0025')
+    expect(rotuloDaConta(nubank, '0025')).toBe('👤 Nubank •••• 0025')
+  })
+
+  it('o cartão por final ganha da conta: destino e apelido', () => {
+    expect(rotuloDaConta(nubank, '0750')).toBe('👥 Nubank "Mercado"')
+    expect(rotuloDaConta(nubank, '4079')).toBe('🔀 Nubank •••• 4079')
+  })
+
+  it('o apelido da conta vale para o cartão principal, não para os outros finais', () => {
+    const comApelido = { ...nubank, apelido: 'Roxinho' }
+    expect(rotuloDaConta(comApelido, '0025')).toBe('👤 Nubank "Roxinho"')
+    expect(rotuloDaConta(comApelido, '4079')).toBe('🔀 Nubank •••• 4079')
+  })
+
+  it('conta corrente: os 4 últimos dígitos, sem o hífen', () => {
+    const c6 = { nome: 'C6 BANK', tipo: 'conta' as const, numero: '29190816-0', destino: 'perguntar' as const, conexao: { banco: 'MeuPluggy', instituicao: 'c6' } }
+    expect(rotuloDaConta(c6)).toBe('🔀 C6 •••• 8160')
+  })
+
+  it('compartilhado sem espaço não existe: vira perguntar', () => {
+    expect(rotuloDaConta({ ...nubank, destino: 'casal' as const, space_id: null })).toBe('🔀 Nubank •••• 0025')
+  })
+
+  it('sem instituição reconhecida, o conector (se não for agregador) ou o nome da conta', () => {
+    expect(rotuloDaConta({ nome: 'Itaú Itaucard', numero: '1234', conexao: { banco: 'Itaú' } })).toBe('🔀 Itaú •••• 1234')
+    expect(rotuloDaConta({ nome: 'Banco Xis', numero: '1234', conexao: { banco: 'MeuPluggy' } })).toBe('🔀 Banco Xis •••• 1234')
+    expect(rotuloDaConta({ nome: 'Conta corrente', numero: null })).toBe('🔀 Conta corrente')
+    expect(rotuloDaConta(null)).toBe('')
+  })
 })
 
 describe('a página do mês', () => {

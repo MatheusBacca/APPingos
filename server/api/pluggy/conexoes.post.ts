@@ -14,6 +14,7 @@ import { serverSupabaseClient } from '#supabase/server'
 import type { Database } from '~~/app/types/database.types'
 import { buscarItem, listarContas } from '~~/supabase/functions/_shared/pluggy-api'
 import { camposDaConexao, camposDaConta, creditoParaAtualizar } from '~~/supabase/functions/_shared/importacao-bancaria'
+import { instituicaoDasContas } from '~~/supabase/functions/_shared/instituicoes'
 import {
   apiKeyPluggy,
   erroPluggy,
@@ -52,7 +53,13 @@ export default defineEventHandler(async (event) => {
   const { data: conexao, error } = await supabase
     .from('conexao_bancaria')
     .upsert(
-      { ...camposDaConexao(item), user_id: userId, atualizado_em: new Date().toISOString() },
+      {
+        ...camposDaConexao(item),
+        // Pelo MeuPluggy o conector é sempre "MeuPluggy": o banco sai do nome da conta corrente.
+        ...(instituicaoDasContas(contas) ? { instituicao: instituicaoDasContas(contas) } : {}),
+        user_id: userId,
+        atualizado_em: new Date().toISOString(),
+      },
       { onConflict: 'item_id' },
     )
     .select('id')
