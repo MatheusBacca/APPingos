@@ -269,6 +269,8 @@ const situacao = computed(() => {
       :salario-aberto-aqui="salarioAbertoAqui"
     />
 
+    <InvestimentosDoPlanejamento />
+
     <p class="text-xs text-muted-foreground">
       Aqui o aporte numa meta conta como dinheiro que saiu do mês — mas não é compra: não entra no
       gasto do espaço, no gráfico de categorias nem no acerto de Chico Moedas.

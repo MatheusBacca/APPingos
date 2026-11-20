@@ -55,10 +55,15 @@ import {
 import { useMinhaRenda, useRendaRecebida } from '~/composables/useRenda'
 import { useUsuarioId } from '~/composables/useUsuarioId'
 import { useSpaceStore } from '~/stores/space'
+import { useCaixinhas, useSalvarCaixinha } from '~/composables/useCaixinhas'
+import { saldoDaCaixinha } from '~/lib/investimentos'
+import { nomeDoBanco } from '~/lib/instituicoes'
 
 const props = defineProps<{
   item: ItemDaCaixa | null
   modo: ModoClassificacao | null
+  /** O banco da conta da transação — a caixinha criada aqui nasce com ele. */
+  instituicao?: string | null
 }>()
 
 const emit = defineEmits<{ fechar: [] }>()
@@ -79,6 +84,9 @@ const divisao = ref<DivisaoRapida>('igual')
 const compraEscolhida = ref<string | null>(null)
 const competenciaSalario = ref('')
 const metaEscolhida = ref<string | null>(null)
+const caixinhaEscolhida = ref<string | null>(null)
+/** A caixinha nova, criada ali mesmo: nome e de quem é (o pessoal ou um espaço de casal). */
+const novaCaixinha = ref<{ nome: string, space_id: string } | null>(null)
 /** A pessoa mexeu na categoria: a sugestão para de sobrescrever o campo. */
 const categoriaTocada = ref(false)
 
@@ -96,6 +104,8 @@ watch(() => [props.item, props.modo] as const, ([item]) => {
   divisao.value = 'igual'
   compraEscolhida.value = null
   metaEscolhida.value = null
+  caixinhaEscolhida.value = null
+  novaCaixinha.value = null
   competenciaSalario.value = competenciaDoSalario(item.principal.data, renda.value ?? null)
 }, { immediate: true })
 
@@ -110,6 +120,15 @@ const { data: candidatasBrutas, isPending: buscandoCandidatas } = useComprasCand
   () => (props.modo === 'ja-lancei' && props.item ? props.item.plano : null),
 )
 const { data: metas } = useMetasAtivas()
+
+/*
+ * As caixinhas que a pessoa pode usar: as pessoais e as dos espaços de casal, sem
+ * as arquivadas. A aplicação vai para uma; o resgate sai de uma (para pagar uma
+ * conta, por exemplo) — a pessoa é quem diz.
+ */
+const { data: todasAsCaixinhas } = useCaixinhas()
+const caixinhas = computed(() => (todasAsCaixinhas.value ?? []).filter(c => !c.arquivada))
+const salvarCaixinha = useSalvarCaixinha()
 const { data: regras } = useRegrasClassificacao()
 
 /*
@@ -176,6 +195,7 @@ const titulo = computed(() => ({
   'ja-lancei': 'Já lancei esta compra',
   'salario': 'Salário recebido',
   'meta': props.item?.sentido === 'entrada' ? 'Resgate de meta' : 'Aporte em meta',
+  'investimento': props.item?.sentido === 'entrada' ? 'Resgate de investimento' : 'Aplicação em investimento',
 } as const)[props.modo ?? 'casal'])
 
 // ---- salvar --------------------------------------------------------------------
@@ -188,6 +208,7 @@ const podeSalvar = computed(() => {
     case 'ja-lancei': return !!compraEscolhida.value
     case 'salario': return !!competenciaSalario.value
     case 'meta': return !!metaEscolhida.value
+    case 'investimento': return novaCaixinha.value ? !!novaCaixinha.value.nome.trim() : !!caixinhaEscolhida.value
     default: return false
   }
 })
@@ -236,6 +257,23 @@ async function salvar() {
         await classificar.mutateAsync({ tipo: 'aporte', transacao: item.principal.id, meta: metaEscolhida.value! })
         toast.success(item.sentido === 'entrada' ? 'Resgate registrado na meta.' : 'Aporte registrado na meta.')
         break
+      case 'investimento': {
+        // A caixinha nova nasce com o banco da conta de onde a transação veio.
+        if (novaCaixinha.value) {
+          caixinhaEscolhida.value = await salvarCaixinha.mutateAsync({
+            space_id: novaCaixinha.value.space_id,
+            nome: novaCaixinha.value.nome,
+            instituicao: props.instituicao ?? null,
+            meta_id: null,
+          })
+          // Já criada: se o passo seguinte falhar, tentar de novo usa esta, e não cria outra.
+          novaCaixinha.value = null
+        }
+        const caixinha = caixinhaEscolhida.value!
+        await classificar.mutateAsync({ tipo: 'investimento', transacao: item.principal.id, caixinha })
+        toast.success(item.sentido === 'entrada' ? 'Resgate registrado na caixinha.' : 'Aplicação registrada na caixinha.')
+        break
+      }
     }
     emit('fechar')
   }
@@ -399,6 +437,54 @@ async function salvar() {
         <p class="text-xs text-muted-foreground">
           A meta é uma reserva no app: isto registra que
           {{ formatarDinheiro(Number(item.principal.valor)) }} {{ item.sentido === 'entrada' ? 'saiu da' : 'foi para a' }} meta.
+        </p>
+      </div>
+
+      <!-- Investimento: qual caixinha -->
+      <div v-else-if="modo === 'investimento'" class="space-y-2">
+        <template v-if="!novaCaixinha">
+          <p v-if="!caixinhas.length" class="text-sm text-muted-foreground">Você ainda não tem caixinhas — crie a primeira abaixo.</p>
+          <label
+            v-for="c in caixinhas"
+            :key="c.id"
+            class="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-sm"
+          >
+            <input v-model="caixinhaEscolhida" type="radio" :value="c.id" class="accent-primary" :aria-label="c.nome">
+            <SeloDoBanco v-if="c.instituicao" :banco="nomeDoBanco({ instituicao: c.instituicao })" tamanho="xs" />
+            <span class="min-w-0 flex-1">
+              <span class="block truncate">{{ c.nome }}</span>
+              <span class="block truncate text-xs text-muted-foreground">
+                {{ nomeDoEspaco(c.space_id) }}<template v-if="c.meta"> · meta {{ c.meta.titulo }}</template>
+              </span>
+            </span>
+            <span class="text-xs tabular-nums text-muted-foreground">{{ formatarDinheiro(saldoDaCaixinha(c)) }}</span>
+          </label>
+          <button
+            type="button"
+            class="w-full rounded-md border border-dashed px-3 py-2 text-left text-sm font-medium text-primary hover:bg-primary/10"
+            @click="novaCaixinha = { nome: '', space_id: espacoPessoal ?? store.espacos[0]!.id }"
+          >
+            + Nova caixinha
+          </button>
+        </template>
+        <div v-else class="space-y-3 rounded-md border p-3">
+          <div class="space-y-1.5">
+            <Label for="caixinha-nome">Nome da caixinha</Label>
+            <Input id="caixinha-nome" v-model="novaCaixinha.nome" maxlength="60" placeholder="Reserva de emergência" />
+          </div>
+          <div class="space-y-1.5">
+            <Label for="caixinha-espaco">De quem é</Label>
+            <select id="caixinha-espaco" v-model="novaCaixinha.space_id" class="h-9 w-full rounded-md border bg-background px-2 text-sm">
+              <option v-for="e in store.espacos" :key="e.id" :value="e.id">{{ e.tipo === 'pessoal' ? 'Pessoal (só sua)' : `Compartilhada com ${e.nome}` }}</option>
+            </select>
+          </div>
+          <button type="button" class="text-xs text-muted-foreground underline" @click="novaCaixinha = null">Escolher uma que já existe</button>
+        </div>
+        <p class="text-xs text-muted-foreground">
+          {{ formatarDinheiro(Number(item.principal.valor)) }}
+          {{ item.sentido === 'entrada' ? 'saiu da caixinha' : 'foi para a caixinha' }}. Se ela alimenta uma meta,
+          {{ item.sentido === 'entrada' ? 'sai da meta também' : 'entra como aporte na meta também' }}.
+          A meta e o banco da caixinha se ajustam em Planejamento.
         </p>
       </div>
 

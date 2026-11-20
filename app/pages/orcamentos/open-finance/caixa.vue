@@ -403,6 +403,7 @@ const ROTULO_DESTINO: Record<string, string> = {
   ignorada: 'Ignorada',
   renda: 'Salário',
   aporte: 'Meta',
+  investimento: 'Investimento',
 }
 
 const ROTULO_MOTIVO: Record<string, string> = {
@@ -723,7 +724,7 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
             Mover para {{ destinoDaMudanca(linha)!.nome }}
           </Button>
           <Button
-            v-if="linha.destino === 'ignorada' || linha.destino === 'renda' || linha.destino === 'aporte' || (linha.destino === 'compra' && linha.compra)"
+            v-if="linha.destino === 'ignorada' || linha.destino === 'renda' || linha.destino === 'aporte' || linha.destino === 'investimento' || (linha.destino === 'compra' && linha.compra)"
             size="sm"
             variant="ghost"
             class="gap-1"
@@ -740,6 +741,7 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
     <ClassificarDialogo
       :item="emClassificacao?.item ?? null"
       :modo="emClassificacao?.modo ?? null"
+      :instituicao="emClassificacao ? contaDe(emClassificacao.item.principal.conta_id)?.conexao?.instituicao ?? null : null"
       @fechar="fecharClassificacao"
     />
   </div>
