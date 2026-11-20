@@ -74,14 +74,7 @@ create policy caixinha_insert on public.caixinha
   for insert to authenticated with check (public.is_space_member(space_id) and criado_por = auth.uid());
 create policy caixinha_update on public.caixinha
   for update to authenticated using (public.is_space_member(space_id)) with check (public.is_space_member(space_id));
--- Só a vazia se apaga: com movimentos, as transações do extrato ficariam com
--- destino 'investimento' e sem caixinha. A que tem histórico se arquiva.
-create policy caixinha_delete on public.caixinha
-  for delete to authenticated using (
-    public.is_space_member(space_id)
-    and criado_por = auth.uid()
-    and not exists (select 1 from public.caixinha_movimento m where m.caixinha_id = caixinha.id)
-  );
+-- caixinha_delete fica depois de caixinha_movimento, de que ela depende.
 
 grant select, insert, update, delete on public.caixinha to authenticated;
 grant all on public.caixinha to service_role;
@@ -120,6 +113,16 @@ create policy caixinha_movimento_delete on public.caixinha_movimento
   using (user_id = auth.uid());
 
 grant select, insert, delete on public.caixinha_movimento to authenticated;
+
+-- Só a vazia se apaga: com movimentos, as transações do extrato ficariam com
+-- destino 'investimento' e sem caixinha. A que tem histórico se arquiva.
+create policy caixinha_delete on public.caixinha
+  for delete to authenticated using (
+    public.is_space_member(space_id)
+    and criado_por = auth.uid()
+    and not exists (select 1 from public.caixinha_movimento m where m.caixinha_id = caixinha.id)
+  );
+
 grant all on public.caixinha_movimento to service_role;
 
 -- ----------------------------------------------------------------------------
