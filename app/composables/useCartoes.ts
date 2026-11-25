@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { hojeIso, somarDias } from '@/lib/datas'
-import { cicloAtual, distribuicao, fechamentoPelasFaturas, limiteDoCartao, totalDoCiclo, usoDoLimite } from '~/lib/cartoes'
-import type { Ciclo, DadosDoCartao, LancamentoDoCartao, UsoDoLimite } from '~/lib/cartoes'
+import { cicloAtual, distribuicao, faturaPorDestino, fechamentoPelasFaturas, limiteDoCartao, totalDoCiclo, usoDoLimite } from '~/lib/cartoes'
+import type { Ciclo, DadosDoCartao, FinalDoCartao, LancamentoDoCartao, ParteDaFatura, UsoDoLimite } from '~/lib/cartoes'
 import { useUsuarioId } from '~/composables/useUsuarioId'
 import { nomeDoBanco } from '~/lib/instituicoes'
 import { rotuloDaConta } from '~/lib/caixa-lista'
@@ -27,6 +27,9 @@ export interface CartaoDaPessoa extends DadosDoCartao {
   nivel: string | null
   situacao_cartao: string | null
   apelido: string | null
+  /** Para onde vão as compras da conta (`casal` com `space_id`, `pessoal` ou `perguntar`). */
+  destino: string
+  space_id: string | null
 }
 
 export interface FaturaFechada {
@@ -57,6 +60,8 @@ export interface ResumoDoCartao {
   ciclo: Ciclo
   faturaAberta: number
   uso: UsoDoLimite | null
+  /** A fatura aberta repartida por espaço, pelo final de cada compra (`faturaPorDestino`). */
+  porDestino: ParteDaFatura[]
   /** A última fatura fechada, se o banco mandou. */
   ultimaFechada: FaturaFechada | null
   faturas: FaturaFechada[]
@@ -90,20 +95,20 @@ export function useCartoes() {
       */
       const desde = somarDias(hoje, -120)
 
-      const [contas, lancamentos, faturas, pagamentos] = await Promise.all([
+      const [contas, lancamentos, faturas, pagamentos, finais] = await Promise.all([
         supabase
           .from('conta_bancaria')
           .select(`
             id, nome, numero, limite, limite_disponivel, fecha_em, vence_em, pagamento_minimo,
             limite_manual, dia_fechamento_manual, dia_vencimento_manual,
-            saldo, saldo_atualizado_em, bandeira, nivel, situacao_cartao, apelido,
+            saldo, saldo_atualizado_em, bandeira, nivel, situacao_cartao, apelido, destino, space_id,
             conexao:conexao_bancaria(banco, instituicao)
           `)
           .eq('tipo', 'cartao')
           .order('nome'),
         supabase
           .from('transacao_bancaria')
-          .select('conta_id, valor, sentido, data, motivo_exclusao, fatura_id, parcelas_total')
+          .select('conta_id, valor, sentido, data, motivo_exclusao, fatura_id, parcelas_total, cartao_final')
           .gte('data', desde),
         supabase
           .from('fatura_cartao')
@@ -127,14 +132,20 @@ export function useCartoes() {
           .eq('pendente', false)
           .gte('data', desde)
           .order('data', { ascending: false }),
+        // O destino de cada final: o que separa, na mesma conta, o cartão do casal dos da pessoa.
+        supabase
+          .from('cartao_bancario')
+          .select('conta_id, final, destino, space_id'),
       ])
 
       if (contas.error) throw contas.error
       if (lancamentos.error) throw lancamentos.error
       if (faturas.error) throw faturas.error
       if (pagamentos.error) throw pagamentos.error
+      if (finais.error) throw finais.error
 
-      const linhas = (lancamentos.data ?? []) as Array<LancamentoDoCartao & { parcelas_total: number | null }>
+      const linhas = (lancamentos.data ?? []) as Array<LancamentoDoCartao & { parcelas_total: number | null, cartao_final: string | null }>
+      const todosFinais = (finais.data ?? []) as FinalDoCartao[]
       const todasFaturas = (faturas.data ?? []) as unknown as FaturaFechada[]
 
       const resumos: ResumoDoCartao[] = (contas.data ?? []).map((c) => {
@@ -151,6 +162,7 @@ export function useCartoes() {
           ciclo,
           faturaAberta,
           uso: usoDoLimite(cartao, faturaAberta),
+          porDestino: faturaPorDestino(linhas, cartao, todosFinais, ciclo),
           ultimaFechada: doCartao[0] ?? null,
           faturas: doCartao,
           pagamentos: ((pagamentos.data ?? []) as unknown as LinhaDePagamento[])

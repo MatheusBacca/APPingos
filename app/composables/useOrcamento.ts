@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/vue-query'
+import { useMutation, useQueries, useQueryClient } from '@tanstack/vue-query'
 import type { MaybeRefOrGetter } from 'vue'
 import { partesDaData, somarMeses, ultimoDiaDoMes } from '@/lib/datas'
 import { parteDe } from '~/types/orcamento'
@@ -53,6 +53,26 @@ export function useComprasDoMes(competencia: MaybeRefOrGetter<string>, espaco?: 
     computed(() => ['orcamento', 'mes', toValue(competencia)]),
     spaceId => buscarComprasDoMes(supabase, spaceId, toValue(competencia)),
   )
+}
+
+/**
+ * `useComprasDoMes` para vários espaços ao mesmo tempo — o painel mostra quanto
+ * cada espaço em que a pessoa está consome do mês dela. Mesma chave de cache:
+ * abrir um desses espaços depois não refaz a busca.
+ */
+export function useComprasDosEspacos(competencia: MaybeRefOrGetter<string>, espacos: MaybeRefOrGetter<string[]>) {
+  const supabase = useSupabaseClient()
+
+  return useQueries({
+    queries: computed(() => toValue(espacos).map(spaceId => ({
+      queryKey: ['space', spaceId, 'orcamento', 'mes', toValue(competencia)],
+      queryFn: () => buscarComprasDoMes(supabase, spaceId, toValue(competencia)),
+    }))),
+    combine: resultados => ({
+      porEspaco: new Map(toValue(espacos).map((id, i) => [id, resultados[i]?.data ?? []])),
+      carregando: resultados.some(r => r.isPending),
+    }),
+  })
 }
 
 /**

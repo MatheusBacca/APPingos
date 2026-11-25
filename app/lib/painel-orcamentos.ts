@@ -10,6 +10,8 @@
 import { partesDaData, primeiroDoMes, somarDias, ultimoDiaDoMes } from '@/lib/datas'
 import { nomeDoBanco } from '~/lib/instituicoes'
 import type { ConexaoBancaria } from '~/composables/useContasBancarias'
+import { parteDe, totalDoMes } from '~/types/orcamento'
+import type { CompraDoMes } from '~/types/orcamento'
 
 /**
  * Variação percentual ante o período anterior (0,25 = +25%).
@@ -301,4 +303,77 @@ export function mesNaUrl(competencia: string): string {
 export function competenciaDaUrl(valor: unknown): string | null {
   if (typeof valor !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(valor)) return null
   return `${valor}-01`
+}
+
+// ---- A barra "A pagar do salário" --------------------------------------------
+
+/** As duas faixas da barra, como fração do salário (0,7 = 70%). */
+export interface FaixasDoSalario {
+  atencao: number
+  alerta: number
+}
+
+/** O que vale enquanto a pessoa não ajusta nada — espelha o default da migration. */
+export const FAIXAS_PADRAO: FaixasDoSalario = { atencao: 0.7, alerta: 1 }
+
+export type TomDoSalario = 'tranquilo' | 'atencao' | 'alerta'
+
+/**
+ * A cor da barra: a partir da faixa de atenção é âmbar, a partir da de alerta é
+ * vermelho. Sem salário (fração infinita) é alerta: tudo o que há a pagar está
+ * descoberto.
+ */
+export function tomDoSalario(fracao: number, faixas: FaixasDoSalario = FAIXAS_PADRAO): TomDoSalario {
+  if (!Number.isFinite(fracao) || fracao >= faixas.alerta) return 'alerta'
+  if (fracao >= faixas.atencao) return 'atencao'
+  return 'tranquilo'
+}
+
+/**
+ * Confere as faixas digitadas em percentual (70, 100) e devolve a mensagem do
+ * problema, ou `null` se servem. Espelha o CHECK `renda_faixas_validas`.
+ */
+export function problemaNasFaixas(atencaoPct: number, alertaPct: number): string | null {
+  if (!Number.isFinite(atencaoPct) || !Number.isFinite(alertaPct)) return 'Preencha as duas faixas.'
+  if (atencaoPct <= 0) return 'A faixa de atenção precisa ser maior que 0%.'
+  if (alertaPct > 300) return 'A faixa de alerta vai até 300%.'
+  if (atencaoPct >= alertaPct) return 'A faixa de atenção precisa ficar abaixo da de alerta.'
+  return null
+}
+
+// ---- "Em que foi": os outros espaços -----------------------------------------
+
+export interface ConsumoDeEspaco {
+  spaceId: string
+  nome: string
+  pessoal: boolean
+  /** O que aquele espaço tira do SEU mês: tudo no pessoal, a sua parte num compartilhado. */
+  valor: number
+}
+
+/**
+ * Quanto cada um dos OUTROS espaços — todos menos o aberto — consome do seu mês.
+ *
+ * No pessoal a gaveta é inteira sua; num compartilhado é a sua parte do rateio
+ * (`parteDe`), a mesma leitura do "Meu bolso". Espaço sem compra no mês entra com
+ * zero: a pergunta é "quanto cada espaço em que estou me custa", e zero é uma
+ * resposta.
+ */
+export function consumoDosOutrosEspacos(dados: {
+  ativo: string | null
+  espacos: ReadonlyArray<{ id: string, nome: string, tipo: string }>
+  compras: ReadonlyMap<string, CompraDoMes[]>
+  eu: string | null
+}): ConsumoDeEspaco[] {
+  return dados.espacos
+    .filter(e => e.id !== dados.ativo)
+    .map((e) => {
+      const compras = dados.compras.get(e.id) ?? []
+      const pessoal = e.tipo === 'pessoal'
+      const valor = pessoal || !dados.eu
+        ? totalDoMes(compras)
+        : redondo(compras.reduce((s, c) => s + parteDe(c.participantes, dados.eu!, c.valor), 0))
+      return { spaceId: e.id, nome: e.nome, pessoal, valor }
+    })
+    .sort((a, b) => b.valor - a.valor)
 }
