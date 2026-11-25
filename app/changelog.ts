@@ -48,6 +48,12 @@ export interface Lancamento {
  */
 export const LANCAMENTOS: Lancamento[] = [
   {
+    versao: '1.16.0',
+    titulo: 'Cada espaço no seu painel',
+    descricao: 'O painel de Orçamentos agora segue o espaço aberto: o Planejamento mostra os gastos do espaço semana a semana, com o acerto do mês no compartilhado e o que você tem a pagar do salário no pessoal. Gastos do mês e Em que foi começam pelo espaço aberto e mostram, numa linha por espaço, quanto os outros tiram do seu mês. As cores da barra do salário se ajustam em Espaços › Seu salário, e o painel se acomoda em celular, tablet e computador.',
+    data: '2026-11-25',
+  },
+  {
     versao: '1.15.0',
     titulo: 'Orçamentos num painel só',
     descricao: 'O mês inteiro numa tela: o saldo das contas, os gastos com as faturas abertas, o salário repartido entre faturas, investido e livre, o planejado semana a semana e as últimas movimentações do extrato. Cada cartão abre a sua tela, em tela larga no computador, e o "Como funciona" explica cada número.',
