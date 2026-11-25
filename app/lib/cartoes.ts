@@ -210,6 +210,81 @@ export function totalDoCiclo(lancamentos: LancamentoDoCartao[], contaId: string,
   return Math.max(0, Math.round(total * 100) / 100)
 }
 
+
+// ---- A fatura aberta por destino ---------------------------------------------
+
+/** O destino de uma conta de cartão ou de um final dela (`cartao_bancario`). */
+export interface DestinoDoCartao {
+  destino: string
+  space_id: string | null
+}
+
+export interface FinalDoCartao extends DestinoDoCartao {
+  conta_id: string
+  final: string
+}
+
+/** Para onde vai uma compra: o id do espaço compartilhado, ou `'pessoal'`. */
+export type ChaveDeDestino = string
+
+/**
+ * O destino que vale para um final: o dele, a menos que siga a conta
+ * (`herdar`). "Perguntar a cada compra" não é de espaço nenhum, então conta como
+ * da pessoa — é o cartão dela até alguém mandar a compra para o casal.
+ */
+export function destinoEfetivo(conta: DestinoDoCartao, final?: DestinoDoCartao | null): ChaveDeDestino {
+  const d = final && final.destino !== 'herdar' ? final : conta
+  return d.destino === 'casal' && d.space_id ? d.space_id : 'pessoal'
+}
+
+export interface ParteDaFatura {
+  destino: ChaveDeDestino
+  valor: number
+  /** Os finais que caíram nesta parte (sem os lançamentos sem final). */
+  finais: string[]
+}
+
+/**
+ * A fatura aberta de um cartão repartida por destino. É o que separa, numa
+ * conta Nubank só, o virtual do casal dos finais da pessoa: a Pluggy entrega
+ * todos na mesma conta, e só o final diz de quem é cada compra.
+ *
+ * O destino é o de HOJE, para o ciclo inteiro — sem olhar `designada_em`. Na
+ * caixa a designação só vale para o que entrou depois dela, mas aqui a pergunta é
+ * "de que espaço é este cartão", e a compra de antes da designação costuma ser
+ * classificada à mão para o mesmo espaço.
+ *
+ * Mesmo recorte de `totalDoCiclo` (a soma das partes é a fatura aberta, a menos
+ * de estorno que deixe uma parte negativa — que vai a zero, como lá). Um cartão
+ * sem nada no ciclo devolve uma parte só, zerada, no destino da conta: ele
+ * continua aparecendo no grupo certo.
+ */
+export function faturaPorDestino(
+  lancamentos: ReadonlyArray<LancamentoDoCartao & { cartao_final?: string | null }>,
+  conta: DestinoDoCartao & { id: string },
+  finais: ReadonlyArray<FinalDoCartao>,
+  ciclo: Ciclo,
+): ParteDaFatura[] {
+  const doFinal = new Map(finais.filter(f => f.conta_id === conta.id).map(f => [f.final, f]))
+  const partes = new Map<ChaveDeDestino, { valor: number, finais: Set<string> }>()
+
+  for (const l of lancamentos) {
+    if (l.conta_id !== conta.id || l.motivo_exclusao || l.fatura_id) continue
+    if (l.data < ciclo.inicio || l.data > ciclo.fechamento) continue
+    const destino = destinoEfetivo(conta, l.cartao_final ? doFinal.get(l.cartao_final) : null)
+    const parte = partes.get(destino) ?? { valor: 0, finais: new Set<string>() }
+    parte.valor += l.sentido === 'saida' ? l.valor : -l.valor
+    if (l.cartao_final) parte.finais.add(l.cartao_final)
+    partes.set(destino, parte)
+  }
+
+  const lista = [...partes]
+    .map(([destino, p]) => ({ destino, valor: Math.max(0, Math.round(p.valor * 100) / 100), finais: [...p.finais].sort() }))
+    .filter(p => p.valor > 0)
+    .sort((a, b) => b.valor - a.valor)
+
+  return lista.length ? lista : [{ destino: destinoEfetivo(conta), valor: 0, finais: [] }]
+}
 export type Faixa = 'tranquilo' | 'atencao' | 'alerta'
 
 export interface UsoDoLimite {

@@ -41,7 +41,7 @@ import { formatarInstante, formatarMes, hojeIso, mesAbreviado, nomeDoMes, partes
 import { formatarDinheiro, formatarPercentual } from '@/lib/dinheiro'
 import { seloDoBanco } from '~/lib/cartoes'
 import { resumoPorBanco, saldoDaCaixinha } from '~/lib/investimentos'
-import { aplicadoNasCaixinhas, competenciaDaUrl, corDeDado, etiquetaDaMovimentacao, fracaoDoMes, mesNaUrl, quandoFoi, repartirSalario, ritmoDoMes, saldoDasContas, semanasDoPlanejado, variacaoEntre } from '~/lib/painel-orcamentos'
+import { FAIXAS_PADRAO, aplicadoNasCaixinhas, competenciaDaUrl, consumoDosOutrosEspacos, corDeDado, etiquetaDaMovimentacao, fracaoDoMes, mesNaUrl, quandoFoi, repartirSalario, ritmoDoMes, saldoDasContas, semanasDoPlanejado, tomDoSalario, variacaoEntre } from '~/lib/painel-orcamentos'
 import { bancoDaConta, textoParaSelo } from '~/lib/caixa-lista'
 import { rotuloParaRegra } from '~/lib/auto-tag'
 import { CLASSE_BARRA, CLASSE_BARRA_SEM_CATEGORIA, gastoPorCategoria, meuBolso, saldoDoMes, totalDoMes } from '~/types/orcamento'
@@ -54,7 +54,7 @@ import { useConexoesBancarias } from '~/composables/useContasBancarias'
 import { useGastosPessoais } from '~/composables/useGastosPessoais'
 import { useMembros } from '~/composables/useMembros'
 import { useMetas } from '~/composables/useMetas'
-import { useAcertos, useCategorias, useComprasDoMes, useSerieMensal } from '~/composables/useOrcamento'
+import { useAcertos, useCategorias, useComprasDoMes, useComprasDosEspacos, useSerieMensal } from '~/composables/useOrcamento'
 import { useProjecoesDoMes } from '~/composables/useProjecoesDoMes'
 import { useUsuarioId } from '~/composables/useUsuarioId'
 import { useSpaceStore } from '~/stores/space'
@@ -178,16 +178,23 @@ const {
   meuMes,
   carregandoMeuMes,
   mesDoCasal,
+  carregandoContribuicoes,
   aportesDoCasal,
   comprasPessoais,
   aportesPessoais,
   comprasDoCasal,
+  rendaAtual,
 } = useProjecoesDoMes(competencia)
 
 const passouDoMes = computed(() => fracaoDoMes(competencia.value, hojeIso()))
 
-/** A projeção do cartão grande: a sua quando há salário, senão a do casal. */
-const projecaoPrincipal = computed(() => meuMes.value ?? (espacoCasal.value ? mesDoCasal.value : null))
+/**
+ * A projeção do cartão de Planejamento segue o espaço aberto: num espaço
+ * compartilhado é o mês dele (os gastos de quem divide o espaço); no pessoal é o
+ * "Meu mês" (os seus gastos). As duas nunca se misturam no mesmo cartão.
+ */
+const projecaoPrincipal = computed(() => (espacoCasal.value ? mesDoCasal.value : meuMes.value))
+const carregandoProjecao = computed(() => (espacoCasal.value ? carregandoContribuicoes.value : carregandoMeuMes.value))
 
 const ritmo = computed(() => {
   const p = projecaoPrincipal.value
@@ -207,8 +214,8 @@ const arcoDoAnel = computed(() => {
  * compras do mês (pela data da compra) e os aportes nas metas daquela gaveta.
  */
 const lancamentosDaProjecao = computed(() => {
-  const compras = meuMes.value ? comprasPessoais.value : comprasDoCasal.value
-  const aportes = meuMes.value ? aportesPessoais.value : aportesDoCasal.value
+  const compras = espacoCasal.value ? comprasDoCasal.value : comprasPessoais.value
+  const aportes = espacoCasal.value ? aportesDoCasal.value : aportesPessoais.value
   return [
     ...(compras ?? []).map(c => ({ valor: c.valor, data: c.data_compra })),
     ...(aportes ?? []).map(a => ({ valor: a.valor, data: a.data })),
@@ -351,6 +358,28 @@ const salarioRepartido = computed(() => {
   })
 })
 
+/**
+ * O rodapé do Planejamento no espaço pessoal: o que você tem a pagar no mês (as
+ * faturas abertas) contra o seu salário. Mesmo recorte da pizza — só o mês
+ * corrente, porque as faturas abertas são as do ciclo de hoje.
+ */
+const aPagarDoSalario = computed(() => {
+  if (espacoCasal.value || situacao.value !== 'aberto' || !meuMes.value || !cartoes.value) return null
+  const salario = meuMes.value.salario
+  const aPagar = cartoes.value.total
+  const fracao = salario > 0 ? aPagar / salario : Infinity
+  // As faixas são da pessoa (Espaços › Seu salário); sem ajuste, 70% e 100%.
+  const r = rendaAtual.data.value
+  const faixas = r ? { atencao: r.faixa_atencao, alerta: r.faixa_alerta } : FAIXAS_PADRAO
+  return { aPagar, salario, fracao, faixas, tom: tomDoSalario(fracao, faixas) }
+})
+
+const COR_DO_TOM_DO_SALARIO = {
+  tranquilo: 'bg-emerald-500',
+  atencao: 'bg-amber-500',
+  alerta: 'bg-red-500',
+} as const
+
 const COR_DA_FATIA = {
   faturas: { traco: 'stroke-amber-500', ponto: 'bg-amber-500' },
   investido: { traco: 'stroke-violet-500', ponto: 'bg-violet-500' },
@@ -389,7 +418,75 @@ const acerto = computed(() => {
 
 const comprasVisiveis = computed(() => [...(compras.value ?? []), ...(pessoais.value ?? [])])
 
-const categoriasDoMes = computed(() => gastoPorCategoria(comprasVisiveis.value).slice(0, 5))
+/** "Em que foi" começa pelo espaço aberto, e só por ele. */
+const categoriasDoMes = computed(() => gastoPorCategoria(compras.value ?? []).slice(0, 5))
+
+/*
+ * Depois do divisor, os outros espaços da pessoa e quanto cada um tira do mês
+ * dela: no pessoal, a parte dela em cada espaço compartilhado; num compartilhado,
+ * a gaveta pessoal inteira e a parte dela nos demais.
+ */
+const outrosEspacos = computed(() => store.espacos.filter(e => e.id !== store.espacoAtivoId).map(e => e.id))
+const comprasDosOutros = useComprasDosEspacos(competencia, outrosEspacos)
+
+const consumoDosOutros = computed(() => consumoDosOutrosEspacos({
+  ativo: store.espacoAtivoId,
+  espacos: store.espacos,
+  compras: comprasDosOutros.value.porEspaco,
+  eu: usuarioId.value,
+}))
+
+// ---- Faturas: as do espaço aberto e as dos demais ------------------------------
+
+
+/**
+ * Cada cartão repartido pelo destino das compras (o final do cartão manda — o
+ * virtual do casal e o físico da pessoa podem faturar na mesma conta). Primeiro
+ * as partes do espaço aberto; depois do divisor, as dos demais. No pessoal, o
+ * que não está designado a espaço nenhum é seu.
+ */
+const faturasPorEspaco = computed(() => {
+  const ativo = espacoCasal.value ?? 'pessoal'
+  // Designado a um espaço em que a pessoa já não está: é o cartão dela, conta no pessoal.
+  const conhecido = (destino: string) => destino === 'pessoal' || store.espacos.some(e => e.id === destino) ? destino : 'pessoal'
+  const linhas = (cartoes.value?.resumos ?? []).flatMap(r => r.porDestino.map(p => ({
+    chave: `${r.cartao.id}:${p.destino}`,
+    resumo: r,
+    destino: conhecido(p.destino),
+    valor: p.valor,
+    // Só diz os finais quando a conta se divide: é o que diz qual cartão é qual.
+    finais: r.porDestino.length > 1 ? p.finais : [],
+    inteiro: r.porDestino.length === 1,
+  })))
+  const todasDoEspaco = linhas.filter(l => l.destino === ativo).sort((a, b) => b.valor - a.valor)
+  // As cinco que mais pesam, como antes: o card não cresce sem teto ao lado dos outros.
+  const doEspaco = todasDoEspaco.slice(0, 5)
+  const outros = linhas.filter(l => l.destino !== ativo).sort((a, b) => b.valor - a.valor)
+  return {
+    doEspaco,
+    outros,
+    totalDoEspaco: todasDoEspaco.reduce((s, l) => s + l.valor, 0),
+  }
+})
+
+/**
+ * "Outros espaços", uma linha por espaço — a mesma em "Gastos do mês" e em "Em
+ * que foi": a pilha dos seus cartões que caem naquele espaço (pelo final, como
+ * as faturas acima), o nome do espaço e a SUA parte nele no mês. Espaço sem
+ * cartão seu designado aparece sem pilha: a parte continua sendo sua.
+ */
+const linhasDosOutrosEspacos = computed(() => consumoDosOutros.value.map((c) => {
+  const destino = c.pessoal ? 'pessoal' : c.spaceId
+  const vistos = new Set<string>()
+  const cartoesDoEspaco = faturasPorEspaco.value.outros
+    .filter(l => l.destino === destino && !vistos.has(l.resumo.cartao.id) && vistos.add(l.resumo.cartao.id))
+    .map(l => ({
+      id: l.resumo.cartao.id,
+      banco: l.resumo.cartao.banco,
+      rotulo: `${l.resumo.cartao.apelido || l.resumo.cartao.banco}${l.finais.length ? ` •••• ${l.finais.join(' · ')}` : ''}`,
+    }))
+  return { ...c, cartoes: cartoesDoEspaco }
+}))
 
 const { data: movimentacoes, isPending: carregandoMovimentacoes } = useMovimentacoesRecentes(6)
 
@@ -433,7 +530,7 @@ function diaEMes(iso: string): string {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="@container space-y-4">
     <!--
       O cabeçalho do painel: nome, mês e o "Como funciona". As abas de Orçamentos
       não aparecem aqui — os cartões são a navegação desta tela.
@@ -483,7 +580,7 @@ function diaEMes(iso: string): string {
       Saldo e Gastos são cartões altos (o número e a lista por trás dele); Sobra e
       Investido, números soltos, dividem a terceira coluna.
     -->
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div class="grid grid-cols-1 gap-4 @2xl:grid-cols-2 @4xl:grid-cols-3">
       <!-- O total e as contas que o compõem, num cartão só. -->
       <PainelCartao titulo="Saldo em contas" :icone="WalletIcon" para="/orcamentos/open-finance/contas" rotulo-do-atalho="Contas">
         <div v-if="carregandoConexoes" class="space-y-2">
@@ -560,30 +657,43 @@ function diaEMes(iso: string): string {
             <Skeleton v-for="i in 3" :key="i" class="h-9 w-full" />
           </div>
           <template v-else-if="cartoes?.resumos.length">
-            <ul class="space-y-3">
-              <li v-for="r in cartoes.resumos.slice(0, 5)" :key="r.cartao.id" class="space-y-1">
+            <!-- Primeiro os cartões (ou finais) do espaço aberto, com o limite tomado. -->
+            <p class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              {{ espacoCasal ? store.espacoAtivo?.nome : 'Pessoal' }}
+            </p>
+            <ul v-if="faturasPorEspaco.doEspaco.length" class="space-y-3">
+              <li v-for="l in faturasPorEspaco.doEspaco" :key="l.chave" class="space-y-1">
                 <div class="flex items-center gap-3">
-                  <SeloDoBanco :banco="r.cartao.banco" tamanho="xs" />
-                  <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ r.cartao.apelido || r.cartao.banco }}</span>
-                  <span class="text-sm tabular-nums">{{ formatarDinheiro(r.faturaAberta) }}</span>
+                  <SeloDoBanco :banco="l.resumo.cartao.banco" tamanho="xs" />
+                  <span class="min-w-0 flex-1 truncate text-sm font-medium">
+                    {{ l.resumo.cartao.apelido || l.resumo.cartao.banco }}
+                    <span v-if="l.finais.length" class="font-normal text-muted-foreground">•••• {{ l.finais.join(' · ') }}</span>
+                  </span>
+                  <span class="text-sm tabular-nums">{{ formatarDinheiro(l.valor) }}</span>
                 </div>
-                <div v-if="r.uso" class="flex items-center gap-2">
+                <!-- O limite é da conta inteira: só faz sentido quando a conta inteira é deste espaço. -->
+                <div v-if="l.resumo.uso && l.inteiro" class="flex items-center gap-2">
                   <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-muted text-muted-foreground">
-                    <div class="h-full rounded-full" :style="{ width: `${r.uso.fracao * 100}%`, background: corDeDado(seloDoBanco(r.cartao.banco).cor) ?? 'currentColor' }" />
+                    <div class="h-full rounded-full" :style="{ width: `${l.resumo.uso.fracao * 100}%`, background: corDeDado(seloDoBanco(l.resumo.cartao.banco).cor) ?? 'currentColor' }" />
                   </div>
-                  <span class="w-10 text-right text-xs tabular-nums" :class="CLASSE_DA_FAIXA[r.uso.faixa]">{{ formatarPercentual(r.uso.fracao) }}</span>
+                  <span class="w-10 text-right text-xs tabular-nums" :class="CLASSE_DA_FAIXA[l.resumo.uso.faixa]">{{ formatarPercentual(l.resumo.uso.fracao) }}</span>
                 </div>
               </li>
             </ul>
-            <p class="pt-3 text-xs text-muted-foreground">
-              Total {{ formatarDinheiro(cartoes.total) }} · a porcentagem é o limite tomado
+            <p v-else class="text-xs text-muted-foreground">Nenhum cartão seu designado a este espaço.</p>
+
+            <p class="pt-2 text-xs text-muted-foreground">
+              {{ formatarDinheiro(faturasPorEspaco.totalDoEspaco) }} nas faturas deste espaço · a porcentagem é o limite tomado
             </p>
+
+            <!-- Depois do divisor, uma linha por espaço: os seus cartões nele e a sua parte. -->
+            <OutrosEspacosLista titulo="Outros espaços" :linhas="linhasDosOutrosEspacos" :carregando="comprasDosOutros.carregando" />
           </template>
           <p v-else class="text-sm text-muted-foreground">Nenhum cartão conectado.</p>
         </section>
       </PainelCartao>
 
-      <div class="grid gap-4 md:col-span-2 md:grid-cols-2 xl:col-span-1 xl:grid-cols-1">
+      <div class="grid gap-4 @2xl:col-span-2 @2xl:grid-cols-2 @4xl:col-span-1 @4xl:grid-cols-1">
         <PainelCartao compacto titulo="Sobra do mês" :icone="GaugeIcon" :para="comMes('/orcamentos/planejamento')" rotulo-do-atalho="Planejamento">
           <Skeleton v-if="carregandoMeuMes" class="h-8 w-32" />
           <template v-else-if="meuMes">
@@ -612,9 +722,9 @@ function diaEMes(iso: string): string {
           já está comprometido". O patrimônio investido continua no cartão de
           Investimentos, mais abaixo.
         -->
-        <PainelCartao titulo="Salário do mês" :icone="PieChartIcon" :para="comMes('/orcamentos/planejamento')" rotulo-do-atalho="Planejamento">
+        <PainelCartao class="@container" titulo="Salário do mês" :icone="PieChartIcon" :para="comMes('/orcamentos/planejamento')" rotulo-do-atalho="Planejamento">
           <Skeleton v-if="carregandoMeuMes || carregandoCartoes" class="h-24 w-full" />
-          <div v-else-if="salarioRepartido" class="flex items-center gap-4">
+          <div v-else-if="salarioRepartido" class="flex flex-col items-center gap-4 @[18rem]:flex-row">
             <svg viewBox="0 0 80 80" class="size-24 shrink-0 -rotate-90" aria-hidden="true">
               <circle cx="40" cy="40" :r="RAIO_PIZZA" fill="none" stroke-width="16" class="stroke-muted" />
               <circle
@@ -630,7 +740,7 @@ function diaEMes(iso: string): string {
                 :stroke-dashoffset="a.deslocamento"
               />
             </svg>
-            <div class="min-w-0 flex-1 space-y-1.5 text-xs">
+            <div class="w-full min-w-0 flex-1 space-y-1.5 text-xs">
               <dl class="space-y-1.5">
                 <div v-for="f in salarioRepartido.fatias" :key="f.chave" class="flex items-center gap-2">
                   <dt class="flex min-w-0 flex-1 items-center gap-2">
@@ -658,8 +768,8 @@ function diaEMes(iso: string): string {
     </div>
 
     <!-- ---- Linha 2: gastos por período e planejamento ---- -->
-    <div class="grid grid-cols-1 gap-4 xl:grid-cols-5">
-      <PainelCartao class="xl:col-span-3" titulo="Gastos por período" :icone="BarChart3Icon" :para="comMes('/orcamentos/gastos')" rotulo-do-atalho="Chico Moedas">
+    <div class="grid grid-cols-1 gap-4 @4xl:grid-cols-5">
+      <PainelCartao class="@4xl:col-span-3" titulo="Gastos por período" :icone="BarChart3Icon" :para="comMes('/orcamentos/gastos')" rotulo-do-atalho="Chico Moedas">
         <!-- Os recortes e o gráfico ficam acima do link esticado: são controles. -->
         <nav class="relative z-10 flex gap-1 self-start rounded-lg border bg-background p-1 text-xs">
           <button
@@ -684,9 +794,18 @@ function diaEMes(iso: string): string {
         />
       </PainelCartao>
 
-      <PainelCartao class="xl:col-span-2" titulo="Planejamento" :icone="TargetIcon" :para="comMes('/orcamentos/planejamento')">
-        <Skeleton v-if="carregandoMeuMes" class="h-28 w-full" />
-        <template v-else-if="projecaoPrincipal">
+      <PainelCartao class="@4xl:col-span-2" titulo="Planejamento" :icone="TargetIcon" :para="comMes('/orcamentos/planejamento')">
+        <Skeleton v-if="carregandoProjecao" class="h-28 w-full" />
+        <!--
+          O corpo responde à largura do CARTÃO (`@container`), e não à da tela: no
+          computador ele divide a linha com o gráfico e fica estreito justamente
+          onde a tela é larga — os `sm:` de antes cresciam os números ali e eles
+          vazavam para fora do cartão.
+        -->
+        <div v-else-if="projecaoPrincipal" class="@container flex flex-1 flex-col">
+          <p class="mb-2 text-xs text-muted-foreground">
+            {{ espacoCasal ? `Os gastos de ${store.espacoAtivo?.nome} no mês, semana a semana.` : 'Os seus gastos pessoais no mês, semana a semana.' }}
+          </p>
           <!--
             O recado do mês, logo abaixo do título: quanto ainda falta para chegar
             ao planejado (a Sobra), ou quanto já passou dele. A cor é a situação
@@ -713,24 +832,26 @@ function diaEMes(iso: string): string {
           </div>
 
           <!--
-            Os dois números e o anel, centralizados no cartão. A régua fica num
-            invólucro à parte: dentro da caixa do anel, o recuo dela encolhia o
-            círculo e o texto do meio vazava para fora.
+            Os dois números e o anel, cada um no centro da SUA área, e não os três
+            juntos no centro do cartão: uma grade de áreas iguais — os números
+            empilhados à esquerda no cartão estreito, um em cada coluna no largo —
+            com a régua entre os números e o anel.
           -->
-          <div class="mt-4 flex items-center justify-center gap-6 sm:gap-10">
-            <dl class="flex flex-col items-center gap-2 text-center sm:flex-row sm:gap-10">
+          <div class="mt-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 @lg:grid-cols-[minmax(0,2fr)_auto_minmax(0,1fr)]">
+            <dl class="grid min-w-0 grid-cols-1 justify-items-center gap-3 text-center @lg:grid-cols-2">
               <!-- `dt` antes do `dd` no HTML (é a ordem que o leitor de tela lê); o valor aparece em cima pelo `flex-col-reverse`. -->
-              <div class="flex flex-col-reverse">
-                <dt class="text-xs text-muted-foreground">já gastos</dt>
-                <dd class="text-xl font-semibold tabular-nums sm:text-2xl">{{ formatarDinheiro(projecaoPrincipal.realizado) }}</dd>
+              <div class="flex min-w-0 flex-col-reverse">
+                <dt class="text-xs text-muted-foreground">{{ espacoCasal ? 'gastos do espaço' : 'seus gastos' }}</dt>
+                <dd class="whitespace-nowrap text-lg font-semibold tabular-nums @sm:text-xl @xl:text-2xl">{{ formatarDinheiro(projecaoPrincipal.realizado) }}</dd>
               </div>
-              <div class="flex flex-col-reverse">
-                <dt class="text-xs text-muted-foreground">planejado no mês</dt>
-                <dd class="text-xl font-semibold tabular-nums sm:text-2xl">{{ formatarDinheiro(projecaoPrincipal.planejado) }}</dd>
+              <div class="flex min-w-0 flex-col-reverse">
+                <dt class="text-xs text-muted-foreground">{{ espacoCasal ? 'valor central' : 'planejado no mês' }}</dt>
+                <dd class="whitespace-nowrap text-lg font-semibold tabular-nums @sm:text-xl @xl:text-2xl">{{ formatarDinheiro(projecaoPrincipal.planejado) }}</dd>
               </div>
             </dl>
-            <div class="shrink-0 border-l pl-6 sm:pl-10">
-              <div class="relative size-24 sm:size-28">
+            <div class="w-px self-stretch bg-border" aria-hidden="true" />
+            <div class="flex justify-center">
+              <div class="relative size-24 shrink-0 @xl:size-28">
                 <svg viewBox="0 0 100 100" class="size-full -rotate-90" aria-hidden="true">
                   <circle cx="50" cy="50" r="44" fill="none" stroke-width="8" class="stroke-muted" />
                   <circle
@@ -746,7 +867,7 @@ function diaEMes(iso: string): string {
                 </svg>
                 <div class="absolute inset-0 grid place-items-center text-center leading-tight">
                   <div>
-                    <p class="text-lg font-semibold tabular-nums sm:text-xl">
+                    <p class="text-lg font-semibold tabular-nums @xl:text-xl">
                       {{ formatarPercentual(Number.isFinite(projecaoPrincipal.uso) ? projecaoPrincipal.uso : 1) }}
                     </p>
                     <p class="text-[10px] text-muted-foreground">do planejado</p>
@@ -783,30 +904,72 @@ function diaEMes(iso: string): string {
                   :class="sem.futura && !sem.gasto ? 'text-muted-foreground' : ''"
                   :title="`${formatarDinheiro(sem.gasto)} de ${formatarDinheiro(sem.cota)}`"
                 >
-                  {{ formatarPercentual(sem.fracao) }}
+                  {{ sem.cota > 0 ? formatarPercentual(sem.fracao) : '—' }}
                 </span>
               </div>
               <p class="truncate text-[11px]" :class="sem.atual ? 'font-medium text-primary' : 'text-muted-foreground'">
                 {{ sem.rotulo }}
               </p>
+              <p class="truncate text-[10px] tabular-nums text-muted-foreground">{{ formatarDinheiro(sem.gasto) }}</p>
             </li>
           </ol>
 
-          <!-- O mês do casal, compacto, quando o cartão grande é o "Meu mês". -->
-          <div v-if="meuMes && espacoCasal" class="mt-auto space-y-1 pt-3 text-xs">
-            <div class="flex justify-between gap-2 text-muted-foreground">
-              <span class="truncate">Mês de {{ store.espacoAtivo?.nome }}</span>
-              <span class="tabular-nums">{{ formatarDinheiro(mesDoCasal.realizado) }} de {{ formatarDinheiro(mesDoCasal.planejado) }}</span>
+          <!--
+            O rodapé muda com o espaço. No compartilhado, o acerto do mês — a mesma
+            conta do cartão "Acerto do mês" — para se ver quem deve a quem sem sair
+            do planejamento. No pessoal, o que você tem a pagar (as faturas
+            abertas) contra o seu salário.
+          -->
+          <div v-if="espacoCasal" class="mt-auto flex items-start gap-2 border-t pt-3 text-xs">
+            <HandCoinsIcon class="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <p v-if="acertado">
+              <span class="font-medium text-emerald-700 dark:text-emerald-400">Acertado.</span>
+              {{ nomeDoMes(competencia) }} já foi marcado como pago.
+            </p>
+            <p v-else-if="acerto && acerto.valor >= 0.01">
+              <span class="font-medium">{{ acerto.devedor }}</span> deve
+              <span class="font-semibold tabular-nums">{{ formatarDinheiro(acerto.valor) }}</span>
+              a <span class="font-medium">{{ acerto.credor }}</span>
+              {{ situacao === 'fechado' ? 'por' : 'até agora em' }} {{ nomeDoMes(competencia) }}.
+            </p>
+            <p v-else-if="acerto" class="text-muted-foreground">Ninguém deve nada a ninguém neste mês.</p>
+            <p v-else class="text-muted-foreground">O acerto aparece nos espaços divididos por duas pessoas.</p>
+          </div>
+
+          <div v-else-if="aPagarDoSalario" class="mt-auto space-y-1 border-t pt-3 text-xs">
+            <div class="flex flex-wrap justify-between gap-x-2 text-muted-foreground">
+              <span>A pagar do salário</span>
+              <span class="tabular-nums">
+                <strong class="font-semibold text-foreground">{{ formatarDinheiro(aPagarDoSalario.aPagar) }}</strong>
+                de {{ formatarDinheiro(aPagarDoSalario.salario) }}
+                · {{ formatarPercentual(Number.isFinite(aPagarDoSalario.fracao) ? aPagarDoSalario.fracao : 1) }}
+              </span>
             </div>
-            <div class="h-1.5 overflow-hidden rounded-full bg-muted">
+            <!-- As marcas são as suas faixas (Espaços › Seu salário); só as que cabem na barra. -->
+            <div class="relative h-1.5 rounded-full bg-muted">
               <div
-                class="h-full rounded-full"
-                :class="mesDoCasal.sobra < 0 ? 'bg-red-500' : 'bg-primary/70'"
-                :style="{ width: `${Math.min(Number.isFinite(mesDoCasal.uso) ? mesDoCasal.uso : 1, 1) * 100}%` }"
+                class="h-full rounded-full transition-[width]"
+                :class="COR_DO_TOM_DO_SALARIO[aPagarDoSalario.tom]"
+                :style="{ width: `${Math.min(Number.isFinite(aPagarDoSalario.fracao) ? aPagarDoSalario.fracao : 1, 1) * 100}%` }"
+              />
+              <span
+                v-for="(f, chave) in aPagarDoSalario.faixas"
+                v-show="f < 1"
+                :key="chave"
+                class="absolute -inset-y-0.5 w-0.5 rounded-full"
+                :class="chave === 'atencao' ? 'bg-amber-500/80' : 'bg-red-500/80'"
+                :style="{ left: `${f * 100}%` }"
+                aria-hidden="true"
               />
             </div>
+            <p class="text-muted-foreground">
+              As faturas abertas dos seus cartões contra o salário do mês. Âmbar a partir de
+              {{ formatarPercentual(aPagarDoSalario.faixas.atencao) }}, vermelho a partir de
+              {{ formatarPercentual(aPagarDoSalario.faixas.alerta) }} —
+              <NuxtLink to="/espacos" class="relative z-10 text-primary underline-offset-2 hover:underline">ajustar</NuxtLink>.
+            </p>
           </div>
-        </template>
+        </div>
         <p v-else class="text-sm text-muted-foreground">
           Sem salário cadastrado não há o que planejar. Toque para cadastrar o seu no Planejamento.
         </p>
@@ -814,8 +977,8 @@ function diaEMes(iso: string): string {
     </div>
 
     <!-- ---- Linha 3: investimentos e o mês em detalhe ---- -->
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <PainelCartao titulo="Investimentos" :icone="TrendingUpIcon" :para="comMes('/orcamentos/planejamento', '#investimentos')">
+    <div class="grid grid-cols-1 gap-4 @2xl:grid-cols-2 @6xl:grid-cols-4">
+      <PainelCartao class="@container" titulo="Investimentos" :icone="TrendingUpIcon" :para="comMes('/orcamentos/planejamento', '#investimentos')">
         <!-- O total fica fora da cadeia v-if/v-else abaixo: ele aparece junto com a rosca. -->
         <div v-if="!carregandoPosicoes && investimentos" class="mb-3">
           <p class="text-2xl font-semibold tabular-nums">{{ formatarDinheiro(investimentos.total) }}</p>
@@ -825,7 +988,7 @@ function diaEMes(iso: string): string {
           </p>
         </div>
         <Skeleton v-if="carregandoPosicoes" class="h-28 w-full" />
-        <div v-else-if="arcosDaRosca.length" class="flex items-center gap-4">
+        <div v-else-if="arcosDaRosca.length" class="flex flex-col items-center gap-4 @[18rem]:flex-row">
           <svg viewBox="0 0 80 80" class="size-24 shrink-0 -rotate-90 text-muted-foreground" aria-hidden="true">
             <circle cx="40" cy="40" :r="RAIO_ROSCA" fill="none" stroke-width="12" class="stroke-muted" />
             <circle
@@ -841,7 +1004,7 @@ function diaEMes(iso: string): string {
               :stroke-dashoffset="a.deslocamento"
             />
           </svg>
-          <ul class="min-w-0 flex-1 space-y-1.5 text-xs">
+          <ul class="w-full min-w-0 flex-1 space-y-1.5 text-xs">
             <li v-for="a in arcosDaRosca.slice(0, 5)" :key="a.banco" class="flex items-center gap-2">
               <span class="size-2.5 shrink-0 rounded-full text-muted-foreground" :style="{ background: a.cor }" />
               <span class="min-w-0 flex-1 truncate">{{ a.banco }}</span>
@@ -896,7 +1059,14 @@ function diaEMes(iso: string): string {
             </div>
           </li>
         </ul>
-        <p v-else class="text-sm text-muted-foreground">Nenhuma compra em {{ formatarMes(competencia) }}.</p>
+        <p v-else class="text-sm text-muted-foreground">Nenhuma compra deste espaço em {{ formatarMes(competencia) }}.</p>
+
+        <!--
+          Depois do divisor, os outros espaços em que você está e quanto cada um
+          tira do SEU mês: a gaveta pessoal inteira, e só a sua parte num espaço
+          compartilhado.
+        -->
+        <OutrosEspacosLista :titulo="espacoCasal ? 'Seus outros espaços' : 'Espaços que você divide'" :linhas="linhasDosOutrosEspacos" :carregando="comprasDosOutros.carregando" />
       </PainelCartao>
 
       <!--
@@ -961,10 +1131,10 @@ function diaEMes(iso: string): string {
 
     <!-- ---- Linha 4: metas ---- -->
     <PainelCartao titulo="Metas em evolução" :icone="TargetIcon" para="/objetivos" rotulo-do-atalho="Objetivos">
-      <div v-if="carregandoMetas" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div v-if="carregandoMetas" class="grid grid-cols-1 gap-3 @xl:grid-cols-2 @4xl:grid-cols-4">
         <Skeleton v-for="i in 4" :key="i" class="h-16 w-full" />
       </div>
-      <ul v-else-if="metasAbertas.length" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <ul v-else-if="metasAbertas.length" class="grid grid-cols-1 gap-3 @xl:grid-cols-2 @4xl:grid-cols-4">
         <li v-for="{ meta, progresso } in metasAbertas" :key="meta.id" class="space-y-1.5 rounded-md border p-3">
           <p class="truncate text-sm font-medium">
             {{ meta.titulo }}

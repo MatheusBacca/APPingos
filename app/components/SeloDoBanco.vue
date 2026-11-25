@@ -7,7 +7,12 @@
  */
 import { seloDoBanco } from '~/lib/cartoes'
 
-const props = withDefaults(defineProps<{ banco: string, tamanho?: 'xs' | 'sm' | 'md' }>(), { tamanho: 'md' })
+const props = withDefaults(defineProps<{
+  banco: string
+  tamanho?: 'xs' | 'sm' | 'md'
+  /** Círculo em vez de quadrado — para empilhar como as pessoas de Filmes (`PilhaDeCartoes`). */
+  redondo?: boolean
+}>(), { tamanho: 'md', redondo: false })
 const selo = computed(() => seloDoBanco(props.banco))
 
 const falhou = ref(false)
@@ -25,7 +30,7 @@ const RESPIRO = { xs: 'p-0.5', sm: 'p-1', md: 'p-1.5' } as const
   <span
     v-if="selo.icone && !falhou"
     class="grid shrink-0 place-items-center overflow-hidden bg-white shadow-sm ring-1 ring-black/5"
-    :class="[TAMANHO[tamanho], RESPIRO[tamanho]]"
+    :class="[TAMANHO[tamanho], RESPIRO[tamanho], redondo ? 'rounded-full!' : '']"
     :title="banco"
     aria-hidden="true"
   >
@@ -34,7 +39,7 @@ const RESPIRO = { xs: 'p-0.5', sm: 'p-1', md: 'p-1.5' } as const
   <span
     v-else
     class="grid shrink-0 place-items-center font-bold lowercase tracking-tight shadow-sm"
-    :class="TAMANHO[tamanho]"
+    :class="[TAMANHO[tamanho], redondo ? 'rounded-full!' : '']"
     :style="{ backgroundColor: selo.cor, color: selo.texto }"
     :title="banco"
     aria-hidden="true"

@@ -2488,6 +2488,8 @@ export type Database = {
       }
       renda: {
         Row: {
+          faixa_alerta: number
+          faixa_atencao: number
           recebimento_dia: number
           recebimento_tipo: string
           updated_at: string
@@ -2495,6 +2497,8 @@ export type Database = {
           valor_liquido: number
         }
         Insert: {
+          faixa_alerta?: number
+          faixa_atencao?: number
           recebimento_dia: number
           recebimento_tipo: string
           updated_at?: string
@@ -2502,6 +2506,8 @@ export type Database = {
           valor_liquido: number
         }
         Update: {
+          faixa_alerta?: number
+          faixa_atencao?: number
           recebimento_dia?: number
           recebimento_tipo?: string
           updated_at?: string

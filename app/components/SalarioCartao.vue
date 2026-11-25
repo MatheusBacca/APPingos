@@ -11,15 +11,18 @@
  * pergunta de quem vai digitar o salário num app de casal é "ela vai ver?".
  */
 import { toast } from 'vue-sonner'
-import { LockIcon, UsersIcon, WalletIcon } from '@lucide/vue'
+import { GaugeIcon, LockIcon, UsersIcon, WalletIcon } from '@lucide/vue'
 import { mensagemDeErro } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { FAIXAS_PADRAO, problemaNasFaixas } from '~/lib/painel-orcamentos'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import {
   useCompartilharRenda,
   useMeusCompartilhamentos,
   useMinhaRenda,
+  useSalvarFaixasDoSalario,
 } from '~/composables/useRenda'
 import { useSpaceStore } from '~/stores/space'
 
@@ -37,6 +40,46 @@ const espacosCompartilhados = computed(() => store.espacos.filter(e => e.tipo !=
 const abertoEm = (spaceId: string) => compartilhamentos.data.value?.has(spaceId) ?? false
 
 const nenhumAberto = computed(() => !espacosCompartilhados.value.some(e => abertoEm(e.id)))
+
+// ---- Faixas da barra "A pagar do salário" --------------------------------------
+
+/*
+ * Digitadas em percentual (70, 100) e gravadas como fração (0,7; 1). O
+ * formulário recomeça do que está salvo sempre que a renda chega ou muda.
+ */
+const salvarFaixas = useSalvarFaixasDoSalario()
+const atencaoPct = ref(FAIXAS_PADRAO.atencao * 100)
+const alertaPct = ref(FAIXAS_PADRAO.alerta * 100)
+
+watch(() => renda.data.value, (r) => {
+  if (!r) return
+  atencaoPct.value = Math.round(r.faixa_atencao * 100)
+  alertaPct.value = Math.round(r.faixa_alerta * 100)
+}, { immediate: true })
+
+/*
+ * Percentual inteiro: a coluna guarda a fração com duas casas (`numeric(4,2)`),
+ * então 70,5% viraria 0,71 e o formulário nunca bateria com o salvo. Campo vazio
+ * (o `v-model.number` deixa '') é NaN — "preencha", e não "maior que 0%".
+ */
+const pct = (v: number | string) => (v === '' || v == null ? Number.NaN : Math.round(Number(v)))
+
+const problemaDasFaixas = computed(() => problemaNasFaixas(pct(atencaoPct.value), pct(alertaPct.value)))
+const faixasMudaram = computed(() => {
+  const r = renda.data.value
+  return !!r && (Math.round(r.faixa_atencao * 100) !== pct(atencaoPct.value) || Math.round(r.faixa_alerta * 100) !== pct(alertaPct.value))
+})
+
+async function gravarFaixas() {
+  if (problemaDasFaixas.value) return
+  try {
+    await salvarFaixas.mutateAsync({ faixa_atencao: pct(atencaoPct.value) / 100, faixa_alerta: pct(alertaPct.value) / 100 })
+    toast.success('Faixas do salário salvas.')
+  }
+  catch (e) {
+    toast.error(mensagemDeErro(e, 'Não deu para salvar as faixas.'))
+  }
+}
 
 async function alternar(spaceId: string, nome: string) {
   const vaiAbrir = !abertoEm(spaceId)
@@ -84,6 +127,52 @@ async function alternar(spaceId: string, nome: string) {
       </p>
 
       <SalarioFormulario />
+
+      <!--
+        As faixas da barra "A pagar do salário" do painel de Orçamentos: só
+        existem com salário cadastrado, porque são uma fração dele.
+      -->
+      <form v-if="renda.data.value" class="space-y-3 border-t pt-4" @submit.prevent="gravarFaixas">
+        <div>
+          <h3 class="flex items-center gap-2 text-sm font-medium">
+            <GaugeIcon class="size-4 text-muted-foreground" />
+            Alertas do salário
+          </h3>
+          <p class="mt-0.5 text-xs text-muted-foreground">
+            No painel de Orçamentos, a barra "A pagar do salário" compara as faturas abertas com o
+            salário e muda de cor nestas faixas.
+          </p>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="space-y-1 text-xs">
+            <span class="flex items-center gap-1.5 font-medium">
+              <span class="size-2 rounded-full bg-amber-500" aria-hidden="true" />
+              Atenção a partir de
+            </span>
+            <span class="relative block">
+              <Input v-model.number="atencaoPct" type="number" min="1" max="299" step="1" inputmode="numeric" class="pr-7" />
+              <span class="pointer-events-none absolute inset-y-0 right-2.5 grid place-items-center text-muted-foreground">%</span>
+            </span>
+          </label>
+          <label class="space-y-1 text-xs">
+            <span class="flex items-center gap-1.5 font-medium">
+              <span class="size-2 rounded-full bg-red-500" aria-hidden="true" />
+              Alerta a partir de
+            </span>
+            <span class="relative block">
+              <Input v-model.number="alertaPct" type="number" min="2" max="300" step="1" inputmode="numeric" class="pr-7" />
+              <span class="pointer-events-none absolute inset-y-0 right-2.5 grid place-items-center text-muted-foreground">%</span>
+            </span>
+          </label>
+        </div>
+        <p v-if="problemaDasFaixas" class="text-xs text-destructive">{{ problemaDasFaixas }}</p>
+        <p v-else class="text-xs text-muted-foreground">
+          Abaixo de {{ atencaoPct }}% a barra fica verde.
+        </p>
+        <Button type="submit" size="sm" :disabled="!faixasMudaram || !!problemaDasFaixas || salvarFaixas.isPending.value">
+          Salvar faixas
+        </Button>
+      </form>
 
       <div class="space-y-2 border-t pt-4">
         <h3 class="flex items-center gap-2 text-sm font-medium">

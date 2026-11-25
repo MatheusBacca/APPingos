@@ -28,6 +28,10 @@ export interface Renda {
   recebimento_tipo: RecebimentoTipo
   recebimento_dia: number
   updated_at: string
+  /** Fração do salário em que a barra "A pagar do salário" fica âmbar (0,7 = 70%). */
+  faixa_atencao: number
+  /** Fração do salário em que ela fica vermelha. */
+  faixa_alerta: number
 }
 
 /**

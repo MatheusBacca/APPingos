@@ -46,13 +46,18 @@ export function useMinhaRenda() {
     queryFn: async (): Promise<Renda | null> => {
       const { data, error } = await supabase
         .from('renda')
-        .select('user_id, valor_liquido, recebimento_tipo, recebimento_dia, updated_at')
+        .select('user_id, valor_liquido, recebimento_tipo, recebimento_dia, updated_at, faixa_atencao, faixa_alerta')
         .eq('user_id', usuarioId.value!)
         .maybeSingle()
 
       if (error) throw error
       if (!data) return null
-      return { ...data, valor_liquido: Number(data.valor_liquido) } as Renda
+      return {
+        ...data,
+        valor_liquido: Number(data.valor_liquido),
+        faixa_atencao: Number(data.faixa_atencao),
+        faixa_alerta: Number(data.faixa_alerta),
+      } as Renda
     },
   })
 }
@@ -124,6 +129,26 @@ export function useRemoverRenda() {
   })
 }
 
+
+/**
+ * As faixas da barra "A pagar do salário" (frações: 0,7 = 70%). UPDATE e não
+ * upsert: só existe faixa para quem já tem salário, e a tela só oferece o ajuste
+ * nesse caso. Não mexe no histórico — o gatilho só olha valor e recebimento.
+ */
+export function useSalvarFaixasDoSalario() {
+  const supabase = useSupabaseClient()
+  const queryClient = useQueryClient()
+  const usuarioId = useUsuarioId()
+
+  return useMutation({
+    mutationFn: async (faixas: { faixa_atencao: number, faixa_alerta: number }) => {
+      if (!usuarioId.value) throw new Error('Não autenticado')
+      const { error } = await supabase.from('renda').update(faixas).eq('user_id', usuarioId.value)
+      if (error) throw error
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['renda', 'minha'] }),
+  })
+}
 /** Os espaços em que o MEU salário está aberto. */
 export function useMeusCompartilhamentos() {
   const supabase = useSupabaseClient()
