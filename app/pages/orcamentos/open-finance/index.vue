@@ -19,6 +19,9 @@ import { seloDoBanco } from '~/lib/cartoes'
 import { useCartoes, useQuantasNaCaixa } from '~/composables/useCartoes'
 import type { CartaoDaPessoa } from '~/composables/useCartoes'
 
+// Tela de dado: ocupa a largura inteira no computador (ver layouts/default.vue).
+definePageMeta({ larguraAmpla: true })
+
 useHead({ title: 'Cartões · APPingos' })
 
 const { data, isPending } = useCartoes()
@@ -56,7 +59,7 @@ function ajustar(c: CartaoDaPessoa) {
 
 <template>
   <div class="space-y-6">
-    <OrcamentosAbas subtitulo="Suas faturas abertas, o limite de cada cartão e o extrato esperando destino.">
+    <OrcamentosCabecalho titulo="Cartões" subtitulo="Suas faturas abertas, o limite de cada cartão e o extrato esperando destino.">
       <template #acoes>
         <Button as-child class="gap-1.5">
           <NuxtLink to="/orcamentos/open-finance/caixa">
@@ -66,8 +69,7 @@ function ajustar(c: CartaoDaPessoa) {
           </NuxtLink>
         </Button>
       </template>
-    </OrcamentosAbas>
-    <OpenFinanceSecoes />
+    </OrcamentosCabecalho>
 
     <div v-if="isPending" class="space-y-3">
       <Skeleton class="h-28 w-full rounded-xl" />

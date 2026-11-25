@@ -31,6 +31,9 @@ import {
 } from '~/composables/useCaixaDeEntrada'
 import type { RegraClassificacao } from '~/composables/useCaixaDeEntrada'
 
+// Tela de dado: ocupa a largura inteira no computador (ver layouts/default.vue).
+definePageMeta({ larguraAmpla: true })
+
 useHead({ title: 'Regras aprendidas · APPingos' })
 
 const { data: regras, isPending } = useRegrasClassificacao()
@@ -94,8 +97,7 @@ async function esquecer(r: RegraClassificacao) {
 
 <template>
   <div class="space-y-6">
-    <OrcamentosAbas subtitulo="O que o app aprendeu de cada estabelecimento para sugerir sozinho. Só você vê." />
-    <OpenFinanceSecoes />
+    <OrcamentosCabecalho titulo="Regras" subtitulo="O que o app aprendeu de cada estabelecimento para sugerir sozinho. Só você vê." />
 
     <p class="text-sm text-muted-foreground">
       Cada vez que você classifica uma compra na caixa de entrada, o app lembra a escolha para aquele

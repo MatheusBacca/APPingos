@@ -39,6 +39,15 @@ const { aviso, marcarLido } = useAvisoEspacoDeletado()
 // A sidebar decide a própria largura; aqui o conteúdo acompanha o recuo.
 const { aberta } = useSidebar()
 
+/*
+ * A coluna central de 5xl serve às telas de leitura (listas, formulários). As
+ * telas de dado — o painel e as telas de Orçamentos — pedem a largura inteira
+ * com `definePageMeta({ larguraAmpla: true })`: cartões lado a lado rendem mais
+ * que um bloco estreito com faixas vazias dos dois lados num monitor largo.
+ */
+const route = useRoute()
+const largura = computed(() => (route.meta.larguraAmpla ? 'max-w-[1800px]' : 'max-w-5xl'))
+
 // Para o selo de Pins do cabeçalho do celular.
 const euId = useUsuarioId()
 </script>
@@ -110,7 +119,7 @@ const euId = useUsuarioId()
       class="transition-[padding] duration-200 print:pl-0"
       :class="aberta ? 'md:pl-64' : 'md:pl-16'"
     >
-      <div class="mx-auto w-full max-w-5xl px-4 pb-24 pt-4 md:px-8 md:pb-12 md:pt-8 print:max-w-none print:p-0">
+      <div class="mx-auto w-full px-4 pb-24 pt-4 md:px-8 md:pb-12 md:pt-8 print:max-w-none print:p-0" :class="largura">
         <div v-if="isError" class="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">
           <p class="font-medium text-destructive">Não consegui carregar os seus espaços.</p>
           <p class="mt-1 text-muted-foreground">{{ error?.message }}</p>

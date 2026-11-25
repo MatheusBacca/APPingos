@@ -58,6 +58,9 @@ import { nomeDoBanco } from '~/lib/instituicoes'
 import { seloDoBanco } from '~/lib/cartoes'
 import { ICONE_DO_DESTINO, origemDaConta } from '~/lib/caixa-lista'
 
+// Tela de dado: ocupa a largura inteira no computador (ver layouts/default.vue).
+definePageMeta({ larguraAmpla: true })
+
 useHead({ title: 'Contas conectadas · APPingos' })
 
 const { data: conexoes, isPending } = useConexoesBancarias()
@@ -201,7 +204,7 @@ const CLASSE_TOM = {
 
 <template>
   <div class="space-y-6">
-    <OrcamentosAbas subtitulo="Os seus bancos, pelo Open Finance. Só você vê esta tela.">
+    <OrcamentosCabecalho titulo="Contas conectadas" subtitulo="Os seus bancos, pelo Open Finance. Só você vê esta tela.">
       <template #acoes>
         <Button
           v-if="configurada"
@@ -213,8 +216,7 @@ const CLASSE_TOM = {
           {{ conectando ? 'Abrindo…' : 'Conectar banco' }}
         </Button>
       </template>
-    </OrcamentosAbas>
-    <OpenFinanceSecoes />
+    </OrcamentosCabecalho>
 
     <Card v-if="configurada === false">
       <CardHeader>

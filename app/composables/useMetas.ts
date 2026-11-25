@@ -21,6 +21,8 @@ type Espaco = MaybeRefOrGetter<string | null | undefined>
 export interface AporteDoMes {
   user_id: string
   valor: number
+  /** O dia do aporte — é o que põe o aporte na semana certa do painel. */
+  data: string
 }
 
 /**
@@ -36,12 +38,12 @@ export function useAportesDoMes(espaco: Espaco, competencia: MaybeRefOrGetter<st
     async (spaceId): Promise<AporteDoMes[]> => {
       const { data, error } = await supabase
         .from('meta_aporte')
-        .select('user_id, valor, meta:meta!inner(space_id)')
+        .select('user_id, valor, data, meta:meta!inner(space_id)')
         .eq('meta.space_id', spaceId)
         .eq('competencia', toValue(competencia))
 
       if (error) throw error
-      return (data ?? []).map(a => ({ user_id: a.user_id, valor: Number(a.valor) }))
+      return (data ?? []).map(a => ({ user_id: a.user_id, valor: Number(a.valor), data: a.data }))
     },
   )
 }

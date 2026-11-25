@@ -8,7 +8,7 @@
  *
  * A lista é de LINHAS que se tocam, agrupadas por dia (`LinhaDaCaixa`): onde
  * foi, de qual cartão, quanto e a sugestão do auto-tag. Os destinos ficam no
- * detalhe (`DetalheDaCaixa`) — folha de baixo no celular, coluna ao lado no PC.
+ * detalhe (`DetalheDaCaixa`) — modal na tela estreita, coluna ao lado no PC.
  * Quando o app já sabe a resposta, "Aceitar" resolve num toque; várias de uma
  * vez passam por uma lista de conferência. Tudo com "Desfazer".
  *
@@ -92,6 +92,9 @@ import { useContrapartes, usePessoasDosMeusEspacos } from '~/composables/useDocu
 import { transferenciaEntrePessoas } from '~/lib/contrapartes'
 import { useSpaceStore } from '~/stores/space'
 import { rotuloDaCategoriaNaCaixa } from '~/lib/categorias-pluggy'
+
+// Tela de dado: ocupa a largura inteira no computador (ver layouts/default.vue).
+definePageMeta({ larguraAmpla: true })
 
 useHead({ title: 'Caixa de entrada · APPingos' })
 
@@ -294,8 +297,8 @@ const resumoDaSugestao = (s: Sugestao | undefined) =>
 // ---- detalhe ------------------------------------------------------------------
 
 /*
- * No PC o detalhe é uma coluna fixa ao lado da lista; no celular, uma folha que
- * sobe de baixo. A seleção é pela chave, e não pelo objeto: classificar faz o
+ * No PC o detalhe é uma coluna fixa ao lado da lista; no celular, um modal que
+ * abre por cima. A seleção é pela chave, e não pelo objeto: classificar faz o
  * item sumir da lista, e no PC o próximo assume o lugar dele.
  */
 const largo = useMediaQuery('(min-width: 1024px)')
@@ -320,7 +323,7 @@ watch([visiveis, largo], ([lista], anterior) => {
 
 /*
  * `?compra=<chave>`: quando a lista chega, a página vai para o mês da compra e
- * ela fica selecionada — no celular, a folha do detalhe já sobe aberta. Uma vez
+ * ela fica selecionada — no celular, o modal do detalhe já abre. Uma vez
  * só: depois disso a seleção é da pessoa.
  */
 const compraDaUrl = typeof route.query.compra === 'string' ? route.query.compra : null
@@ -341,7 +344,7 @@ function abrir(item: ItemDaCaixa, modo?: ModoClassificacao) {
   else selecionada.value = item.chave
 }
 
-/** Ao fechar o diálogo de um destino, no celular a folha também fecha: a compra foi resolvida (ou a pessoa desistiu). */
+/** Ao fechar o diálogo de um destino, no celular o modal também fecha: a compra foi resolvida (ou a pessoa desistiu). */
 function fecharClassificacao() {
   emClassificacao.value = null
   if (!largo.value) selecionada.value = null
@@ -418,8 +421,14 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
 
 <template>
   <div class="space-y-6">
-    <OrcamentosAbas subtitulo="O extrato que chegou do banco, esperando um destino. Só você vê." />
-    <OpenFinanceSecoes />
+    <!-- Regras não tem cartão no painel: é daqui, onde as sugestões aparecem, que se chega a elas. -->
+    <OrcamentosCabecalho titulo="Caixa de entrada" subtitulo="O extrato que chegou do banco, esperando um destino. Só você vê.">
+      <template #acoes>
+        <Button as-child variant="outline" size="sm">
+          <NuxtLink to="/orcamentos/open-finance/regras">Regras aprendidas</NuxtLink>
+        </Button>
+      </template>
+    </OrcamentosCabecalho>
 
     <Card v-if="conexoes && !conexoes.length">
       <CardContent class="flex flex-wrap items-center justify-between gap-3 text-sm">
@@ -546,7 +555,7 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
 
       <!--
         No PC, a lista e, à direita, o calendário do mês com o detalhe embaixo;
-        no celular, o calendário vem antes da lista e o detalhe sobe numa folha.
+        no celular, o calendário vem antes da lista e o detalhe abre num modal.
       -->
       <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div class="space-y-4">
@@ -615,15 +624,19 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
       </div>
     </template>
 
-    <!-- No celular, o detalhe sobe de baixo. -->
+    <!--
+      Sem a coluna ao lado (tela estreita), o detalhe abre no modal de sempre do
+      app — o mesmo de Nova compra e dos outros diálogos. Já foi uma folha que
+      subia de baixo; era o único lugar do app com esse desenho. A altura é
+      limitada e o conteúdo rola por dentro, então cabe no celular.
+    -->
     <Dialog v-model:open="folhaAberta">
       <DialogContent
         v-if="itemSelecionado"
-        class="top-auto bottom-0 left-0 max-h-[88dvh] max-w-full translate-x-0 translate-y-0 overflow-y-auto rounded-b-none rounded-t-2xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom data-[state=closed]:zoom-out-100 data-[state=open]:zoom-in-100 sm:max-w-full"
+        class="max-h-[85dvh] overflow-y-auto sm:max-w-lg"
       >
         <DialogTitle class="sr-only">{{ rotuloParaRegra(itemSelecionado.principal) }}</DialogTitle>
         <DialogDescription class="sr-only">Detalhes da compra e para onde ela vai.</DialogDescription>
-        <div class="mx-auto -mt-2 mb-1 h-1 w-10 rounded-full bg-muted-foreground/30" aria-hidden="true" />
         <DetalheDaCaixa
           :item="itemSelecionado"
           :sugestao="sugestoes.get(itemSelecionado.chave) ?? null"

@@ -48,6 +48,12 @@ export interface Lancamento {
  */
 export const LANCAMENTOS: Lancamento[] = [
   {
+    versao: '1.15.0',
+    titulo: 'Orçamentos num painel só',
+    descricao: 'O mês inteiro numa tela: o saldo das contas, os gastos com as faturas abertas, o salário repartido entre faturas, investido e livre, o planejado semana a semana e as últimas movimentações do extrato. Cada cartão abre a sua tela, em tela larga no computador, e o "Como funciona" explica cada número.',
+    data: '2026-11-24',
+  },
+  {
     versao: '1.14.0',
     titulo: 'Cada banco com a sua cara, e as caixinhas no Planejamento',
     descricao: 'Os bancos aparecem com nome, ícone e cores de verdade, e contas e cartões ganham apelido. O pagamento de fatura entre bancos é reconhecido e sai da caixa sozinho. O salário se ajusta no Planejamento e vale dali em diante. Com o CPF cadastrado, os Pix entre vocês aparecem como "Pinga Fogo transferiu para Bixo Pingo". E as aplicações e resgates do extrato agora vão para caixinhas, que podem alimentar uma meta.',

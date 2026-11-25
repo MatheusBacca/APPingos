@@ -132,7 +132,9 @@ const passoAPassoAberto = computed(() => estado.value === 'sem-conexao' || estad
         <li>
           <p class="font-medium">Conecte os seus bancos no MeuPluggy</p>
           <p class="text-muted-foreground">
-            Escolha a instituição e siga a autorização dela. Na maioria dos bancos a conexão é pelo
+            Em <a href="https://meu.pluggy.ai/overview" target="_blank" rel="noopener" class="underline">meu.pluggy.ai/overview</a>
+            é que se cadastra cada banco novo — só depois dele aparecer lá é que dá para conectá-lo no
+            APPingos. Escolha a instituição e siga a autorização dela. Na maioria dos bancos a conexão é pelo
             Open Finance oficial: você confirma o consentimento no app do próprio banco. Um consentimento
             por banco.
           </p>

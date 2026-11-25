@@ -109,6 +109,38 @@ export function useTransacoesDaCaixa() {
 }
 
 /**
+ * As últimas movimentações do extrato de quem está logado — classificadas ou
+ * não, entradas e saídas, transferências e pagamento de fatura. É o cartão
+ * "Últimas movimentações" do painel de Orçamentos.
+ *
+ * Só o que já compensou (`pendente = false`): a linha pendente ainda pode mudar
+ * de valor ou sumir, e o painel não é lugar de conferir isso.
+ */
+export function useMovimentacoesRecentes(quantas = 6) {
+  const supabase = useSupabaseClient()
+  const usuarioId = useUsuarioId()
+
+  return useQuery({
+    queryKey: [CHAVE, usuarioId, 'recentes', quantas],
+    enabled: computed(() => !!usuarioId.value),
+    queryFn: async (): Promise<LinhaDaCaixa[]> => {
+      const { data, error } = await supabase
+        .from('transacao_bancaria')
+        .select(`${COLUNAS}, conta:conta_bancaria(${CONTA_DA_LINHA})`)
+        .eq('pendente', false)
+        // `neq` sozinho descartaria as linhas sem motivo (NULL <> x não é verdade em SQL).
+        .or('motivo_exclusao.is.null,motivo_exclusao.neq.valor_zero')
+        .order('data', { ascending: false })
+        .order('data_hora', { ascending: false, nullsFirst: false })
+        .limit(quantas)
+
+      if (error) throw error
+      return (data ?? []) as unknown as LinhaDaCaixa[]
+    },
+  })
+}
+
+/**
  * Quantas compras dos cartões do casal esperam destino, por pessoa, numa
  * competência — a de cada membro, não só a sua. Só a contagem: a lista
  * continua sendo de quem é o extrato (RPC `pendencias_do_espaco`).
