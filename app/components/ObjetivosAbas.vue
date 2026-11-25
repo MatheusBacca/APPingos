@@ -3,7 +3,7 @@ import { useFaixaRolavel } from '~/composables/useFaixaRolavel'
 /**
  * Cabeçalho e abas do módulo de Objetivos.
  *
- * Mesmo padrão de `OrcamentosAbas.vue` e `FilmesAbas.vue`: cada aba é uma função
+ * Mesmo padrão de `FilmesAbas.vue`: cada aba é uma função
  * do módulo com a sua própria página em `app/pages/objetivos/`, e acrescentar uma
  * é uma entrada em `ABAS` mais o arquivo.
  *

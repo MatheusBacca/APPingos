@@ -29,51 +29,41 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatarDia, formatarMes, hojeIso, primeiroDoMes, somarMeses } from '@/lib/datas'
 import { dataPrevistaDoSalario, descreverRecebimento } from '@/lib/salario'
-import { totalDoMes } from '~/types/orcamento'
-import { somaDosAportes } from '~/types/meta'
-import { projecaoDoCasal, projecaoPessoal, rendaDaCompetencia, valorCentral, valorDaContribuicao } from '~/types/planejamento'
+import { competenciaDaUrl } from '~/lib/painel-orcamentos'
 import type { LinhaDaProjecao } from '~/components/ProjecaoCartao.vue'
-import { useGastosPessoais } from '~/composables/useGastosPessoais'
 import { useMembros } from '~/composables/useMembros'
-import { useAportesDoMes } from '~/composables/useMetas'
-import { useComprasDoMes } from '~/composables/useOrcamento'
-import { useContribuicoesDoEspaco, useMinhasContribuicoes } from '~/composables/usePlanejamento'
-import { useHistoricoDaRenda, useMeusCompartilhamentos, useMinhaRenda } from '~/composables/useRenda'
+import { useProjecoesDoMes } from '~/composables/useProjecoesDoMes'
+import { useMeusCompartilhamentos } from '~/composables/useRenda'
 import { useSpaceStore } from '~/stores/space'
+
+// Tela de dado: ocupa a largura inteira no computador (ver layouts/default.vue).
+definePageMeta({ larguraAmpla: true })
 
 useHead({ title: 'Planejamento · Orçamentos · APPingos' })
 
 const store = useSpaceStore()
+const route = useRoute()
 const { data: membros } = useMembros()
-const { espacoPessoalId } = useGastosPessoais()
 
-const competencia = ref(primeiroDoMes(hojeIso()))
+// O atalho do painel traz o mês em `?mes=AAAA-MM`; sem ele, o mês de hoje.
+const competencia = ref(competenciaDaUrl(route.query.mes) ?? primeiroDoMes(hojeIso()))
 const mesCorrente = computed(() => primeiroDoMes(hojeIso()))
 
-/** O espaço do casal, quando o ativo é compartilhado; `null` desliga as consultas dele. */
-const espacoCasal = computed(() =>
-  store.espacoAtivo && store.espacoAtivo.tipo !== 'pessoal' ? store.espacoAtivo.id : null,
-)
+// As duas projeções e o que as compõe — as mesmas que o painel de Orçamentos mostra.
+const {
+  espacoCasal,
+  minhasContribuicoes,
+  rendaDoMes,
+  salario,
+  contribuicoesEmReais,
+  meuMes,
+  carregandoMeuMes,
+  contribuicoes,
+  carregandoContribuicoes,
+  mesDoCasal,
+} = useProjecoesDoMes(competencia)
 
-// ---- A pessoa -------------------------------------------------------------------
-
-const rendaAtual = useMinhaRenda()
-const historicoDaRenda = useHistoricoDaRenda()
-const minhasContribuicoes = useMinhasContribuicoes()
 const compartilhamentos = useMeusCompartilhamentos()
-
-const { data: comprasPessoais, isPending: carregandoPessoais } = useComprasDoMes(competencia, espacoPessoalId)
-const { data: aportesPessoais } = useAportesDoMes(espacoPessoalId, competencia)
-
-/*
- * O salário que valia no mês da tela: ajustar vale dali em diante, então um mês
- * que já passou usa a versão de antes do ajuste (`renda_historico`).
- */
-const rendaDoMes = computed(() =>
-  rendaDaCompetencia(rendaAtual.data.value ?? null, historicoDaRenda.data.value ?? [], competencia.value),
-)
-
-const salario = computed(() => rendaDoMes.value?.valor_liquido ?? null)
 
 /*
  * O salário se ajusta daqui também, sem passar por Espaços: muda o valor dali
@@ -81,26 +71,7 @@ const salario = computed(() => rendaDoMes.value?.valor_liquido ?? null)
  */
 const editandoSalario = ref(false)
 
-/**
- * O que sai do salário para os espaços compartilhados — todos eles, e não só o
- * ativo: quem contribui com o casal e com a família tem as duas saídas no mês,
- * qualquer que seja o espaço aberto na tela.
- */
-const contribuicoesEmReais = computed(() =>
-  (minhasContribuicoes.data.value ?? []).map(c => ({
-    space_id: c.space_id,
-    valor: valorDaContribuicao(c, salario.value),
-  })),
-)
-
 const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome ?? 'um espaço'
-
-const meuMes = computed(() => projecaoPessoal({
-  salario: salario.value,
-  contribuicoes: contribuicoesEmReais.value.map(c => c.valor),
-  gastosPessoais: totalDoMes(comprasPessoais.value ?? []),
-  aportesPessoais: somaDosAportes(aportesPessoais.value),
-}))
 
 const dataDoSalario = computed(() => {
   const r = rendaDoMes.value
@@ -130,16 +101,6 @@ const linhasDoMeuMes = computed<LinhaDaProjecao[]>(() => {
 })
 
 // ---- O casal --------------------------------------------------------------------
-
-const { data: comprasDoCasal } = useComprasDoMes(competencia, espacoCasal)
-const { data: aportesDoCasal } = useAportesDoMes(espacoCasal, competencia)
-const { data: contribuicoes, isPending: carregandoContribuicoes } = useContribuicoesDoEspaco(espacoCasal)
-
-const mesDoCasal = computed(() => projecaoDoCasal({
-  valorCentral: valorCentral(contribuicoes.value ?? []),
-  parcelas: totalDoMes(comprasDoCasal.value ?? []),
-  aportes: somaDosAportes(aportesDoCasal.value),
-}))
 
 /**
  * Cada contribuição é uma linha que ENTRA no valor central, com o nome de quem
@@ -173,7 +134,7 @@ const situacao = computed(() => {
 
 <template>
   <div class="space-y-6">
-    <OrcamentosAbas subtitulo="Como vai ser o mês: o que entra, o que já saiu e o que sobra." />
+    <OrcamentosCabecalho titulo="Planejamento" subtitulo="Como vai ser o mês: o que entra, o que já saiu e o que sobra." />
 
     <section class="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3">
       <div class="flex items-center gap-1">
@@ -202,7 +163,7 @@ const situacao = computed(() => {
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <!-- ---- Meu mês ---- -->
-      <div v-if="rendaAtual.isPending.value || carregandoPessoais" class="space-y-3 rounded-lg border bg-card p-4">
+      <div v-if="carregandoMeuMes" class="space-y-3 rounded-lg border bg-card p-4">
         <Skeleton v-for="i in 5" :key="i" class="h-6 w-full" />
       </div>
 
@@ -269,7 +230,8 @@ const situacao = computed(() => {
       :salario-aberto-aqui="salarioAbertoAqui"
     />
 
-    <InvestimentosDoPlanejamento />
+    <!-- A âncora é o destino do cartão "Investido" do painel. -->
+    <InvestimentosDoPlanejamento id="investimentos" class="scroll-mt-20" />
 
     <p class="text-xs text-muted-foreground">
       Aqui o aporte numa meta conta como dinheiro que saiu do mês — mas não é compra: não entra no

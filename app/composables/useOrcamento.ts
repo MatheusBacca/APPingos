@@ -124,7 +124,8 @@ export function useSerieMensal(
 
   return useEspacoQuery(
     alvoOuAtivo(espaco),
-    computed(() => ['orcamento', 'serie', toValue(competencia)]),
+    // A janela entra na chave: o painel pede um ano para trás, Chico Moedas meio.
+    computed(() => ['orcamento', 'serie', toValue(competencia), janela.antes, janela.depois]),
     async (spaceId): Promise<PontoMensal[]> => {
       const centro = toValue(competencia)
       const inicio = somarMeses(centro, -janela.antes)

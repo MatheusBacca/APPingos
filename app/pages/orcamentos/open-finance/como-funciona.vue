@@ -8,8 +8,7 @@ useHead({ title: 'Open Finance · APPingos' })
 
 <template>
   <div class="space-y-6">
-    <OrcamentosAbas subtitulo="Os seus bancos no APPingos: como funciona e como conectar." />
-    <OpenFinanceSecoes />
+    <OrcamentosCabecalho titulo="Open Finance" subtitulo="Os seus bancos no APPingos: como funciona e como conectar." />
     <GuiaPluggy />
   </div>
 </template>
