@@ -408,7 +408,7 @@ const { data: metasPessoais } = useMetas(gavetaPessoal)
 
 const metasAbertas = computed(() =>
   [...(metasDoEspaco.value ?? []), ...(metasPessoais.value ?? [])]
-    .filter(m => m.estado === 'ativa')
+    .filter(m => m.estado === 'ativa' || m.estado === 'pausada')
     .map(m => ({ meta: m, progresso: progressoDaMeta(m, m.aportes) }))
     .sort((a, b) => b.progresso.fracao - a.progresso.fracao)
     .slice(0, 4),
@@ -527,7 +527,7 @@ function diaEMes(iso: string): string {
           <div class="flex items-end justify-between gap-2">
             <div>
               <p class="text-2xl font-semibold tabular-nums">{{ formatarDinheiro(gastoDoEspaco) }}</p>
-              <p class="text-xs text-muted-foreground">Gasto do espaço</p>
+              <p class="text-xs text-muted-foreground">{{ temGavetaPessoal ? 'Gasto do espaço' : 'Gastos do mês' }}</p>
             </div>
             <svg v-if="curvaDosGastos.length > 1" viewBox="0 0 96 28" class="h-7 w-24 text-primary" aria-hidden="true">
               <path :d="caminhoDaCurva(curvaDosGastos)" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
@@ -630,20 +630,24 @@ function diaEMes(iso: string): string {
                 :stroke-dashoffset="a.deslocamento"
               />
             </svg>
-            <dl class="min-w-0 flex-1 space-y-1.5 text-xs">
-              <div v-for="f in salarioRepartido.fatias" :key="f.chave" class="flex items-center gap-2">
-                <span class="size-2.5 shrink-0 rounded-full" :class="COR_DA_FATIA[f.chave].ponto" aria-hidden="true" />
-                <dt class="min-w-0 flex-1 truncate">{{ f.rotulo }}</dt>
-                <dd class="tabular-nums">{{ formatarDinheiro(f.valor) }}</dd>
-                <dd class="w-10 text-right tabular-nums text-muted-foreground">{{ formatarPercentual(f.fracao) }}</dd>
-              </div>
+            <div class="min-w-0 flex-1 space-y-1.5 text-xs">
+              <dl class="space-y-1.5">
+                <div v-for="f in salarioRepartido.fatias" :key="f.chave" class="flex items-center gap-2">
+                  <dt class="flex min-w-0 flex-1 items-center gap-2">
+                    <span class="size-2.5 shrink-0 rounded-full" :class="COR_DA_FATIA[f.chave].ponto" aria-hidden="true" />
+                    <span class="truncate">{{ f.rotulo }}</span>
+                  </dt>
+                  <dd class="tabular-nums">{{ formatarDinheiro(f.valor) }}</dd>
+                  <dd class="w-10 text-right tabular-nums text-muted-foreground">{{ formatarPercentual(f.fracao) }}</dd>
+                </div>
+              </dl>
               <p class="pt-1 text-muted-foreground">
                 de {{ formatarDinheiro(salarioRepartido.salario) }} de salário
                 <span v-if="salarioRepartido.estouro" class="block font-medium text-red-600 dark:text-red-400">
                   Passou {{ formatarDinheiro(salarioRepartido.estouro) }} do salário.
                 </span>
               </p>
-            </dl>
+            </div>
           </div>
           <p v-else-if="meuMes" class="text-sm text-muted-foreground">
             A pizza mostra o mês corrente: as faturas abertas são as do ciclo de hoje.
@@ -692,7 +696,11 @@ function diaEMes(iso: string): string {
             <component :is="TOM_DO_PLANO[situacaoDoPlano].icone" class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <div>
               <p class="font-medium">{{ TOM_DO_PLANO[situacaoDoPlano].titulo }}</p>
-              <p v-if="projecaoPrincipal.sobra >= 0">
+              <p v-if="projecaoPrincipal.sobra >= 0 && situacao === 'fechado'">
+                Sobraram <strong class="tabular-nums">{{ formatarDinheiro(projecaoPrincipal.sobra) }}</strong>
+                do planejado do mês.
+              </p>
+              <p v-else-if="projecaoPrincipal.sobra >= 0">
                 Faltam <strong class="tabular-nums">{{ formatarDinheiro(projecaoPrincipal.sobra) }}</strong>
                 para atingir o planejado do mês.
               </p>
@@ -711,13 +719,14 @@ function diaEMes(iso: string): string {
           -->
           <div class="mt-4 flex items-center justify-center gap-6 sm:gap-10">
             <dl class="flex flex-col items-center gap-2 text-center sm:flex-row sm:gap-10">
-              <div>
-                <dd class="text-xl font-semibold tabular-nums sm:text-2xl">{{ formatarDinheiro(projecaoPrincipal.realizado) }}</dd>
+              <!-- `dt` antes do `dd` no HTML (é a ordem que o leitor de tela lê); o valor aparece em cima pelo `flex-col-reverse`. -->
+              <div class="flex flex-col-reverse">
                 <dt class="text-xs text-muted-foreground">já gastos</dt>
+                <dd class="text-xl font-semibold tabular-nums sm:text-2xl">{{ formatarDinheiro(projecaoPrincipal.realizado) }}</dd>
               </div>
-              <div>
-                <dd class="text-xl font-semibold tabular-nums sm:text-2xl">{{ formatarDinheiro(projecaoPrincipal.planejado) }}</dd>
+              <div class="flex flex-col-reverse">
                 <dt class="text-xs text-muted-foreground">planejado no mês</dt>
+                <dd class="text-xl font-semibold tabular-nums sm:text-2xl">{{ formatarDinheiro(projecaoPrincipal.planejado) }}</dd>
               </div>
             </dl>
             <div class="shrink-0 border-l pl-6 sm:pl-10">
@@ -896,14 +905,14 @@ function diaEMes(iso: string): string {
         cartão volta a ser o das últimas compras lançadas.
       -->
       <PainelCartao
-        v-if="conexoes?.length"
+        v-if="carregandoConexoes || conexoes?.length"
         compacto
         titulo="Últimas movimentações"
         :icone="ArrowLeftRightIcon"
         :para="`/orcamentos/open-finance/caixa?mes=${mesNaUrl(competencia)}`"
         rotulo-do-atalho="Caixa de entrada"
       >
-        <div v-if="carregandoMovimentacoes" class="space-y-2">
+        <div v-if="carregandoConexoes || carregandoMovimentacoes" class="space-y-2">
           <Skeleton v-for="i in 4" :key="i" class="h-9 w-full" />
         </div>
         <ul v-else-if="movimentacoes?.length" class="divide-y">

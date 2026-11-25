@@ -11,10 +11,16 @@
  *
  * As ações são da tela (Nova compra, Conectar banco), por isso vêm da página.
  */
+import { ArrowLeftIcon } from '@lucide/vue'
+
 withDefaults(defineProps<{
   titulo: string
   subtitulo: string
-  /** Para onde o "voltar" leva quem chegou direto pelo link. */
+  /**
+   * Para onde o "voltar" leva. É um link, e não `router.back()`: o rótulo
+   * promete o painel, e o histórico levaria à tela anterior — a Caixa, para
+   * quem abriu Regras por ela, ou para fora do app, para quem veio de um link.
+   */
   voltarPara?: string
   rotuloDoVoltar?: string
 }>(), {
@@ -25,7 +31,13 @@ withDefaults(defineProps<{
 
 <template>
   <header class="space-y-2">
-    <BotaoVoltar :para="voltarPara" :rotulo="rotuloDoVoltar" />
+    <NuxtLink
+      :to="voltarPara"
+      class="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+    >
+      <ArrowLeftIcon class="size-4" />
+      {{ rotuloDoVoltar }}
+    </NuxtLink>
     <div class="flex flex-wrap items-end gap-x-4 gap-y-2">
       <div class="min-w-0 flex-1">
         <h1 class="text-2xl font-semibold tracking-tight">{{ titulo }}</h1>
