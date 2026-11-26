@@ -9,7 +9,10 @@
 import { describe, expect, it } from 'vitest'
 import { destinoEfetivo, faturaPorDestino } from '~/lib/cartoes'
 import type { FinalDoCartao, LancamentoDoCartao } from '~/lib/cartoes'
-import { FAIXAS_PADRAO, consumoDosOutrosEspacos, problemaNasFaixas, tomDoSalario } from '~/lib/painel-orcamentos'
+import { FAIXAS_PADRAO, acertoAPagar, consumoDosOutrosEspacos, problemaNasFaixas, repartirSalario, saldosNosAcertos, somarAcertos, tomDoSalario } from '~/lib/painel-orcamentos'
+import { saldoDoMes } from '~/types/orcamento'
+import { formatarDinheiro } from '@/lib/dinheiro'
+import { VALOR_OCULTO, mascararMantendoSinal, useValoresOcultos } from '~/composables/useValoresOcultos'
 import type { CompraDoMes } from '~/types/orcamento'
 
 const CASAL = 'space-casal'
@@ -146,5 +149,138 @@ describe('faixas do salário', () => {
     expect(problemaNasFaixas(100, 100)).toMatch(/abaixo da de alerta/)
     expect(problemaNasFaixas(50, 301)).toMatch(/300%/)
     expect(problemaNasFaixas(Number.NaN, 100)).toMatch(/Preencha/)
+  })
+})
+
+describe('saldosNosAcertos', () => {
+  const espacos = [
+    { id: 'pessoal', nome: 'Pessoal', tipo: 'pessoal' },
+    { id: CASAL, nome: 'SpacePingos', tipo: 'casal' },
+    { id: 'viagem', nome: 'Viagem', tipo: 'casal' },
+    { id: 'familia', nome: 'Família', tipo: 'casal' },
+  ]
+  const membros = new Map<string, string[]>([
+    [CASAL, [EU, ELA]],
+    ['viagem', [EU, ELA]],
+    ['familia', [EU, ELA, 'outro']],
+  ])
+  // Eu paguei 100 dividido meio a meio (ela me deve 50); ela pagou 30 só meu (eu devo 30).
+  const pagoPor = (c: CompraDoMes, quem: string) => ({ ...c, pago_por: quem })
+  const compras = new Map<string, CompraDoMes[]>([
+    ['pessoal', [compra('pessoal', 999, { [EU]: 1 })]],
+    [CASAL, [compra(CASAL, 100, { [EU]: 1, [ELA]: 1 }), pagoPor(compra(CASAL, 30, { [EU]: 1 }), ELA)]],
+    ['viagem', [pagoPor(compra('viagem', 80, { [EU]: 1, [ELA]: 1 }), ELA)]],
+    ['familia', [pagoPor(compra('familia', 90, { [EU]: 1, [ELA]: 1, outro: 1 }), ELA)]],
+  ])
+  const base = { espacos, compras, membros, eu: EU }
+
+  it('soma o seu saldo nos espaços de duas pessoas, sem o pessoal', () => {
+    const r = saldosNosAcertos({ ...base, acertados: new Set() })
+    expect(r.porEspaco).toEqual([
+      { spaceId: CASAL, saldo: 20 }, // me devem 50, eu devo 30
+      { spaceId: 'viagem', saldo: -40 }, // devo metade de 80
+    ])
+    expect(r.total).toBe(-20)
+  })
+
+  it('espaço de três pessoas fica de fora, como no cartão Acerto do mês', () => {
+    const r = saldosNosAcertos({ ...base, acertados: new Set() })
+    expect(r.porEspaco.some(p => p.spaceId === 'familia')).toBe(false)
+  })
+
+  it('usa os membros de verdade, não os que aparecem nas compras', () => {
+    const r = saldosNosAcertos({ ...base, membros: new Map([[CASAL, [EU, ELA]]]), acertados: new Set() })
+    expect(r.porEspaco.map(p => p.spaceId)).toEqual([CASAL]) // viagem sem membros carregados não conta
+  })
+
+  it('mês já acertado não conta: o dinheiro já trocou de mãos', () => {
+    expect(saldosNosAcertos({ ...base, acertados: new Set([CASAL]) }).total).toBe(-40)
+  })
+
+  it('bate com o saldo do cartão Acerto do mês', () => {
+    const doCartao = saldoDoMes(compras.get(CASAL)!, [EU, ELA]).find(s => s.user_id === EU)!.saldo
+    expect(saldosNosAcertos({ ...base, acertados: new Set(['viagem']) }).total).toBe(doCartao)
+  })
+
+  it('sem usuário, não há acerto', () => {
+    expect(saldosNosAcertos({ ...base, acertados: new Set(), eu: null })).toEqual({ total: 0, porEspaco: [] })
+  })
+})
+
+describe('somarAcertos', () => {
+  it('junta o mês aberto com o anterior pendente, por espaço', () => {
+    const aberto = { total: 30, porEspaco: [{ spaceId: CASAL, saldo: 50 }, { spaceId: 'viagem', saldo: -20 }] }
+    const anterior = { total: -30, porEspaco: [{ spaceId: CASAL, saldo: -30 }] }
+    expect(somarAcertos(aberto, anterior)).toEqual({
+      total: 0,
+      porEspaco: [{ spaceId: CASAL, saldo: 20 }, { spaceId: 'viagem', saldo: -20 }],
+    })
+  })
+
+  it('espaço que zera na soma sai da lista', () => {
+    const r = somarAcertos({ total: 10, porEspaco: [{ spaceId: CASAL, saldo: 10 }] }, { total: -10, porEspaco: [{ spaceId: CASAL, saldo: -10 }] })
+    expect(r).toEqual({ total: 0, porEspaco: [] })
+  })
+})
+
+describe('o acerto no salário', () => {
+  it('o que te devem abate as faturas; o que você deve soma', () => {
+    expect(acertoAPagar(1000, 300)).toBe(700)
+    expect(acertoAPagar(1000, -300)).toBe(1300)
+    expect(acertoAPagar(200, 500)).toBe(0)
+  })
+
+  const arcos = (r: NonNullable<ReturnType<typeof repartirSalario>>) => Object.fromEntries(r.fatias.map(f => [f.chave, f.valor]))
+
+  it('o que te devem é uma sub-fatia dentro de Faturas e abate na conta', () => {
+    const r = repartirSalario({ salario: 5000, faturas: 3000, investido: 500, acerto: 900 })!
+    // Faturas inteira na pizza (2100 + 900 = 3000), o Receberei dentro dela.
+    expect(arcos(r)).toEqual({ faturas: 2100, receber: 900, devo: 0, investido: 500, livre: 1500 })
+    expect(r.fatias.map(f => f.chave)).toEqual(['faturas', 'receber', 'devo', 'investido', 'livre'])
+    expect([r.faturasDoBanco, r.receber, r.devo]).toEqual([3000, 900, 0])
+    // 5000 − (3000 − 900) − 500
+    expect(r.resultado).toBe(2400)
+    expect(r.fatias.reduce((s, f) => s + f.fracao, 0)).toBeCloseTo(1)
+  })
+
+  it('o que você deve é uma fatia a mais, ao lado de Faturas, e soma na conta', () => {
+    const r = repartirSalario({ salario: 5000, faturas: 3000, investido: 0, acerto: -400 })!
+    expect(arcos(r)).toEqual({ faturas: 3000, receber: 0, devo: 400, investido: 0, livre: 1600 })
+    expect([r.receber, r.devo, r.resultado]).toEqual([0, 400, 1600])
+  })
+
+  it('dever no acerto pode passar do salário: resultado negativo, pizza inteira', () => {
+    const r = repartirSalario({ salario: 1000, faturas: 900, investido: 0, acerto: -200 })!
+    expect(r.resultado).toBe(-100)
+    expect(arcos(r).livre).toBe(0)
+    expect(r.fatias.reduce((s, f) => s + f.fracao, 0)).toBeCloseTo(1)
+  })
+
+  it('receber mais que a fatura: a sub-fatia não passa de Faturas, a conta usa o valor todo', () => {
+    const r = repartirSalario({ salario: 1000, faturas: 200, investido: 0, acerto: 500 })!
+    expect(arcos(r)).toEqual({ faturas: 0, receber: 200, devo: 0, investido: 0, livre: 800 })
+    expect(r.receber).toBe(500)
+    expect(r.resultado).toBe(1300)
+  })
+})
+
+describe('useValoresOcultos', () => {
+  it('esconde o dinheiro e volta a mostrar', () => {
+    const { ocultos, alternar, dinheiro } = useValoresOcultos()
+    ocultos.value = false
+    expect(dinheiro(1234.5)).toBe(formatarDinheiro(1234.5))
+    alternar()
+    expect(dinheiro(1234.5)).toBe(VALOR_OCULTO)
+    alternar()
+    expect(ocultos.value).toBe(false)
+  })
+})
+
+describe('mascararMantendoSinal', () => {
+  it('mantém o sinal que diz quem deve', () => {
+    expect(mascararMantendoSinal('+R$ 366,15')).toBe(`+${VALOR_OCULTO}`)
+    expect(mascararMantendoSinal('−R$ 10,00')).toBe(`−${VALOR_OCULTO}`)
+    expect(mascararMantendoSinal('R$ 10,00')).toBe(VALOR_OCULTO)
+    expect(mascararMantendoSinal('− R$ 834,08')).toBe(`− ${VALOR_OCULTO}`)
   })
 })

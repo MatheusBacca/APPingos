@@ -1,4 +1,4 @@
-import { useMutation, useQueries, useQueryClient } from '@tanstack/vue-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/vue-query'
 import type { MaybeRefOrGetter } from 'vue'
 import { partesDaData, somarMeses, ultimoDiaDoMes } from '@/lib/datas'
 import { parteDe } from '~/types/orcamento'
@@ -72,6 +72,32 @@ export function useComprasDosEspacos(competencia: MaybeRefOrGetter<string>, espa
       porEspaco: new Map(toValue(espacos).map((id, i) => [id, resultados[i]?.data ?? []])),
       carregando: resultados.some(r => r.isPending),
     }),
+  })
+}
+
+/**
+ * Em quais espaços o mês já foi marcado como acertado — de vários espaços numa
+ * consulta só (`acerto_mes`, que a RLS já limita aos espaços da pessoa). É o que
+ * tira do "Salário do mês" o acerto que já trocou de mãos.
+ */
+export function useAcertadosNoMes(competencia: MaybeRefOrGetter<string>, espacos: MaybeRefOrGetter<string[]>) {
+  const supabase = useSupabaseClient()
+
+  return useQuery({
+    // Sob 'space' de propósito: a caixa de entrada, ao conciliar um Pix de acerto, invalida tudo
+    // que começa com 'space' — e um acerto quitado ali tem de sair do Salário do mês na hora.
+    queryKey: computed(() => ['space', '*', 'orcamento', 'acertados', toValue(competencia), [...toValue(espacos)].sort()]),
+    enabled: computed(() => toValue(espacos).length > 0),
+    queryFn: async (): Promise<Set<string>> => {
+      const { data, error } = await supabase
+        .from('acerto_mes')
+        .select('space_id')
+        .in('space_id', toValue(espacos))
+        .eq('competencia', toValue(competencia))
+
+      if (error) throw error
+      return new Set((data ?? []).map(a => a.space_id as string))
+    },
   })
 }
 
@@ -295,6 +321,9 @@ export function useAcertos() {
 export function useMarcarAcerto() {
   const supabase = useSupabaseClient()
   const usuarioId = useUsuarioId()
+  const queryClient = useQueryClient()
+  // Os acertos de vários espaços (`useAcertadosNoMes`) moram fora da chave do espaço.
+  const invalidarAcertados = () => queryClient.invalidateQueries({ queryKey: ['space', '*', 'orcamento', 'acertados'] })
 
   return useSpaceMutation<{ competencia: string, pago: boolean }, void>(
     async (spaceId, { competencia, pago }) => {
@@ -303,6 +332,7 @@ export function useMarcarAcerto() {
           .from('acerto_mes')
           .insert({ space_id: spaceId, competencia, pago_por: usuarioId.value! })
         if (error) throw error
+        await invalidarAcertados()
         return
       }
 
@@ -312,6 +342,7 @@ export function useMarcarAcerto() {
         .eq('space_id', spaceId)
         .eq('competencia', competencia)
       if (error) throw error
+      await invalidarAcertados()
     },
     [['orcamento', 'acertos']],
   )

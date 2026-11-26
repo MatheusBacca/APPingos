@@ -12,13 +12,16 @@
  * depois tem "Desfazer" — deslizar sem querer não pode custar uma compra.
  */
 import { CheckIcon, ChevronRightIcon, EyeOffIcon, PanelRightOpenIcon } from '@lucide/vue'
-import { formatarDinheiro } from '@/lib/dinheiro'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import { ROTULO_DESTINO_DA_REGRA } from '~/lib/auto-tag'
 import type { Sugestao } from '~/lib/auto-tag'
 import type { ItemDaCaixa } from '~/lib/caixa-de-entrada'
 import { textoParaSelo, valorDoItem } from '~/lib/caixa-lista'
 import { iconeDaCategoria } from '~/lib/icones-categoria'
 import { rotuloParaRegra } from '~/lib/auto-tag'
+
+/** Os valores em dinheiro seguem o olho de Orçamentos (`useValoresOcultos`). */
+const { dinheiro } = useValoresOcultos()
 
 const props = defineProps<{
   item: ItemDaCaixa
@@ -178,7 +181,7 @@ const passouDoLimiar = computed(() => {
       <button
         type="button"
         class="flex min-w-0 flex-1 items-start gap-3 px-3 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-        :aria-label="`${titulo}, ${formatarDinheiro(valor)}. Ver detalhes e classificar.`"
+        :aria-label="`${titulo}, ${dinheiro(valor)}. Ver detalhes e classificar.`"
         @click="aoClicar"
       >
         <!-- A loja grande, o banco pequeno no canto: nunca dá para confundir os dois. -->
@@ -202,7 +205,7 @@ const passouDoLimiar = computed(() => {
               class="shrink-0 font-semibold tabular-nums"
               :class="item.sentido === 'entrada' ? 'text-emerald-600 dark:text-emerald-400' : ''"
             >
-              {{ item.sentido === 'entrada' ? '+' : '' }}{{ formatarDinheiro(valor) }}
+              {{ item.sentido === 'entrada' ? '+' : '' }}{{ dinheiro(valor) }}
             </span>
           </span>
 

@@ -22,7 +22,7 @@
 import { ChevronRightIcon, InboxIcon, InfoIcon } from '@lucide/vue'
 import { Skeleton } from '@/components/ui/skeleton'
 import { nomeDoMes, partesDaData } from '@/lib/datas'
-import { formatarDinheiro } from '@/lib/dinheiro'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import { itensDaCaixa } from '~/lib/caixa-de-entrada'
 import type { ItemDaCaixa } from '~/lib/caixa-de-entrada'
 import { bancoDaConta, mesDoItem, pendentesDoCasal, rotuloDaConta, textoParaSelo, valorDoItem } from '~/lib/caixa-lista'
@@ -34,6 +34,9 @@ import { useCategorias } from '~/composables/useOrcamento'
 import { useMembros } from '~/composables/useMembros'
 import { useUsuarioId } from '~/composables/useUsuarioId'
 import { useSpaceStore } from '~/stores/space'
+
+/** Os valores em dinheiro seguem o olho de Orçamentos (`useValoresOcultos`). */
+const { dinheiro } = useValoresOcultos()
 
 const props = defineProps<{
   /** O mês que o Chico Moedas está mostrando (YYYY-MM-01). */
@@ -155,7 +158,7 @@ const nomeDaFatura = computed(() => nomeDoMes(props.competencia).toLowerCase())
           <NuxtLink
             :to="linkDe(item)"
             class="flex items-center gap-3 rounded-xl border bg-background/40 p-3 transition-colors hover:border-primary/40 hover:bg-primary/5"
-            :aria-label="`${rotuloParaRegra(item.principal)}, ${formatarDinheiro(valorDoItem(item))}. Classificar na caixa de entrada.`"
+            :aria-label="`${rotuloParaRegra(item.principal)}, ${dinheiro(valorDoItem(item))}. Classificar na caixa de entrada.`"
           >
             <span class="relative shrink-0">
               <IconeDaCompra :descricao="textoParaSelo(item.principal)" :categoria="categoriaDe(item)" />
@@ -173,7 +176,7 @@ const nomeDaFatura = computed(() => nomeDoMes(props.competencia).toLowerCase())
             </span>
 
             <span class="flex shrink-0 flex-col items-end gap-1">
-              <span class="font-semibold tabular-nums">{{ formatarDinheiro(valorDoItem(item)) }}</span>
+              <span class="font-semibold tabular-nums">{{ dinheiro(valorDoItem(item)) }}</span>
               <span
                 v-if="categoriaDe(item)"
                 class="inline-flex max-w-36 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary"
@@ -201,7 +204,7 @@ const nomeDaFatura = computed(() => nomeDoMes(props.competencia).toLowerCase())
         <InfoIcon class="size-5 shrink-0" />
         <span class="flex-1">
           <template v-if="minhas.length > LIMITE">
-            Mais {{ minhas.length - LIMITE }} na caixa de entrada — {{ formatarDinheiro(valorDasMinhas) }} no total.
+            Mais {{ minhas.length - LIMITE }} na caixa de entrada — {{ dinheiro(valorDasMinhas) }} no total.
           </template>
           <template v-else>Toque em uma compra para classificar ou ver mais detalhes.</template>
         </span>

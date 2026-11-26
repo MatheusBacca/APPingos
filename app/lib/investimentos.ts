@@ -97,3 +97,28 @@ export function pareceInvestimento(t: { descricao: string, categoria_pluggy?: st
   if (/^investments?$/i.test(t.categoria_pluggy ?? '')) return true
   return /\b(aplica[cç][aã]o|resgate|rdb|cdb|caixinha|investimento|tesouro|lci|lca)\b/i.test(t.descricao)
 }
+
+export interface TotalInvestido {
+  total: number
+  /** Saldo menos o aplicado; `null` quando o total vem das caixinhas (não há aplicado). */
+  rendimento: number | null
+  origem: 'bancos' | 'caixinhas'
+}
+
+/**
+ * O total investido. As posições dos bancos são o saldo de verdade; as caixinhas
+ * são rótulos sobre esse mesmo dinheiro ("para quê"), então somar as duas
+ * contaria duas vezes. Só sem banco conectado é que a soma das caixinhas vale.
+ */
+export function totalInvestido(
+  bancos: ReadonlyArray<Pick<ResumoDoBanco, 'saldo' | 'aplicado'>>,
+  caixinhas: ReadonlyArray<Pick<Caixinha, 'movimentos'>>,
+): TotalInvestido | null {
+  if (bancos.length) {
+    const saldo = bancos.reduce((s, b) => s + b.saldo, 0)
+    const aplicado = bancos.reduce((s, b) => s + b.aplicado, 0)
+    return { total: saldo, rendimento: saldo - aplicado, origem: 'bancos' }
+  }
+  if (caixinhas.length) return { total: caixinhas.reduce((s, c) => s + saldoDaCaixinha(c), 0), rendimento: null, origem: 'caixinhas' }
+  return null
+}

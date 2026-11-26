@@ -24,7 +24,7 @@ const aberto = defineModel<boolean>('aberto', { required: true })
 const SECOES = [
   {
     titulo: 'O mês',
-    texto: 'Tudo no painel é do mês escolhido no alto. Um mês que já acabou está fechado; um mês à frente só mostra o que as parcelas já comprometeram. As setas trocam o mês, e "Hoje" volta para o atual.',
+    texto: 'Tudo no painel é do mês escolhido no alto. Um mês que já acabou está fechado; um mês à frente só mostra o que as parcelas já comprometeram. As setas trocam o mês, e "Hoje" volta para o atual. O olho, ao lado de "Como funciona", esconde os valores em dinheiro em todas as telas de Orçamentos e nos resumos da lateral — e lembra a escolha neste aparelho.',
   },
   {
     titulo: 'Saldo em contas',
@@ -32,7 +32,7 @@ const SECOES = [
   },
   {
     titulo: 'Gastos do mês',
-    texto: '"Gasto do espaço" é o que vocês compraram juntos, pela parcela que cai neste mês — é o que o acerto usa. "Meu bolso" é a sua parte disso mais os seus gastos pessoais, que só você vê. Os dois números não se somam. Embaixo, as faturas abertas de cada cartão (pelo ciclo do cartão, não pelo mês do calendário) e quanto do limite cada uma já tomou — o link "Cartões" abre o detalhe delas. O "+" lança uma compra; o cartão leva ao Chico Moedas, com a lista e as categorias.',
+    texto: '"Gasto do espaço" é o que vocês compraram juntos, pela parcela que cai neste mês — é o que o acerto usa. "Meu bolso" é a sua parte disso mais os seus gastos pessoais, que só você vê. Os dois números não se somam. Embaixo, as faturas abertas dos cartões deste espaço (o que o banco já pôs na fatura aberta, pelo final de cada cartão) e quanto do limite cada uma já tomou — o link "Cartões" abre o detalhe delas. Depois do divisor, uma linha por espaço em que você está: os seus cartões nele e a sua parte no mês. No fim, quantos lançamentos do extrato ainda esperam destino na caixa de entrada. O "+" lança uma compra; o cartão leva ao Chico Moedas, com a lista e as categorias.',
   },
   {
     titulo: 'Sobra do mês',
@@ -40,7 +40,7 @@ const SECOES = [
   },
   {
     titulo: 'Salário do mês',
-    texto: 'O seu salário do mês repartido em três: Faturas (o que está nas faturas abertas dos seus cartões), Investido (o que você guardou neste mês em metas e caixinhas) e Livre (o que sobra). A contribuição ao casal não entra aqui — ela está na Sobra do mês. Só aparece no mês corrente, porque as faturas abertas são as do ciclo de hoje.',
+    texto: 'O seu salário do mês contra o que já está comprometido. A legenda é uma conta: Faturas (as faturas abertas dos seus cartões) e Investido (o que você guardou neste mês em metas e caixinhas), menos o Salário; embaixo do traço, o que sobra, em verde, ou quanto passou do salário, em vermelho. O acerto dos espaços de duas pessoas (o mês aberto e o anterior, enquanto não for marcado como acertado) aparece embaixo de Faturas: "Receberei" é o que te devem, uma parte azul dentro da fatia das faturas, que abate; "Devo" é o que você deve, uma fatia rosa a mais ao lado delas, que soma. A fatia verde da pizza é o que fica livre. A contribuição ao casal não entra aqui — ela está na Sobra do mês. Só aparece no mês corrente, porque as faturas abertas são as do ciclo de hoje. Leva ao Planejamento, onde estão também os seus investimentos.',
   },
 
   {
@@ -49,20 +49,11 @@ const SECOES = [
   },
   {
     titulo: 'Planejamento',
-    texto: 'Quanto do que o mês tinha (o salário menos a contribuição) já foi usado, comparado com quanto do mês já passou — "no ritmo" é estar mais ou menos junto do calendário. A linha em quatro semanas (1–7, 8–14, 15–21 e 22 ao fim do mês) mostra, em cada uma, quanto foi gasto da parte do planejado que cabia nela; a semana de hoje fica com a borda acesa, e passar de 100% pinta o bloco de âmbar. Uma parcela de compra antiga conta na primeira semana. O recado no alto diz quanto falta para atingir o planejado do mês (ou quanto já passou dele). A cor do anel e do recado é a situação do mês: verde quando o gasto está abaixo do ritmo do calendário, laranja quando está no ritmo e vermelho quando está na frente dele ou já passou do planejado. Num espaço compartilhado aparece também o mês do casal: o valor central menos as parcelas e os aportes em metas do casal.',
-  },
-  {
-    titulo: 'Investimentos',
-    texto: 'O total investido e o rendimento bruto, a divisão por banco, na cor de cada um, e as caixinhas cadastradas. Os dados de banco vêm do seu Open Finance — a outra pessoa do espaço não vê.',
-  },
-
-  {
-    titulo: 'Acerto do mês',
-    texto: 'Quem deve a quem pelas compras do espaço neste mês, e quantos lançamentos do extrato ainda esperam destino na caixa de entrada.',
+    texto: 'Quanto do que o mês tinha (o salário menos a contribuição) já foi usado, comparado com quanto do mês já passou — "no ritmo" é estar mais ou menos junto do calendário. A linha em quatro semanas (1–7, 8–14, 15–21 e 22 ao fim do mês) mostra, em cada uma, quanto foi gasto da parte do planejado que cabia nela; a semana de hoje fica com a borda acesa, e passar de 100% pinta o bloco de âmbar. Uma parcela de compra antiga conta na primeira semana. O recado no alto diz quanto falta para atingir o planejado do mês (ou quanto já passou dele). A cor do anel e do recado é a situação do mês: verde quando o gasto está abaixo do ritmo do calendário, laranja quando está no ritmo e vermelho quando está na frente dele ou já passou do planejado. O cartão segue o espaço aberto: num compartilhado é o mês dele (o valor central menos as parcelas e os aportes em metas do espaço), com quem deve a quem no rodapé — o mesmo acerto que entra no Salário do mês; no pessoal é o seu mês, com o que você tem a pagar do salário no rodapé (a fatia Faturas do Salário do mês, já com o acerto), na cor das faixas que você ajusta em Espaços › Seu salário.',
   },
   {
     titulo: 'Em que foi',
-    texto: 'As categorias que mais pesaram no mês. Leva ao Chico Moedas, onde dá para abrir cada categoria e editar cada compra.',
+    texto: 'As categorias que mais pesaram no mês, só do espaço aberto. Depois do divisor, quanto cada um dos seus outros espaços tira do seu mês. Leva ao Chico Moedas, onde dá para abrir cada categoria e editar cada compra.',
   },
   {
     titulo: 'Últimas movimentações',

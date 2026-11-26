@@ -12,6 +12,7 @@ import { computed } from 'vue'
 import type { ComputedRef } from 'vue'
 import type { AppModule } from '~/modules'
 import { CLASSE_TOM } from '~/types/resumo'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import type { LinhaResumo } from '~/types/resumo'
 
 const props = defineProps<{
@@ -27,6 +28,9 @@ const props = defineProps<{
    */
   variante: 'cartao' | 'cabecalho' | 'lateral'
 }>()
+
+/** Os valores em dinheiro seguem o olho de Orçamentos. */
+const { texto: valorVisivel } = useValoresOcultos()
 
 /*
  * Chamado uma vez, no setup. Parece chamada condicional de composable, mas não
@@ -128,7 +132,7 @@ const linhas = computed<LinhaResumo[]>(() => {
           :class="[CLASSE_TOM[linha.tom ?? 'neutro'], variante === 'cabecalho' ? 'block' : '']"
         >
           <span v-if="linha.valorDescrito" class="sr-only">{{ linha.valorDescrito }}</span>
-          {{ linha.valor }}
+          {{ linha.dinheiro ? valorVisivel(linha.valor) : linha.valor }}
         </span>
       </li>
     </ul>

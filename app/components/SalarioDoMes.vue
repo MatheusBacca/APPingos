@@ -18,8 +18,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatarDia, hojeIso, nomeDoMes } from '@/lib/datas'
-import { formatarDinheiro } from '@/lib/dinheiro'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import { useMarcarRendaRecebida, useRendaRecebida } from '~/composables/useRenda'
+
+/** Os valores em dinheiro seguem o olho de Orçamentos (`useValoresOcultos`). */
+const { dinheiro } = useValoresOcultos()
 
 const props = defineProps<{
   competencia: string
@@ -84,10 +87,10 @@ async function desmarcar() {
         <span class="min-w-0 flex-1">
           Salário de {{ nomeDoMes(competencia).toLowerCase() }} recebido em
           {{ formatarDia(recebida.data.value.recebido_em) }}:
-          <strong>{{ formatarDinheiro(recebida.data.value.valor) }}</strong>
+          <strong>{{ dinheiro(recebida.data.value.valor) }}</strong>
           <span v-if="recebida.data.value.origem === 'pluggy'" class="text-muted-foreground"> · lido do extrato</span>
           <span v-if="diferenca !== 0" class="block text-xs text-muted-foreground">
-            {{ formatarDinheiro(Math.abs(diferenca)) }} {{ diferenca < 0 ? 'a menos' : 'a mais' }} que o previsto —
+            {{ dinheiro(Math.abs(diferenca)) }} {{ diferenca < 0 ? 'a menos' : 'a mais' }} que o previsto —
             a projeção continua usando o previsto.
           </span>
         </span>

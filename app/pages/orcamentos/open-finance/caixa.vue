@@ -49,7 +49,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { formatarDia, hojeIso, nomeDoMes, primeiroDoMes } from '@/lib/datas'
-import { formatarDinheiro } from '@/lib/dinheiro'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import { mensagemDeErro } from '@/lib/utils'
 import { avisoDeMesAcertado, itensDaCaixa } from '~/lib/caixa-de-entrada'
 import type { ItemDaCaixa, ModoClassificacao } from '~/lib/caixa-de-entrada'
@@ -92,6 +92,9 @@ import { useContrapartes, usePessoasDosMeusEspacos } from '~/composables/useDocu
 import { transferenciaEntrePessoas } from '~/lib/contrapartes'
 import { useSpaceStore } from '~/stores/space'
 import { rotuloDaCategoriaNaCaixa } from '~/lib/categorias-pluggy'
+
+/** Os valores em dinheiro seguem o olho de Orçamentos (`useValoresOcultos`). */
+const { dinheiro } = useValoresOcultos()
 
 // Tela de dado: ocupa a largura inteira no computador (ver layouts/default.vue).
 definePageMeta({ larguraAmpla: true })
@@ -485,7 +488,7 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
       -->
       <section class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p class="text-2xl font-semibold tabular-nums">{{ formatarDinheiro(resumo.total) }}</p>
+          <p class="text-2xl font-semibold tabular-nums">{{ dinheiro(resumo.total) }}</p>
           <p class="text-sm text-muted-foreground">
             em {{ resumo.quantidade }} {{ resumo.quantidade === 1 ? 'compra' : 'compras' }} esperando destino em {{ periodo }}
           </p>
@@ -669,7 +672,7 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
               <span class="block truncate font-medium">{{ rotuloParaRegra(item.principal) }}</span>
               <span class="block truncate text-xs text-muted-foreground">{{ resumoDaSugestao(sugestoes.get(item.chave)) }}</span>
             </span>
-            <span class="shrink-0 tabular-nums">{{ formatarDinheiro(valorDoItem(item)) }}</span>
+            <span class="shrink-0 tabular-nums">{{ dinheiro(valorDoItem(item)) }}</span>
           </li>
         </ul>
         <DialogFooter>
@@ -702,7 +705,7 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
             </p>
           </div>
           <span class="shrink-0 text-sm tabular-nums" :class="item.sentido === 'entrada' ? 'text-emerald-600 dark:text-emerald-400' : ''">
-            {{ item.sentido === 'entrada' ? '+' : '' }}{{ formatarDinheiro(item.transacoes.reduce((s, t) => s + Number(t.valor), 0)) }}
+            {{ item.sentido === 'entrada' ? '+' : '' }}{{ dinheiro(item.transacoes.reduce((s, t) => s + Number(t.valor), 0)) }}
           </span>
         </li>
       </ul>
@@ -718,7 +721,7 @@ const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome 
         <li v-for="linha in classificadas" :key="linha.id" class="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2">
           <div class="min-w-0 basis-full sm:basis-0 sm:flex-1">
             <p class="truncate">{{ linha.descricao }}</p>
-            <p class="text-xs text-muted-foreground">{{ formatarDia(linha.data) }} · {{ formatarDinheiro(Number(linha.valor)) }}</p>
+            <p class="text-xs text-muted-foreground">{{ formatarDia(linha.data) }} · {{ dinheiro(Number(linha.valor)) }}</p>
           </div>
           <span class="rounded-full bg-muted px-2 py-0.5 text-xs">
             {{ ROTULO_DESTINO[linha.destino ?? ''] }}

@@ -18,10 +18,13 @@
  */
 import { Trash2Icon, UserIcon } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
-import { formatarDinheiro } from '@/lib/dinheiro'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import { CLASSE_COR } from '~/types/orcamento'
 import type { CompraDoMes } from '~/types/orcamento'
 import { useGastosPessoais } from '~/composables/useGastosPessoais'
+
+/** Os valores em dinheiro seguem o olho de Orçamentos (`useValoresOcultos`). */
+const { dinheiro } = useValoresOcultos()
 
 const props = defineProps<{
   compras: CompraDoMes[]
@@ -87,7 +90,7 @@ const total = computed(() => props.compras.reduce((t, c) => t + c.valor, 0))
           -->
           <div class="flex items-baseline justify-between gap-3">
             <span class="truncate font-medium">{{ compra.descricao }}</span>
-            <span class="shrink-0 font-semibold tabular-nums">{{ formatarDinheiro(compra.valor) }}</span>
+            <span class="shrink-0 font-semibold tabular-nums">{{ dinheiro(compra.valor) }}</span>
           </div>
 
           <div class="mt-1 flex items-center gap-2 text-xs">
@@ -115,7 +118,7 @@ const total = computed(() => props.compras.reduce((t, c) => t + c.valor, 0))
               "R$ 200,00" numa compra de R$ 1.200 só faz sentido com o "2/6" ao lado.
             -->
             <span v-if="compra.parcelas > 1" class="ml-auto shrink-0 tabular-nums text-muted-foreground">
-              {{ compra.numero }}/{{ compra.parcelas }} de {{ formatarDinheiro(compra.valor_total) }}
+              {{ compra.numero }}/{{ compra.parcelas }} de {{ dinheiro(compra.valor_total) }}
             </span>
           </div>
         </div>
@@ -135,7 +138,7 @@ const total = computed(() => props.compras.reduce((t, c) => t + c.valor, 0))
 
       <!-- A mesma régua do modo tabela: as linhas somam um total, e ele é escrito. -->
       <p class="border-t pt-2 text-right text-xs text-muted-foreground">
-        Total do período: <span class="font-medium tabular-nums text-foreground">{{ formatarDinheiro(total) }}</span>
+        Total do período: <span class="font-medium tabular-nums text-foreground">{{ dinheiro(total) }}</span>
       </p>
     </div>
   </div>

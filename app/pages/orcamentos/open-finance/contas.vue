@@ -39,7 +39,7 @@ import {
   valorDoCartao,
 } from '~/lib/contas-bancarias'
 import type { CartaoDoFinal, Designacao, ModoPrivado } from '~/lib/contas-bancarias'
-import { formatarDinheiro } from '@/lib/dinheiro'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import { dataLocal } from '~/lib/importacao-bancaria'
 import {
   abrirWidgetPluggy,
@@ -57,6 +57,9 @@ import { mostraSetupDoAdministrador } from '~/lib/guia-pluggy'
 import { nomeDoBanco } from '~/lib/instituicoes'
 import { seloDoBanco } from '~/lib/cartoes'
 import { ICONE_DO_DESTINO, origemDaConta } from '~/lib/caixa-lista'
+
+/** Os valores em dinheiro seguem o olho de Orçamentos (`useValoresOcultos`). */
+const { dinheiro } = useValoresOcultos()
 
 // Tela de dado: ocupa a largura inteira no computador (ver layouts/default.vue).
 definePageMeta({ larguraAmpla: true })
@@ -350,7 +353,7 @@ const CLASSE_TOM = {
                       :class="conta.saldo < 0 ? 'text-destructive' : 'text-foreground'"
                       :title="conta.saldo_atualizado_em ? `Saldo lido em ${formatarDia(dataLocal(conta.saldo_atualizado_em))}` : undefined"
                     >
-                      · saldo {{ formatarDinheiro(conta.saldo) }}
+                      · saldo {{ dinheiro(conta.saldo) }}
                     </span>
                   </p>
                 </div>

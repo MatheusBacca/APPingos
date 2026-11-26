@@ -133,18 +133,18 @@ describe('corDeDado', () => {
 describe('repartirSalario', () => {
   it('divide o salário em faturas, investido e livre', () => {
     const r = repartirSalario({ salario: 10000, faturas: 3000, investido: 1000 })!
-    expect(r.fatias.map(f => [f.chave, f.valor, f.fracao])).toEqual([
+    expect(r.fatias.filter(f => f.valor).map(f => [f.chave, f.valor, f.fracao])).toEqual([
       ['faturas', 3000, 0.3],
       ['investido', 1000, 0.1],
       ['livre', 6000, 0.6],
     ])
-    expect(r.estouro).toBe(0)
+    expect(r.resultado).toBe(6000)
   })
 
-  it('zera o livre e guarda o estouro quando passa do salário', () => {
+  it('zera o livre e o resultado fica negativo quando passa do salário', () => {
     const r = repartirSalario({ salario: 1000, faturas: 1200, investido: 300 })!
     expect(r.fatias.find(f => f.chave === 'livre')?.valor).toBe(0)
-    expect(r.estouro).toBe(500)
+    expect(r.resultado).toBe(-500)
     expect(r.fatias.reduce((s, f) => s + f.fracao, 0)).toBeCloseTo(1)
   })
 

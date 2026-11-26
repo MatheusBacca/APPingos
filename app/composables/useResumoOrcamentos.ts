@@ -84,6 +84,7 @@ export function linhaDoMes(
     rotulo: mes.estado,
     nota: nomeDoMes(mes.competencia),
     valor: `${devendo ? '−' : '+'}${formatarDinheiro(Math.abs(saldo))}`,
+    dinheiro: true,
     valorDescrito: devendo ? 'você deve' : 'a receber',
     tom: devendo ? 'contra' : 'favor',
   }
@@ -104,6 +105,7 @@ export function linhaPessoais(competencia: string, pessoais: CompraDoMes[]): Lin
     rotulo: 'Pessoais',
     nota: nomeDoMes(competencia),
     valor: formatarDinheiro(total),
+    dinheiro: true,
     valorDescrito: 'gastos só seus',
     tom: 'neutro',
   }

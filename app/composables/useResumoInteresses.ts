@@ -54,6 +54,7 @@ export function linhasDoResumo(interesses: InteresseComAgrupamentos[]): LinhaRes
       rotulo: 'Somando',
       nota: semPreco > 0 ? `${semPreco} sem preço ainda` : 'os escolhidos',
       valor: formatarDinheiro(total),
+      dinheiro: true,
       valorDescrito: 'custo dos interesses em aberto',
       tom: 'neutro',
     })

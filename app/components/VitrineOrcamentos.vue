@@ -20,9 +20,12 @@
  */
 import { Skeleton } from '@/components/ui/skeleton'
 import { hojeIso, primeiroDoMes } from '@/lib/datas'
-import { formatarDinheiro } from '@/lib/dinheiro'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import { ESPACO_DA_VITRINE, ESPACO_INDEFINIDO, mesesDaVitrine } from '@/lib/vitrine'
 import { useSerieMensal } from '~/composables/useOrcamento'
+
+/** Os valores em dinheiro seguem o olho de Orçamentos (`useValoresOcultos`). */
+const { dinheiro } = useValoresOcultos()
 
 /*
  * O mês é fixado na montagem, como no resumo em texto: o painel pode ficar
@@ -98,7 +101,7 @@ function altura(total: number): string {
               class="mb-1 text-center text-[10px] tabular-nums"
               :class="mes.atual ? 'font-medium text-foreground' : 'text-muted-foreground'"
             >
-              {{ formatarDinheiro(mes.total) }}
+              {{ dinheiro(mes.total) }}
             </span>
             <!--
               Barra estreita dentro da coluna larga: com três barras, `w-full`
@@ -130,7 +133,7 @@ function altura(total: number): string {
       <p class="sr-only">
         Gasto do espaço por mês:
         <span v-for="mes in meses" :key="mes.competencia">
-          {{ mes.rotuloLongo }}, {{ formatarDinheiro(mes.total) }}{{ mes.atual ? ' (mês corrente)' : '' }}.
+          {{ mes.rotuloLongo }}, {{ dinheiro(mes.total) }}{{ mes.atual ? ' (mês corrente)' : '' }}.
         </span>
       </p>
     </template>

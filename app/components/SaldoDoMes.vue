@@ -20,12 +20,16 @@
 import { toast } from 'vue-sonner'
 import { AlertTriangleIcon, CheckIcon, ChevronDownIcon, CopyIcon } from '@lucide/vue'
 import { formatarDia } from '@/lib/datas'
-import { formatarDinheiro, valorParaCopiar } from '@/lib/dinheiro'
+import { valorParaCopiar } from '@/lib/dinheiro'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import { acertoDesatualizado, saldoDoMes } from '~/types/orcamento'
 import type { CompraDoMes } from '~/types/orcamento'
 import type { Membro } from '~/composables/useMembros'
 import { useAcertos } from '~/composables/useOrcamento'
 import { useUsuarioId } from '~/composables/useUsuarioId'
+
+/** Os valores em dinheiro seguem o olho de Orçamentos (`useValoresOcultos`). */
+const { dinheiro, ocultos } = useValoresOcultos()
 
 const props = defineProps<{
   compras: CompraDoMes[]
@@ -95,7 +99,8 @@ async function copiarValor(valor: number) {
   try {
     await navigator.clipboard.writeText(valorParaCopiar(valor))
     copiado.value = true
-    toast.success(`${valorParaCopiar(valor)} copiado.`)
+    // Com o olho fechado, o valor vai para a área de transferência mas não aparece na tela.
+    toast.success(ocultos.value ? 'Valor copiado.' : `${valorParaCopiar(valor)} copiado.`)
     setTimeout(() => { copiado.value = false }, 2000)
   }
   catch {
@@ -124,10 +129,10 @@ async function copiarValor(valor: number) {
         <button
           type="button"
           class="group inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          :title="`Copiar ${valorParaCopiar(acerto.valor)}`"
+          :title="ocultos ? 'Copiar o valor' : `Copiar ${valorParaCopiar(acerto.valor)}`"
           @click="copiarValor(acerto.valor)"
         >
-          {{ formatarDinheiro(acerto.valor) }}
+          {{ dinheiro(acerto.valor) }}
           <component
             :is="copiado ? CheckIcon : CopyIcon"
             class="size-3.5 opacity-40 transition-opacity group-hover:opacity-100"
@@ -199,13 +204,13 @@ async function copiarValor(valor: number) {
         <tbody>
           <tr v-for="linha in saldos" :key="linha.user_id" class="border-b border-dashed last:border-0">
             <td class="py-1.5">{{ nomeDoMembro(linha.user_id) }}</td>
-            <td class="py-1.5 text-right tabular-nums">{{ formatarDinheiro(linha.pago) }}</td>
-            <td class="py-1.5 text-right tabular-nums">{{ formatarDinheiro(linha.devido) }}</td>
+            <td class="py-1.5 text-right tabular-nums">{{ dinheiro(linha.pago) }}</td>
+            <td class="py-1.5 text-right tabular-nums">{{ dinheiro(linha.devido) }}</td>
             <td
               class="py-1.5 text-right font-medium tabular-nums"
               :class="linha.saldo > 0 ? 'text-emerald-600 dark:text-emerald-400' : linha.saldo < 0 ? 'text-destructive' : ''"
             >
-              {{ formatarDinheiro(linha.saldo) }}
+              {{ dinheiro(linha.saldo) }}
             </td>
           </tr>
         </tbody>

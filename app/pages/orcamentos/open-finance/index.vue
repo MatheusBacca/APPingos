@@ -14,10 +14,14 @@
 import { CreditCardIcon, InboxIcon } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatarDinheiro, formatarPercentual } from '@/lib/dinheiro'
+import { formatarPercentual } from '@/lib/dinheiro'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import { seloDoBanco } from '~/lib/cartoes'
 import { useCartoes, useQuantasNaCaixa } from '~/composables/useCartoes'
 import type { CartaoDaPessoa } from '~/composables/useCartoes'
+
+/** Os valores em dinheiro seguem o olho de Orçamentos (`useValoresOcultos`). */
+const { dinheiro } = useValoresOcultos()
 
 // Tela de dado: ocupa a largura inteira no computador (ver layouts/default.vue).
 definePageMeta({ larguraAmpla: true })
@@ -91,12 +95,12 @@ function ajustar(c: CartaoDaPessoa) {
         <div class="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p class="text-sm text-muted-foreground">Faturas abertas</p>
-            <p class="text-2xl font-semibold tabular-nums">{{ formatarDinheiro(data!.total) }}</p>
+            <p class="text-2xl font-semibold tabular-nums">{{ dinheiro(data!.total) }}</p>
           </div>
           <p v-if="usoGeral !== null" class="text-right text-xs text-muted-foreground">
             <strong class="text-sm font-semibold text-foreground">{{ formatarPercentual(usoGeral) }}</strong>
             do limite somado<br>
-            de {{ formatarDinheiro(data!.limiteTotal) }}
+            de {{ dinheiro(data!.limiteTotal) }}
           </p>
         </div>
 

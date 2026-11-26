@@ -43,7 +43,9 @@ withDefaults(defineProps<{
         <h1 class="text-2xl font-semibold tracking-tight">{{ titulo }}</h1>
         <p class="text-sm text-muted-foreground">{{ subtitulo }}</p>
       </div>
-      <div v-if="$slots.acoes" class="flex flex-wrap gap-2">
+      <!-- O olho fica em toda tela do módulo, à esquerda das ações da tela. -->
+      <div class="flex flex-wrap gap-2">
+        <BotaoOlho />
         <slot name="acoes" />
       </div>
     </div>

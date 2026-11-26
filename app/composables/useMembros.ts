@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
+import type { MaybeRefOrGetter } from 'vue'
 import type { Papel } from '~/types/database.types'
 import { nomeDeExibicao } from '~/types/database.types'
 import { useSpaceQuery } from '~/composables/useSpaceQuery'
@@ -112,6 +113,35 @@ export function useDefinirPapel() {
         // O papel do próprio usuário vive na lista de espaços do seletor.
         queryClient.invalidateQueries({ queryKey: ['espacos'] }),
       ])
+    },
+  })
+}
+
+/**
+ * Quem está em cada um de vários espaços, numa consulta só — só os ids. É o
+ * que deixa o "Salário do mês" fazer o acerto de TODOS os espaços com a mesma
+ * régua do cartão Acerto (que usa `useMembros` no espaço ativo): espaço de duas
+ * pessoas, com os membros de verdade.
+ *
+ * Sob 'space' na chave, como os membros do espaço ativo: entrar ou sair de um
+ * espaço invalida tudo que começa com 'space'.
+ */
+export function useMembrosDosEspacos(espacos: MaybeRefOrGetter<string[]>) {
+  const supabase = useSupabaseClient()
+
+  return useQuery({
+    queryKey: computed(() => ['space', '*', 'membros-dos-espacos', [...toValue(espacos)].sort()]),
+    enabled: computed(() => toValue(espacos).length > 0),
+    queryFn: async (): Promise<Map<string, string[]>> => {
+      const { data, error } = await supabase
+        .from('membership')
+        .select('space_id, user_id')
+        .in('space_id', toValue(espacos))
+
+      if (error) throw error
+      const porEspaco = new Map<string, string[]>()
+      for (const m of data ?? []) porEspaco.set(m.space_id, [...(porEspaco.get(m.space_id) ?? []), m.user_id])
+      return porEspaco
     },
   })
 }

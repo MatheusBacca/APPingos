@@ -22,13 +22,17 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { formatarDiaCompleto, hojeIso, partesDaData } from '@/lib/datas'
-import { formatarDinheiro, formatarPercentual } from '@/lib/dinheiro'
+import { formatarPercentual } from '@/lib/dinheiro'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import { mensagemDeErro } from '@/lib/utils'
 import { nomeDoBanco } from '~/lib/instituicoes'
 import { movimentosRecentes, resumoPorBanco, saldoDaCaixinha } from '~/lib/investimentos'
 import type { Caixinha } from '~/lib/investimentos'
 import { useCaixinhas, useInvestimentosDosBancos, useRegistrarMovimentoCaixinha } from '~/composables/useCaixinhas'
 import { useSpaceStore } from '~/stores/space'
+
+/** Os valores em dinheiro seguem o olho de Orçamentos (`useValoresOcultos`). */
+const { dinheiro } = useValoresOcultos()
 
 const store = useSpaceStore()
 const { data: caixinhas, isPending } = useCaixinhas()
@@ -107,6 +111,9 @@ async function onRegistrar() {
       </Button>
     </div>
 
+    <!-- O total, o rendimento e a rosca por banco — o antigo cartão do painel. -->
+    <ResumoDosInvestimentos />
+
     <!-- ---- As caixinhas ---- -->
     <div v-if="isPending" class="h-28 animate-pulse rounded-lg border bg-card" />
 
@@ -117,7 +124,7 @@ async function onRegistrar() {
 
     <template v-else>
       <p class="text-sm">
-        Nas caixinhas: <strong class="tabular-nums">{{ formatarDinheiro(totalDasCaixinhas) }}</strong>
+        Nas caixinhas: <strong class="tabular-nums">{{ dinheiro(totalDasCaixinhas) }}</strong>
       </p>
       <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <article v-for="c in visiveis" :key="c.id" class="rounded-xl border bg-card p-4">
@@ -130,14 +137,14 @@ async function onRegistrar() {
                 {{ deQuem(c) }}<template v-if="c.instituicao"> · {{ nomeDoBanco({ instituicao: c.instituicao }) }}</template>
               </p>
             </div>
-            <p class="shrink-0 text-lg font-semibold tabular-nums">{{ formatarDinheiro(saldoDaCaixinha(c)) }}</p>
+            <p class="shrink-0 text-lg font-semibold tabular-nums">{{ dinheiro(saldoDaCaixinha(c)) }}</p>
           </div>
 
           <div v-if="c.meta" class="mt-3">
             <div class="flex justify-between text-xs">
               <span class="text-muted-foreground">Meta <span class="text-foreground">{{ c.meta.titulo }}</span></span>
               <span class="tabular-nums text-muted-foreground">
-                {{ formatarPercentual(Math.min(1, Math.max(0, saldoDaCaixinha(c) / c.meta.valor_alvo))) }} de {{ formatarDinheiro(c.meta.valor_alvo) }}
+                {{ formatarPercentual(Math.min(1, Math.max(0, saldoDaCaixinha(c) / c.meta.valor_alvo))) }} de {{ dinheiro(c.meta.valor_alvo) }}
               </span>
             </div>
             <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
@@ -153,7 +160,7 @@ async function onRegistrar() {
                 <template v-if="m.meta_aporte_id && c.meta"> → {{ m.valor > 0 ? 'aporte' : 'retirada' }} na meta {{ c.meta.titulo }}</template>
               </span>
               <span class="shrink-0 font-medium tabular-nums" :class="m.valor > 0 ? 'text-emerald-600 dark:text-emerald-400' : ''">
-                {{ m.valor > 0 ? '+' : '−' }}{{ formatarDinheiro(Math.abs(m.valor)) }}
+                {{ m.valor > 0 ? '+' : '−' }}{{ dinheiro(Math.abs(m.valor)) }}
               </span>
             </li>
           </ul>
@@ -197,9 +204,9 @@ async function onRegistrar() {
             </span>
           </span>
           <span class="shrink-0 text-right">
-            <span class="block font-semibold tabular-nums">{{ formatarDinheiro(b.saldo) }}</span>
+            <span class="block font-semibold tabular-nums">{{ dinheiro(b.saldo) }}</span>
             <span class="block text-xs tabular-nums" :class="b.rendimento >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'">
-              {{ b.rendimento >= 0 ? '+' : '−' }}{{ formatarDinheiro(Math.abs(b.rendimento)) }} sobre {{ formatarDinheiro(b.aplicado) }}
+              {{ b.rendimento >= 0 ? '+' : '−' }}{{ dinheiro(Math.abs(b.rendimento)) }} sobre {{ dinheiro(b.aplicado) }}
             </span>
           </span>
           <ChevronDownIcon class="size-4 shrink-0 text-muted-foreground transition-transform" :class="bancoAberto === b.banco && 'rotate-180'" />
@@ -208,9 +215,9 @@ async function onRegistrar() {
           <li v-for="p in b.ativas" :key="p.id" class="flex items-baseline justify-between gap-3 px-4 py-2">
             <span class="min-w-0 truncate text-muted-foreground">
               {{ p.subtipo ?? 'Aplicação' }}<template v-if="p.vencimento"> · vence {{ formatarDiaCompleto(p.vencimento) }}</template>
-              <template v-if="p.valor_original"> · aplicado {{ formatarDinheiro(p.valor_original) }}</template>
+              <template v-if="p.valor_original"> · aplicado {{ dinheiro(p.valor_original) }}</template>
             </span>
-            <span class="shrink-0 font-medium tabular-nums">{{ formatarDinheiro(p.saldo ?? 0) }}</span>
+            <span class="shrink-0 font-medium tabular-nums">{{ dinheiro(p.saldo ?? 0) }}</span>
           </li>
         </ul>
       </article>

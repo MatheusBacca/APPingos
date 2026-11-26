@@ -22,8 +22,12 @@
  */
 import { CLASSE_BARRA, CLASSE_BARRA_SEM_CATEGORIA } from '~/types/orcamento'
 import type { FatiaCategoria } from '~/types/orcamento'
-import { formatarDinheiro, formatarPercentual } from '@/lib/dinheiro'
+import { formatarPercentual } from '@/lib/dinheiro'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import { formatarDia, hojeIso, somarDias } from '@/lib/datas'
+
+/** Os valores em dinheiro seguem o olho de Orçamentos (`useValoresOcultos`). */
+const { dinheiro } = useValoresOcultos()
 
 const props = withDefaults(defineProps<{
   fatias: FatiaCategoria[]
@@ -80,7 +84,7 @@ const total = computed(() => props.fatias.reduce((t, f) => t + f.total, 0))
         :key="fatia.chave"
         type="button"
         class="block w-full rounded-md px-2 py-2 text-left outline-none transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring"
-        :aria-label="`${fatia.nome}: ${quantidade(fatia)}, ${formatarDinheiro(fatia.total)}, ${formatarPercentual(fatia.fracao)} do período. Ver as compras.`"
+        :aria-label="`${fatia.nome}: ${quantidade(fatia)}, ${dinheiro(fatia.total)}, ${formatarPercentual(fatia.fracao)} do período. Ver as compras.`"
         @click="emit('selecionar', fatia.chave)"
       >
         <div class="flex items-center gap-3">
@@ -95,7 +99,7 @@ const total = computed(() => props.fatias.reduce((t, f) => t + f.total, 0))
                 ao lado, em tom secundário, e a barra embaixo repete o peso.
               -->
               <span class="ml-auto shrink-0 text-sm font-semibold tabular-nums">
-                {{ formatarDinheiro(fatia.total) }}
+                {{ dinheiro(fatia.total) }}
               </span>
               <span class="w-12 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
                 {{ formatarPercentual(fatia.fracao) }}
@@ -122,7 +126,7 @@ const total = computed(() => props.fatias.reduce((t, f) => t + f.total, 0))
         total precisa estar escrito em algum lugar para elas quererem dizer algo.
       -->
       <p class="border-t pt-2 text-right text-xs text-muted-foreground">
-        Total do período: <span class="font-medium tabular-nums text-foreground">{{ formatarDinheiro(total) }}</span>
+        Total do período: <span class="font-medium tabular-nums text-foreground">{{ dinheiro(total) }}</span>
       </p>
     </div>
   </div>
