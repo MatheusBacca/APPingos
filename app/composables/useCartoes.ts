@@ -108,8 +108,10 @@ export function useCartoes() {
           .order('nome'),
         supabase
           .from('transacao_bancaria')
-          .select('conta_id, valor, sentido, data, motivo_exclusao, fatura_id, parcelas_total, cartao_final')
-          .gte('data', desde),
+          .select('conta_id, valor, sentido, data, motivo_exclusao, fatura_id, parcelas_total, cartao_final, fatura_prevista')
+          // A janela de 120 dias, e mais o que o banco ainda não pôs em fatura fechada: a parcela
+          // de uma compra antiga vem com a data da compra e cai na fatura aberta.
+          .or(`data.gte.${desde},fatura_id.is.null`),
         supabase
           .from('fatura_cartao')
           .select('id, conta_id, pluggy_bill_id, vencimento, fechamento, total, minimo, encargos, total_encargos, permite_parcelar')
@@ -144,7 +146,7 @@ export function useCartoes() {
       if (pagamentos.error) throw pagamentos.error
       if (finais.error) throw finais.error
 
-      const linhas = (lancamentos.data ?? []) as Array<LancamentoDoCartao & { parcelas_total: number | null, cartao_final: string | null }>
+      const linhas = (lancamentos.data ?? []) as Array<LancamentoDoCartao & { parcelas_total: number | null, cartao_final: string | null, fatura_prevista: string | null }>
       const todosFinais = (finais.data ?? []) as FinalDoCartao[]
       const todasFaturas = (faturas.data ?? []) as unknown as FaturaFechada[]
 

@@ -192,19 +192,59 @@ export interface LancamentoDoCartao {
   motivo_exclusao: string | null
   /** Com fatura, a transação já está numa fatura FECHADA — não é da aberta. */
   fatura_id?: string | null
+  /**
+   * O mês da fatura em que o BANCO diz que a compra cai (`billForecastDate`,
+   * como dia 1). Cada banco usa a sua convenção — o Nubank dá o mês do
+   * vencimento, o C6 o do início do ciclo —, então ele só serve comparado com o
+   * das outras compras da mesma conta, nunca com uma data do calendário.
+   */
+  fatura_prevista?: string | null
 }
 
 /**
- * Quanto a fatura aberta já tem. Estorno (`entrada` no cartão) desconta; o
- * pagamento da fatura anterior, que a importação já marca, não entra. O que o
- * banco já pôs numa fatura fechada também não, mesmo dentro das datas do ciclo
- * (o fechamento estimado pode errar um dia; o `billId` não erra).
+ * As compras que estão na fatura ABERTA de um cartão.
+ *
+ * Pelas datas do ciclo não dá: a parcela de uma compra antiga vem com a data da
+ * compra, e cai na fatura de hoje — somar pelas datas deixava a fatura aberta
+ * menor que a do banco. Quem sabe é o banco, por dois sinais:
+ *
+ *   1. sem `fatura_id` — o banco ainda não pôs a compra numa fatura fechada;
+ *   2. `fatura_prevista` — a fatura em que ela vai cair.
+ *
+ * O mês aberto é o que o banco deu às compras de DENTRO do ciclo (o mais comum
+ * entre elas); daí entram todas as compras soltas daquele mês, de qualquer data.
+ * Assim a compra do fim do ciclo anterior que o banco ainda não ligou à fatura
+ * fechada (outro mês) fica de fora, e a parcela antiga (mesmo mês) entra. Sem
+ * nenhuma compra do ciclo com mês, vale o menor mês entre as soltas. Compra sem
+ * `fatura_prevista` (lançamento antigo, banco que não manda) segue a data.
+ */
+export function lancamentosDaFaturaAberta<T extends LancamentoDoCartao>(
+  lancamentos: ReadonlyArray<T>,
+  contaId: string,
+  ciclo: Ciclo,
+): T[] {
+  const soltos = lancamentos.filter(l => l.conta_id === contaId && !l.motivo_exclusao && !l.fatura_id)
+  const noCiclo = (l: T) => l.data >= ciclo.inicio && l.data <= ciclo.fechamento
+
+  const votos = new Map<string, number>()
+  for (const l of soltos) {
+    if (l.fatura_prevista && noCiclo(l)) votos.set(l.fatura_prevista, (votos.get(l.fatura_prevista) ?? 0) + 1)
+  }
+  const mesAberto = [...votos].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0]
+    ?? soltos.map(l => l.fatura_prevista).filter((m): m is string => !!m).sort()[0]
+    ?? null
+
+  return soltos.filter(l => (l.fatura_prevista ? l.fatura_prevista === mesAberto : noCiclo(l)))
+}
+
+/**
+ * Quanto a fatura aberta já tem (`lancamentosDaFaturaAberta`). Estorno
+ * (`entrada` no cartão) desconta; o pagamento da fatura anterior, que a
+ * importação já marca, não entra.
  */
 export function totalDoCiclo(lancamentos: LancamentoDoCartao[], contaId: string, ciclo: Ciclo): number {
   let total = 0
-  for (const l of lancamentos) {
-    if (l.conta_id !== contaId || l.motivo_exclusao || l.fatura_id) continue
-    if (l.data < ciclo.inicio || l.data > ciclo.fechamento) continue
+  for (const l of lancamentosDaFaturaAberta(lancamentos, contaId, ciclo)) {
     total += l.sentido === 'saida' ? l.valor : -l.valor
   }
   return Math.max(0, Math.round(total * 100) / 100)
@@ -268,9 +308,7 @@ export function faturaPorDestino(
   const doFinal = new Map(finais.filter(f => f.conta_id === conta.id).map(f => [f.final, f]))
   const partes = new Map<ChaveDeDestino, { valor: number, finais: Set<string> }>()
 
-  for (const l of lancamentos) {
-    if (l.conta_id !== conta.id || l.motivo_exclusao || l.fatura_id) continue
-    if (l.data < ciclo.inicio || l.data > ciclo.fechamento) continue
+  for (const l of lancamentosDaFaturaAberta(lancamentos, conta.id, ciclo)) {
     const destino = destinoEfetivo(conta, l.cartao_final ? doFinal.get(l.cartao_final) : null)
     const parte = partes.get(destino) ?? { valor: 0, finais: new Set<string>() }
     parte.valor += l.sentido === 'saida' ? l.valor : -l.valor
