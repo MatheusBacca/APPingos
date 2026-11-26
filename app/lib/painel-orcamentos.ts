@@ -10,7 +10,7 @@
 import { partesDaData, primeiroDoMes, somarDias, ultimoDiaDoMes } from '@/lib/datas'
 import { nomeDoBanco } from '~/lib/instituicoes'
 import type { ConexaoBancaria } from '~/composables/useContasBancarias'
-import { parteDe, totalDoMes } from '~/types/orcamento'
+import { parteDe, saldoDoMes, totalDoMes } from '~/types/orcamento'
 import type { CompraDoMes } from '~/types/orcamento'
 
 /**
@@ -201,6 +201,10 @@ export interface SalarioRepartido {
   fatias: FatiaDoSalario[]
   /** Quanto faturas + investido passaram do salário; zero quando cabem nele. */
   estouro: number
+  /** As faturas abertas como o banco mostra, antes do acerto. */
+  faturasDoBanco: number
+  /** O acerto que entrou na conta: positivo = te devem (abate), negativo = você deve (soma). */
+  acerto: number
 }
 
 const redondo = (n: number) => Math.round(n * 100) / 100
@@ -217,10 +221,16 @@ const redondo = (n: number) => Math.round(n * 100) / 100
  * Quando faturas e investido passam do salário, o livre é zero e as outras
  * duas fatias dividem a pizza na proporção delas; o tanto que passou vai em
  * `estouro`, para a tela dizer em texto — uma pizza não desenha mais de 100%.
+ *
+ * O ACERTO entra na fatia das faturas (`acertoAPagar`): o que te devem volta
+ * para você e abate o que sai do salário; o que você deve soma. A fatia nunca
+ * fica negativa — receber mais do que a fatura não vira salário a mais aqui.
  */
-export function repartirSalario(dados: { salario: number, faturas: number, investido: number }): SalarioRepartido | null {
+export function repartirSalario(dados: { salario: number, faturas: number, investido: number, acerto?: number }): SalarioRepartido | null {
   if (!(dados.salario > 0)) return null
-  const faturas = Math.max(0, redondo(dados.faturas))
+  const faturasDoBanco = Math.max(0, redondo(dados.faturas))
+  const acerto = redondo(dados.acerto ?? 0)
+  const faturas = acertoAPagar(faturasDoBanco, acerto)
   const investido = Math.max(0, redondo(dados.investido))
   const comprometido = faturas + investido
   const livre = Math.max(0, redondo(dados.salario - comprometido))
@@ -233,7 +243,65 @@ export function repartirSalario(dados: { salario: number, faturas: number, inves
       { chave: 'livre', rotulo: 'Livre', valor: livre, fracao: livre / base },
     ],
     estouro: Math.max(0, redondo(comprometido - dados.salario)),
+    faturasDoBanco,
+    acerto,
   }
+}
+
+/** As faturas depois do acerto: o que te devem abate, o que você deve soma; nunca abaixo de zero. */
+export function acertoAPagar(faturas: number, acerto: number): number {
+  return Math.max(0, redondo(faturas - acerto))
+}
+
+export interface SaldoNoEspaco {
+  spaceId: string
+  /** Positivo = te devem; negativo = você deve. */
+  saldo: number
+}
+
+/**
+ * O seu saldo no acerto do mês de cada espaço compartilhado — a mesma conta do
+ * cartão "Acerto do mês" (`saldoDoMes` com os membros do espaço), só que em
+ * todos os espaços de uma vez: é dinheiro que volta para você (ou sai de você)
+ * junto com as faturas.
+ *
+ * A mesma régua do cartão: só espaço de DUAS pessoas (é onde existe "fulano
+ * deve a beltrano"), com os membros de verdade (`membership`), não os que
+ * aparecem nas compras. Fica de fora o pessoal e o espaço cujo mês já foi
+ * marcado como acertado — aquele dinheiro já trocou de mãos.
+ */
+export function saldosNosAcertos(dados: {
+  espacos: ReadonlyArray<{ id: string, tipo: string }>
+  compras: ReadonlyMap<string, CompraDoMes[]>
+  acertados: ReadonlySet<string>
+  membros: ReadonlyMap<string, string[]>
+  eu: string | null
+}): { total: number, porEspaco: SaldoNoEspaco[] } {
+  if (!dados.eu) return { total: 0, porEspaco: [] }
+  const porEspaco: SaldoNoEspaco[] = []
+  for (const e of dados.espacos) {
+    if (e.tipo === 'pessoal' || dados.acertados.has(e.id)) continue
+    const membros = dados.membros.get(e.id) ?? []
+    if (membros.length !== 2 || !membros.includes(dados.eu)) continue
+    const compras = dados.compras.get(e.id) ?? []
+    if (!compras.length) continue
+    const meu = saldoDoMes(compras, membros).find(s => s.user_id === dados.eu)
+    if (meu && meu.saldo !== 0) porEspaco.push({ spaceId: e.id, saldo: meu.saldo })
+  }
+  return { total: redondo(porEspaco.reduce((s, p) => s + p.saldo, 0)), porEspaco }
+}
+
+/**
+ * Junta os acertos de mais de um mês (o aberto e o anterior ainda não pago — o
+ * mesmo "Pendente" da lateral): por espaço, somando, e o total.
+ */
+export function somarAcertos(...meses: ReadonlyArray<{ total: number, porEspaco: SaldoNoEspaco[] }>): { total: number, porEspaco: SaldoNoEspaco[] } {
+  const porEspaco = new Map<string, number>()
+  for (const m of meses) {
+    for (const p of m.porEspaco) porEspaco.set(p.spaceId, redondo((porEspaco.get(p.spaceId) ?? 0) + p.saldo))
+  }
+  const lista = [...porEspaco].filter(([, saldo]) => saldo !== 0).map(([spaceId, saldo]) => ({ spaceId, saldo }))
+  return { total: redondo(lista.reduce((s, p) => s + p.saldo, 0)), porEspaco: lista }
 }
 
 /**

@@ -39,6 +39,8 @@ export interface LinhaResumo {
   rotulo: string
   /** O número ou a data, alinhado à direita e já formatado. */
   valor?: string
+  /** O valor é dinheiro: o olho de Orçamentos (`useValoresOcultos`) o esconde. */
+  dinheiro?: boolean
   /**
    * O que o valor quer dizer, por extenso — "você deve", "a receber". Fica em
    * `sr-only`: no visual quem diz isso é o sinal e a cor, mas nenhum dos dois

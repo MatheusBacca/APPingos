@@ -20,10 +20,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { formatarDinheiro, formatarPercentual } from '@/lib/dinheiro'
+import { formatarPercentual } from '@/lib/dinheiro'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import { CLASSE_COR, fracaoNaFatia } from '~/types/orcamento'
 import type { CompraDoMes, FatiaCategoria } from '~/types/orcamento'
 import { useGastosPessoais } from '~/composables/useGastosPessoais'
+
+/** Os valores em dinheiro seguem o olho de Orçamentos (`useValoresOcultos`). */
+const { dinheiro } = useValoresOcultos()
 
 const props = defineProps<{
   /** `null` enquanto o diálogo está fechado — a fatia é o conteúdo inteiro. */
@@ -63,7 +67,7 @@ const compras = computed(() => props.fatia?.compras ?? [])
           <span v-else>{{ fatia?.nome }}</span>
         </DialogTitle>
         <DialogDescription>
-          {{ formatarDinheiro(fatia?.total ?? 0) }} em {{ periodo }} —
+          {{ dinheiro(fatia?.total ?? 0) }} em {{ periodo }} —
           {{ compras.length === 1 ? '1 compra' : `${compras.length} compras` }},
           da maior para a menor.
         </DialogDescription>
@@ -109,7 +113,7 @@ const compras = computed(() => props.fatia?.compras ?? [])
           </div>
 
           <div class="shrink-0 text-right">
-            <p class="font-semibold tabular-nums">{{ formatarDinheiro(compra.valor) }}</p>
+            <p class="font-semibold tabular-nums">{{ dinheiro(compra.valor) }}</p>
 
             <!--
               A parcela fica junto do valor porque é ela que explica o número:
@@ -117,7 +121,7 @@ const compras = computed(() => props.fatia?.compras ?? [])
               lado.
             -->
             <p v-if="compra.parcelas > 1" class="text-xs tabular-nums text-muted-foreground">
-              {{ compra.numero }}/{{ compra.parcelas }} de {{ formatarDinheiro(compra.valor_total) }}
+              {{ compra.numero }}/{{ compra.parcelas }} de {{ dinheiro(compra.valor_total) }}
             </p>
 
             <p class="text-xs tabular-nums text-muted-foreground">

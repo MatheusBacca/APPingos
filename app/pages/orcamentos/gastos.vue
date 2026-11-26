@@ -6,7 +6,8 @@ import { mensagemDeErro } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatarDia, formatarMes, hojeIso, mesAbreviado, partesDaData, primeiroDoMes, somarMeses } from '@/lib/datas'
-import { formatarDinheiro, formatarPercentual } from '@/lib/dinheiro'
+import { formatarPercentual } from '@/lib/dinheiro'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import { ehAdmin } from '~/types/database.types'
 import { competenciaDaUrl } from '~/lib/painel-orcamentos'
 import { fracaoDe, gastoPorCategoria, meuBolso, totalDoMes } from '~/types/orcamento'
@@ -16,6 +17,9 @@ import { useGastosPessoais } from '~/composables/useGastosPessoais'
 import { useMembros } from '~/composables/useMembros'
 import { useComprasDoMes, useSerieMensal, useSerieSemanal, useCategorias, useRemoverCompra } from '~/composables/useOrcamento'
 import { useUsuarioId } from '~/composables/useUsuarioId'
+
+/** Os valores em dinheiro seguem o olho de Orçamentos (`useValoresOcultos`). */
+const { dinheiro } = useValoresOcultos()
 
 // Tela de dado: ocupa a largura inteira no computador (ver layouts/default.vue).
 definePageMeta({ larguraAmpla: true })
@@ -160,7 +164,7 @@ const barrasMensais = computed<Barra[]>(() => {
       valor: ponto.total,
       valorSecundario: pessoalPorMes.value.get(ponto.competencia) ?? 0,
       tom: tomDoMes(ponto.competencia),
-      detalhe: `Sua parte do espaço: ${formatarDinheiro(ponto.minhaParte)}`,
+      detalhe: `Sua parte do espaço: ${dinheiro(ponto.minhaParte)}`,
       variacao: variacaoEntre(
         comPessoal(ponto.competencia, ponto.total),
         anterior ? comPessoal(anterior.competencia, anterior.total) : undefined,
@@ -403,7 +407,7 @@ async function onRemover(compra: CompraDoMes) {
           -->
           <div class="text-right">
             <p class="text-xs text-muted-foreground">Gasto do espaço</p>
-            <p class="text-lg font-semibold">{{ formatarDinheiro(total) }}</p>
+            <p class="text-lg font-semibold">{{ dinheiro(total) }}</p>
           </div>
 
           <!--
@@ -413,7 +417,7 @@ async function onRemover(compra: CompraDoMes) {
           -->
           <div v-if="mostrandoPessoais" class="border-l pl-4 text-right">
             <p class="text-xs text-muted-foreground">Meu bolso</p>
-            <p class="text-lg font-semibold">{{ formatarDinheiro(bolso) }}</p>
+            <p class="text-lg font-semibold">{{ dinheiro(bolso) }}</p>
           </div>
         </div>
       </div>
@@ -449,7 +453,7 @@ async function onRemover(compra: CompraDoMes) {
         <GraficoBarras
           class="mt-3"
           :barras="barrasSemanais"
-          :formatar="formatarDinheiro"
+          :formatar="dinheiro"
           :atualizando="buscandoSemanal"
           vazio="Nenhuma compra feita neste mês."
         />
@@ -464,7 +468,7 @@ async function onRemover(compra: CompraDoMes) {
           class="mt-3"
           :barras="barrasMensais"
           :barras-tabela="barrasMensaisDoAno"
-          :formatar="formatarDinheiro"
+          :formatar="dinheiro"
           :atualizando="buscandoSerie"
           vazio="Nenhuma compra nesta janela de meses."
           @selecionar="competencia = $event"

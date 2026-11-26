@@ -18,12 +18,15 @@ import { mensagemDeErro } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { formatarDinheiro } from '@/lib/dinheiro'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import { valorCentral, valorDaContribuicao } from '~/types/planejamento'
 import type { Contribuicao, ContribuicaoDoEspaco, ModoContribuicao } from '~/types/planejamento'
 import type { Membro } from '~/composables/useMembros'
 import { useDefinirContribuicao } from '~/composables/usePlanejamento'
 import { useUsuarioId } from '~/composables/useUsuarioId'
+
+/** Os valores em dinheiro seguem o olho de Orçamentos (`useValoresOcultos`). */
+const { dinheiro } = useValoresOcultos()
 
 const props = defineProps<{
   spaceId: string
@@ -119,7 +122,7 @@ function descreverOutro(c: ContribuicaoDoEspaco | null): string {
       </div>
       <div class="text-right">
         <p class="text-xs text-muted-foreground">Valor central</p>
-        <p class="text-lg font-semibold">{{ formatarDinheiro(total) }}</p>
+        <p class="text-lg font-semibold">{{ dinheiro(total) }}</p>
       </div>
     </div>
 
@@ -130,7 +133,7 @@ function descreverOutro(c: ContribuicaoDoEspaco | null): string {
             {{ linha.membro.exibicao }}<span v-if="linha.souEu" class="text-muted-foreground"> (você)</span>
           </span>
           <span class="text-sm tabular-nums">
-            {{ linha.contribuicao?.valor_efetivo != null ? formatarDinheiro(linha.contribuicao.valor_efetivo) : '—' }}
+            {{ linha.contribuicao?.valor_efetivo != null ? dinheiro(linha.contribuicao.valor_efetivo) : '—' }}
           </span>
         </div>
         <p v-if="!linha.souEu" class="text-xs text-muted-foreground">{{ descreverOutro(linha.contribuicao) }}</p>
@@ -184,7 +187,7 @@ function descreverOutro(c: ContribuicaoDoEspaco | null): string {
               <NuxtLink to="/espacos" class="text-primary underline-offset-2 hover:underline">Espaços › Seu salário</NuxtLink>.
             </template>
             <template v-else-if="modo === 'percentual'">
-              <template v-if="previa !== null">= {{ formatarDinheiro(previa) }} por mês. </template>
+              <template v-if="previa !== null">= {{ dinheiro(previa) }} por mês. </template>
               <template v-if="salarioAbertoAqui">Seu salário está aberto aqui, então o percentual aparece para todos.</template>
               <template v-else>Os outros veem só o valor em reais — o percentual fica com você.</template>
             </template>

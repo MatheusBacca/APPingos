@@ -13,13 +13,16 @@
 import { ArrowRightIcon, CheckIcon, EyeOffIcon, LinkIcon, PiggyBankIcon, SparklesIcon, UserIcon, UsersIcon, WalletIcon, LandmarkIcon } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { formatarDiaCompleto } from '@/lib/datas'
-import { formatarDinheiro } from '@/lib/dinheiro'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import { ROTULO_DESTINO_DA_REGRA, rotuloParaRegra } from '~/lib/auto-tag'
 import type { Sugestao } from '~/lib/auto-tag'
 import type { ItemDaCaixa, ModoClassificacao } from '~/lib/caixa-de-entrada'
 import { textoParaSelo, valorDoItem } from '~/lib/caixa-lista'
 import { rotuloDaCategoriaNaCaixa } from '~/lib/categorias-pluggy'
 import { pareceInvestimento } from '~/lib/investimentos'
+
+/** Os valores em dinheiro seguem o olho de Orçamentos (`useValoresOcultos`). */
+const { dinheiro } = useValoresOcultos()
 
 const props = defineProps<{
   item: ItemDaCaixa
@@ -43,7 +46,7 @@ const categoriaDoBanco = computed(() => rotuloDaCategoriaNaCaixa(props.item.prin
 const parcelas = computed(() => {
   if (props.item.plano.parcelas <= 1) return null
   const numeros = props.item.transacoes.map(t => t.parcela_numero).join(', ')
-  return `Parcela ${numeros} de ${props.item.plano.parcelas} · ${formatarDinheiro(props.item.plano.valor_total)} no total`
+  return `Parcela ${numeros} de ${props.item.plano.parcelas} · ${dinheiro(props.item.plano.valor_total)} no total`
 })
 
 /** A hora da compra, no fuso de Brasília, quando o banco informa. */
@@ -70,8 +73,8 @@ const encargosDoBoleto = computed(() => {
   const b = props.item.principal.boleto
   if (!b) return null
   const partes = [
-    b.multa ? `${formatarDinheiro(b.multa)} de multa` : null,
-    b.juros ? `${formatarDinheiro(b.juros)} de juros` : null,
+    b.multa ? `${dinheiro(b.multa)} de multa` : null,
+    b.juros ? `${dinheiro(b.juros)} de juros` : null,
   ].filter(Boolean)
   return partes.length ? `pago com ${partes.join(' e ')}` : null
 })
@@ -124,7 +127,7 @@ const destinos = computed(() => {
         class="shrink-0 text-lg font-semibold tabular-nums"
         :class="item.sentido === 'entrada' ? 'text-emerald-600 dark:text-emerald-400' : ''"
       >
-        {{ item.sentido === 'entrada' ? '+' : '' }}{{ formatarDinheiro(valor) }}
+        {{ item.sentido === 'entrada' ? '+' : '' }}{{ dinheiro(valor) }}
       </p>
     </header>
 

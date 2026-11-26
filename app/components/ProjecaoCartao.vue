@@ -11,8 +11,12 @@
  * tudo: são perguntas diferentes ("quanto o mês tinha" e "quanto já foi"), e a
  * sobra é a única conta que junta as duas.
  */
-import { formatarDinheiro, formatarPercentual } from '@/lib/dinheiro'
+import { formatarPercentual } from '@/lib/dinheiro'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import type { Projecao } from '~/types/planejamento'
+
+/** Os valores em dinheiro seguem o olho de Orçamentos (`useValoresOcultos`). */
+const { dinheiro } = useValoresOcultos()
 
 export interface LinhaDaProjecao {
   rotulo: string
@@ -58,32 +62,32 @@ const sinal = (l: LinhaDaProjecao) => (l.sentido === 'entra' ? '+' : '−')
           <span v-if="linha.detalhe" class="block text-xs text-muted-foreground">{{ linha.detalhe }}</span>
         </dt>
         <dd class="tabular-nums" :class="linha.sentido === 'sai' ? 'text-muted-foreground' : ''">
-          {{ sinal(linha) }} {{ formatarDinheiro(linha.valor) }}
+          {{ sinal(linha) }} {{ dinheiro(linha.valor) }}
         </dd>
       </div>
 
       <div class="flex items-baseline gap-2 border-t pt-1.5 font-medium">
         <dt class="flex-1">{{ rotuloPlanejado }}</dt>
-        <dd class="tabular-nums">{{ formatarDinheiro(projecao.planejado) }}</dd>
+        <dd class="tabular-nums">{{ dinheiro(projecao.planejado) }}</dd>
       </div>
     </dl>
 
     <dl class="space-y-1.5 text-sm">
       <div class="flex items-baseline gap-2">
         <dt class="flex-1">{{ rotuloGastos }}</dt>
-        <dd class="tabular-nums text-muted-foreground">− {{ formatarDinheiro(projecao.gastos) }}</dd>
+        <dd class="tabular-nums text-muted-foreground">− {{ dinheiro(projecao.gastos) }}</dd>
       </div>
       <div class="flex items-baseline gap-2">
         <dt class="flex-1">{{ rotuloAportes }}</dt>
         <dd class="tabular-nums text-muted-foreground">
-          {{ projecao.aportes < 0 ? '+' : '−' }} {{ formatarDinheiro(Math.abs(projecao.aportes)) }}
+          {{ projecao.aportes < 0 ? '+' : '−' }} {{ dinheiro(Math.abs(projecao.aportes)) }}
         </dd>
       </div>
 
       <div class="flex items-baseline gap-2 border-t pt-1.5 text-base font-semibold">
         <dt class="flex-1">{{ estourou ? 'Passou do plano' : 'Sobra' }}</dt>
         <dd class="tabular-nums" :class="estourou ? 'text-destructive' : ''">
-          {{ formatarDinheiro(projecao.sobra) }}
+          {{ dinheiro(projecao.sobra) }}
         </dd>
       </div>
     </dl>
@@ -98,11 +102,11 @@ const sinal = (l: LinhaDaProjecao) => (l.sentido === 'entra' ? '+' : '−')
       </div>
       <p class="mt-1 text-xs text-muted-foreground">
         <template v-if="projecao.planejado > 0">
-          {{ formatarDinheiro(projecao.realizado) }} de {{ formatarDinheiro(projecao.planejado) }}
+          {{ dinheiro(projecao.realizado) }} de {{ dinheiro(projecao.planejado) }}
           — {{ formatarPercentual(projecao.uso) }} do planejado.
         </template>
         <template v-else-if="projecao.realizado > 0">
-          {{ formatarDinheiro(projecao.realizado) }} saíram sem nada planejado para cobrir.
+          {{ dinheiro(projecao.realizado) }} saíram sem nada planejado para cobrir.
         </template>
         <template v-else>Nada planejado e nada gasto ainda.</template>
       </p>

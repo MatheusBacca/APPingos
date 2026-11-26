@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { movimentosRecentes, pareceInvestimento, resumoPorBanco, saldoDaCaixinha } from '~/lib/investimentos'
+import { movimentosRecentes, pareceInvestimento, resumoPorBanco, saldoDaCaixinha, totalInvestido } from '~/lib/investimentos'
 
 const mov = (valor: number, data: string, id = `${valor}-${data}`) =>
   ({ id, valor, data, transacao_id: null, meta_aporte_id: null, user_id: 'u' })
@@ -45,5 +45,21 @@ describe('pareceInvestimento', () => {
     expect(pareceInvestimento({ descricao: 'Valor recebido de Investimento', categoria_pluggy: 'Third party transfers' })).toBe(true)
     expect(pareceInvestimento({ descricao: 'Qualquer coisa', categoria_pluggy: 'Investments' })).toBe(true)
     expect(pareceInvestimento({ descricao: 'Festval Shopping', categoria_pluggy: 'Groceries' })).toBe(false)
+  })
+})
+
+describe('totalInvestido', () => {
+  it('com banco conectado, o saldo dos bancos — as caixinhas não somam de novo', () => {
+    expect(totalInvestido([{ saldo: 1000, aplicado: 900 }, { saldo: 500, aplicado: 500 }], [{ movimentos: [mov(300, '2026-11-01')] }]))
+      .toEqual({ total: 1500, rendimento: 100, origem: 'bancos' })
+  })
+
+  it('sem banco, a soma das caixinhas, sem rendimento', () => {
+    expect(totalInvestido([], [{ movimentos: [mov(300, '2026-11-01'), mov(-100, '2026-11-02')] }]))
+      .toEqual({ total: 200, rendimento: null, origem: 'caixinhas' })
+  })
+
+  it('sem nada, nada', () => {
+    expect(totalInvestido([], [])).toBeNull()
   })
 })

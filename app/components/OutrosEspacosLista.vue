@@ -8,7 +8,7 @@
  * só: as duas respondem "quanto os outros espaços tiram do meu mês", e duas
  * versões do desenho divergiriam no primeiro ajuste.
  */
-import { formatarDinheiro } from '@/lib/dinheiro'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { CartaoNaPilha } from '~/components/PilhaDeCartoes.vue'
 
@@ -25,6 +25,9 @@ export interface LinhaDeOutroEspaco {
  * cada um seria R$ 0,00 — um número falso. A lista espera em vez de mostrar.
  */
 defineProps<{ titulo: string, linhas: LinhaDeOutroEspaco[], carregando?: boolean }>()
+
+/** Segue o olho do painel. */
+const { dinheiro } = useValoresOcultos()
 </script>
 
 <template>
@@ -43,7 +46,7 @@ defineProps<{ titulo: string, linhas: LinhaDeOutroEspaco[], carregando?: boolean
           {{ l.nome }}
           <span class="text-xs text-muted-foreground">{{ l.pessoal ? 'tudo seu' : 'sua parte' }}</span>
         </span>
-        <span class="tabular-nums" :class="l.valor ? '' : 'text-muted-foreground'">{{ formatarDinheiro(l.valor) }}</span>
+        <span class="tabular-nums" :class="l.valor ? '' : 'text-muted-foreground'">{{ dinheiro(l.valor) }}</span>
       </li>
     </ul>
   </div>

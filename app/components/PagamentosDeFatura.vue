@@ -11,10 +11,13 @@
  */
 import { ChevronDownIcon, ReceiptTextIcon } from '@lucide/vue'
 import { formatarDia, nomeDoMes } from '@/lib/datas'
-import { formatarDinheiro } from '@/lib/dinheiro'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import { rotuloDaConta } from '~/lib/caixa-lista'
 import { usePagamentosDeFatura } from '~/composables/useCaixaDeEntrada'
 import type { PagamentoDeFaturaDoMes } from '~/composables/useCaixaDeEntrada'
+
+/** Os valores em dinheiro seguem o olho de Orçamentos (`useValoresOcultos`). */
+const { dinheiro } = useValoresOcultos()
 
 const props = defineProps<{ mes: string }>()
 
@@ -54,7 +57,7 @@ const total = computed(() => linhas.value.reduce((s, l) => s + l.valor, 0))
         <ReceiptTextIcon class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <span>
           <span class="font-medium">
-            Pagamentos de fatura em {{ nomeDoMes(mes).toLowerCase() }} ({{ linhas.length }}) · {{ formatarDinheiro(total) }}
+            Pagamentos de fatura em {{ nomeDoMes(mes).toLowerCase() }} ({{ linhas.length }}) · {{ dinheiro(total) }}
           </span>
           <span class="block text-xs text-muted-foreground">
             Não contam como gasto — as compras da fatura já contam. Saem da caixa sozinhos.
@@ -76,7 +79,7 @@ const total = computed(() => linhas.value.reduce((s, l) => s + l.valor, 0))
             <template v-else>paga de uma conta não conectada</template>
           </p>
         </div>
-        <span class="shrink-0 text-sm tabular-nums">{{ formatarDinheiro(l.valor) }}</span>
+        <span class="shrink-0 text-sm tabular-nums">{{ dinheiro(l.valor) }}</span>
       </li>
     </ul>
   </details>

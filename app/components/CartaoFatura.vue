@@ -10,9 +10,13 @@
 import { ChevronDownIcon, SlidersHorizontalIcon } from '@lucide/vue'
 import { hojeIso, partesDaData, somarDias } from '@/lib/datas'
 import { diasEntre } from '~/lib/contas-bancarias'
-import { formatarDinheiro, formatarPercentual } from '@/lib/dinheiro'
+import { formatarPercentual } from '@/lib/dinheiro'
+import { useValoresOcultos } from '~/composables/useValoresOcultos'
 import { quandoFecha, seloDoBanco } from '~/lib/cartoes'
 import type { FaturaFechada, PagamentoDaFatura, ResumoDoCartao } from '~/composables/useCartoes'
+
+/** Os valores em dinheiro seguem o olho de Orçamentos (`useValoresOcultos`). */
+const { dinheiro } = useValoresOcultos()
 
 const props = defineProps<{ resumo: ResumoDoCartao, fracaoDoTotal: number | null }>()
 const emit = defineEmits<{ ajustar: [] }>()
@@ -118,7 +122,7 @@ const pagamentoDaUltima = computed(() => props.resumo.ultimaFechada ? pagamentoD
             </p>
           </div>
           <div class="shrink-0 text-right">
-            <p class="text-lg font-semibold tabular-nums leading-tight">{{ formatarDinheiro(resumo.faturaAberta) }}</p>
+            <p class="text-lg font-semibold tabular-nums leading-tight">{{ dinheiro(resumo.faturaAberta) }}</p>
             <p class="text-xs text-muted-foreground">fatura aberta</p>
           </div>
         </div>
@@ -142,7 +146,7 @@ const pagamentoDaUltima = computed(() => props.resumo.ultimaFechada ? pagamentoD
           <div class="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-xs">
             <span>
               <strong class="font-semibold" :class="TEXTO_DA_FAIXA[resumo.uso.faixa]">{{ formatarPercentual(resumo.uso.fracao) }}</strong>
-              <span class="text-muted-foreground"> do limite · {{ formatarDinheiro(resumo.uso.usado) }} de {{ formatarDinheiro(resumo.uso.limite) }}</span>
+              <span class="text-muted-foreground"> do limite · {{ dinheiro(resumo.uso.usado) }} de {{ dinheiro(resumo.uso.limite) }}</span>
             </span>
             <span class="text-muted-foreground">{{ prazo }}</span>
           </div>
@@ -170,7 +174,7 @@ const pagamentoDaUltima = computed(() => props.resumo.ultimaFechada ? pagamentoD
           >
             <ChevronDownIcon class="size-3.5 shrink-0 transition-transform" :class="aberto && 'rotate-180'" />
             <span class="truncate">
-              Última fechada: <strong class="font-medium text-foreground">{{ formatarDinheiro(resumo.ultimaFechada!.total) }}</strong>
+              Última fechada: <strong class="font-medium text-foreground">{{ dinheiro(resumo.ultimaFechada!.total) }}</strong>
               · <template v-if="pagamentoDaUltima">paga {{ diaCurto(pagamentoDaUltima.data) }}</template>
               <template v-else>{{ resumo.ultimaFechada!.vencimento < hoje ? 'venceu' : 'vence' }} {{ diaCurto(resumo.ultimaFechada!.vencimento) }}</template>
             </span>
@@ -195,17 +199,17 @@ const pagamentoDaUltima = computed(() => props.resumo.ultimaFechada ? pagamentoD
                 Vencimento {{ diaCurto(f.vencimento) }}<span v-if="f.fechamento"> · fechou {{ diaCurto(f.fechamento) }}</span>
               </span>
               <span class="tabular-nums">
-                {{ formatarDinheiro(f.total) }}
-                <span v-if="f.minimo" class="text-muted-foreground"> · mín. {{ formatarDinheiro(f.minimo) }}</span>
+                {{ dinheiro(f.total) }}
+                <span v-if="f.minimo" class="text-muted-foreground"> · mín. {{ dinheiro(f.minimo) }}</span>
               </span>
             </div>
             <p v-if="pagamentoPorFatura.get(f.id)" class="mt-0.5 text-muted-foreground">
-              Paga em {{ diaCurto(pagamentoPorFatura.get(f.id)!.data) }} · {{ formatarDinheiro(pagamentoPorFatura.get(f.id)!.valor) }}
+              Paga em {{ diaCurto(pagamentoPorFatura.get(f.id)!.data) }} · {{ dinheiro(pagamentoPorFatura.get(f.id)!.valor) }}
               <template v-if="pagamentoPorFatura.get(f.id)!.pagoPor">pela conta <span class="text-foreground">{{ pagamentoPorFatura.get(f.id)!.pagoPor }}</span></template>
             </p>
             <p v-if="f.total_encargos > 0" class="mt-0.5 text-red-600 dark:text-red-400">
-              {{ formatarDinheiro(f.total_encargos) }} em encargos:
-              {{ f.encargos.map(e => `${nomeDoEncargo(e.tipo)} ${formatarDinheiro(e.valor)}`).join(', ') }}
+              {{ dinheiro(f.total_encargos) }} em encargos:
+              {{ f.encargos.map(e => `${nomeDoEncargo(e.tipo)} ${dinheiro(e.valor)}`).join(', ') }}
             </p>
           </li>
         </ul>
