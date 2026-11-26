@@ -38,12 +38,12 @@ import {
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatarInstante, formatarMes, hojeIso, mesAbreviado, nomeDoMes, partesDaData, primeiroDoMes, somarMeses, tempoRelativo } from '@/lib/datas'
-import { formatarPercentual } from '@/lib/dinheiro'
+import { formatarDinheiro, formatarPercentual } from '@/lib/dinheiro'
 import { seloDoBanco } from '~/lib/cartoes'
 import { FAIXAS_PADRAO, aplicadoNasCaixinhas, competenciaDaUrl, consumoDosOutrosEspacos, corDeDado, etiquetaDaMovimentacao, fracaoDoMes, mesNaUrl, quandoFoi, acertoAPagar, repartirSalario, ritmoDoMes, saldoDasContas, saldosNosAcertos, semanasDoPlanejado, somarAcertos, tomDoSalario, variacaoEntre } from '~/lib/painel-orcamentos'
 import { bancoDaConta, textoParaSelo } from '~/lib/caixa-lista'
 import { rotuloParaRegra } from '~/lib/auto-tag'
-import { CLASSE_BARRA, CLASSE_BARRA_SEM_CATEGORIA, gastoPorCategoria, meuBolso, saldoDoMes, totalDoMes } from '~/types/orcamento'
+import { CLASSE_BARRA, CLASSE_BARRA_SEM_CATEGORIA, gastoPorCategoria, meuBolso, totalDoMes } from '~/types/orcamento'
 import { progressoDaMeta } from '~/types/meta'
 import type { Barra } from '~/components/GraficoBarras.vue'
 import { useCaixinhas } from '~/composables/useCaixinhas'
@@ -53,7 +53,7 @@ import { useConexoesBancarias } from '~/composables/useContasBancarias'
 import { useGastosPessoais } from '~/composables/useGastosPessoais'
 import { useMembros, useMembrosDosEspacos } from '~/composables/useMembros'
 import { useMetas } from '~/composables/useMetas'
-import { useAcertadosNoMes, useAcertos, useCategorias, useComprasDoMes, useComprasDosEspacos, useSerieMensal } from '~/composables/useOrcamento'
+import { useAcertadosNoMes, useCategorias, useComprasDoMes, useComprasDosEspacos, useSerieMensal } from '~/composables/useOrcamento'
 import { useProjecoesDoMes } from '~/composables/useProjecoesDoMes'
 import { useUsuarioId } from '~/composables/useUsuarioId'
 import { useValoresOcultos } from '~/composables/useValoresOcultos'
@@ -67,7 +67,7 @@ useHead({ title: 'Orçamentos · APPingos' })
 const store = useSpaceStore()
 const route = useRoute()
 const usuarioId = useUsuarioId()
-const { data: membros } = useMembros()
+const { data: membros, isPending: carregandoNomes } = useMembros()
 
 const mesCorrente = computed(() => primeiroDoMes(hojeIso()))
 const competencia = ref(competenciaDaUrl(route.query.mes) ?? mesCorrente.value)
@@ -84,7 +84,10 @@ const comMes = (caminho: string, ancora = '') => `${caminho}?mes=${mesNaUrl(comp
 const comoFunciona = ref(false)
 
 /** O olho do topo: esconde os valores em dinheiro do painel (lembrado neste dispositivo). */
-const { dinheiro } = useValoresOcultos()
+const { dinheiro, texto } = useValoresOcultos()
+
+/** Um valor com o sinal da conta ("− R$ 834,08"), que a máscara do olho preserva. */
+const comSinal = (sinal: '+' | '−', valor: number) => texto(`${sinal} ${formatarDinheiro(Math.abs(valor))}`)
 
 // ---- Gastos -------------------------------------------------------------------
 
@@ -337,7 +340,7 @@ const acertoDoMes = computed(() => {
   const comum = { espacos: store.espacos, membros: membrosDosEspacos.value ?? new Map(), eu: usuarioId.value }
   const doMes = saldosNosAcertos({ ...comum, compras: comprasPorEspaco.value, acertados: acertadosNoMes.value ?? new Set() })
   const anterior = saldosNosAcertos({ ...comum, compras: comprasDoMesAnterior.value.porEspaco, acertados: acertadosNoAnterior.value ?? new Set() })
-  return { ...somarAcertos(doMes, anterior), comAnterior: anterior.porEspaco.length > 0 }
+  return { ...somarAcertos(doMes, anterior), anterior }
 })
 
 /** Enquanto as compras, os membros ou os acertos não chegam, o acerto seria zero — um número falso. */
@@ -347,16 +350,6 @@ const carregandoAcerto = computed(() =>
   || comprasDoMesAnterior.value.carregando
   || (espacosCompartilhados.value.length > 0 && (carregandoMembros.value || carregandoAcertados.value || carregandoAcertadosAnterior.value)),
 )
-
-const nomeDoEspaco = (id: string) => store.espacos.find(e => e.id === id)?.nome ?? 'um espaço'
-
-/** "no acerto de SpacePingos (com outubro, ainda pendente)" — uma frase só, sem buraco entre os pedaços. */
-const deOndeVemOAcerto = computed(() => {
-  const { porEspaco, comAnterior } = acertoDoMes.value
-  const espaco = porEspaco.length === 1 ? ` de ${nomeDoEspaco(porEspaco[0]!.spaceId)}` : ''
-  const anterior = comAnterior ? ` (com ${nomeDoMes(competenciaAnterior.value).toLowerCase()}, ainda pendente)` : ''
-  return `no acerto${espaco}${anterior}`
-})
 
 /**
  * O salário repartido em Faturas · Investido · Livre.
@@ -380,16 +373,15 @@ const salarioRepartido = computed(() => {
  * corrente, porque as faturas abertas são as do ciclo de hoje.
  */
 const aPagarDoSalario = computed(() => {
-  if (espacoCasal.value || situacao.value !== 'aberto' || !meuMes.value || !cartoes.value) return null
+  if (espacoCasal.value || situacao.value !== 'aberto' || !meuMes.value || !cartoes.value || carregandoAcerto.value) return null
   const salario = meuMes.value.salario
-  // As faturas com o acerto: o que te devem abate, o que você deve soma.
-  const acerto = acertoDoMes.value.total
-  const aPagar = acertoAPagar(cartoes.value.total, acerto)
+  // A fatia Faturas da pizza: o que te devem abate, o que você deve soma.
+  const aPagar = acertoAPagar(cartoes.value.total, acertoDoMes.value.total)
   const fracao = salario > 0 ? aPagar / salario : Infinity
   // As faixas são da pessoa (Espaços › Seu salário); sem ajuste, 70% e 100%.
   const r = rendaAtual.data.value
   const faixas = r ? { atencao: r.faixa_atencao, alerta: r.faixa_alerta } : FAIXAS_PADRAO
-  return { aPagar, faturas: cartoes.value.total, acerto, salario, fracao, faixas, tom: tomDoSalario(fracao, faixas) }
+  return { aPagar, salario, fracao, faixas, tom: tomDoSalario(fracao, faixas) }
 })
 
 const COR_DO_TOM_DO_SALARIO = {
@@ -400,6 +392,8 @@ const COR_DO_TOM_DO_SALARIO = {
 
 const COR_DA_FATIA = {
   faturas: { traco: 'stroke-amber-500', ponto: 'bg-amber-500' },
+  receber: { traco: 'stroke-sky-400', ponto: 'bg-sky-400' },
+  devo: { traco: 'stroke-rose-500', ponto: 'bg-rose-500' },
   investido: { traco: 'stroke-violet-500', ponto: 'bg-violet-500' },
   livre: { traco: 'stroke-emerald-500', ponto: 'bg-emerald-500' },
 } as const
@@ -419,19 +413,33 @@ const arcosDoSalario = computed(() => {
 
 // ---- Acerto, categorias e últimas compras -------------------------------------
 
-const { data: acertos } = useAcertos()
-const acertado = computed(() => (acertos.value ?? []).some(a => primeiroDoMes(a.competencia) === competencia.value))
-
 const nomeDoMembro = (id: string) => membros.value?.find(m => m.user_id === id)?.exibicao ?? 'Alguém'
 
-/** "Fulano deve X a Beltrano" — só com duas pessoas, como em Chico Moedas. */
-const acerto = computed(() => {
-  const saldos = saldoDoMes(compras.value ?? [], (membros.value ?? []).map(m => m.user_id))
-  if (saldos.length !== 2) return null
-  const [a, b] = saldos as [typeof saldos[0], typeof saldos[0]]
-  const credor = a.saldo >= b.saldo ? a : b
-  const devedor = credor === a ? b : a
-  return { credor: nomeDoMembro(credor.user_id), devedor: nomeDoMembro(devedor.user_id), valor: credor.saldo }
+/**
+ * "Fulano deve X a Beltrano" no rodapé do Planejamento: o acerto do espaço
+ * aberto com a MESMA conta que vai para o Salário do mês — o mês da tela e o
+ * anterior enquanto não for marcado como acertado. Só com duas pessoas.
+ */
+const acertoDoEspaco = computed(() => {
+  const id = store.espacoAtivoId
+  const eu = usuarioId.value
+  const pessoas = (id && membrosDosEspacos.value?.get(id)) || []
+  if (!id || !eu || pessoas.length !== 2 || !pessoas.includes(eu)) return null
+  const outro = pessoas.find(p => p !== eu)!
+  const saldo = acertoDoMes.value.porEspaco.find(p => p.spaceId === id)?.saldo ?? 0
+  const comAnterior = acertoDoMes.value.anterior.porEspaco.some(p => p.spaceId === id)
+  const acertado = acertadosNoMes.value?.has(id) ?? false
+  const meses = [
+    ...(acertado ? [] : [nomeDoMes(competencia.value).toLowerCase()]),
+    ...(comAnterior ? [nomeDoMes(competenciaAnterior.value).toLowerCase()] : []),
+  ]
+  return {
+    valor: Math.abs(saldo),
+    credor: nomeDoMembro(saldo >= 0 ? eu : outro),
+    devedor: nomeDoMembro(saldo >= 0 ? outro : eu),
+    meses: meses.join(' e '),
+    acertado: acertado && !comAnterior,
+  }
 })
 
 const comprasVisiveis = computed(() => [...(compras.value ?? []), ...(pessoais.value ?? [])])
@@ -752,8 +760,8 @@ function diaEMes(iso: string): string {
         <!--
           A pizza do salário — Faturas · Investido · Livre. Veio do cartão de
           Planejamento para o alto da tela: é a leitura de "do que eu ganho, o que
-          já está comprometido". O patrimônio investido continua no cartão de
-          Investimentos, mais abaixo.
+          já está comprometido". O patrimônio investido mora no Planejamento, a
+          tela que este cartão abre.
         -->
         <PainelCartao class="@container" titulo="Salário do mês" :icone="PieChartIcon" :para="comMes('/orcamentos/planejamento')" rotulo-do-atalho="Planejamento">
           <Skeleton v-if="carregandoMeuMes || carregandoCartoes || carregandoAcerto" class="h-24 w-full" />
@@ -773,33 +781,46 @@ function diaEMes(iso: string): string {
                 :stroke-dashoffset="a.deslocamento"
               />
             </svg>
-            <div class="w-full min-w-0 flex-1 space-y-1.5 text-xs">
-              <dl class="space-y-1.5">
-                <div v-for="f in salarioRepartido.fatias" :key="f.chave" class="flex items-center gap-2">
-                  <dt class="flex min-w-0 flex-1 items-center gap-2">
-                    <span class="size-2.5 shrink-0 rounded-full" :class="COR_DA_FATIA[f.chave].ponto" aria-hidden="true" />
-                    <span class="truncate">{{ f.rotulo }}</span>
-                  </dt>
-                  <dd class="tabular-nums">{{ dinheiro(f.valor) }}</dd>
-                  <dd class="w-10 text-right tabular-nums text-muted-foreground">{{ formatarPercentual(f.fracao) }}</dd>
-                </div>
-              </dl>
-              <!--
-                Com acerto no mês, a fatia "Faturas" já vem com ele: a linha diz
-                de onde veio a diferença para a fatura do banco.
-              -->
-              <p v-if="salarioRepartido.acerto" class="text-muted-foreground">
-                {{ dinheiro(salarioRepartido.faturasDoBanco) }} nas faturas
-                {{ salarioRepartido.acerto > 0 ? '−' : '+' }} {{ dinheiro(Math.abs(salarioRepartido.acerto)) }}
-                {{ salarioRepartido.acerto > 0 ? 'que te devem' : 'que você deve' }} {{ deOndeVemOAcerto }}
-              </p>
-              <p class="pt-1 text-muted-foreground">
-                de {{ dinheiro(salarioRepartido.salario) }} de salário
-                <span v-if="salarioRepartido.estouro" class="block font-medium text-red-600 dark:text-red-400">
-                  Passou {{ dinheiro(salarioRepartido.estouro) }} do salário.
-                </span>
-              </p>
-            </div>
+            <!--
+              A legenda é uma conta armada: os gastos, o salário e, embaixo do
+              traço (que tem a largura da coluna dos valores), o que sobra — verde —
+              ou quanto passou — vermelho. O acerto é sublegenda de Faturas.
+            -->
+            <dl class="grid w-full min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 text-xs">
+              <dt class="flex min-w-0 items-center gap-2">
+                <span class="size-2.5 shrink-0 rounded-full" :class="COR_DA_FATIA.faturas.ponto" aria-hidden="true" />
+                <span class="truncate">Faturas</span>
+              </dt>
+              <dd class="text-right tabular-nums">{{ dinheiro(salarioRepartido.faturasDoBanco) }}</dd>
+              <template v-if="salarioRepartido.receber">
+                <dt class="flex min-w-0 items-center gap-2 pl-4.5 text-muted-foreground">
+                  <span class="size-2 shrink-0 rounded-full" :class="COR_DA_FATIA.receber.ponto" aria-hidden="true" />
+                  <span class="truncate">Receberei</span>
+                </dt>
+                <dd class="text-right tabular-nums text-muted-foreground">{{ comSinal('−', salarioRepartido.receber) }}</dd>
+              </template>
+              <template v-if="salarioRepartido.devo">
+                <dt class="flex min-w-0 items-center gap-2 pl-4.5 text-muted-foreground">
+                  <span class="size-2 shrink-0 rounded-full" :class="COR_DA_FATIA.devo.ponto" aria-hidden="true" />
+                  <span class="truncate">Devo</span>
+                </dt>
+                <dd class="text-right tabular-nums text-muted-foreground">{{ comSinal('+', salarioRepartido.devo) }}</dd>
+              </template>
+              <dt class="flex min-w-0 items-center gap-2">
+                <span class="size-2.5 shrink-0 rounded-full" :class="COR_DA_FATIA.investido.ponto" aria-hidden="true" />
+                <span class="truncate">Investido</span>
+              </dt>
+              <dd class="text-right tabular-nums">{{ dinheiro(salarioRepartido.investido) }}</dd>
+              <dt class="truncate">− Salário</dt>
+              <dd class="text-right tabular-nums">{{ dinheiro(salarioRepartido.salario) }}</dd>
+              <dt class="sr-only">{{ salarioRepartido.resultado < 0 ? 'Passou do salário' : 'Sobra' }}</dt>
+              <dd
+                class="col-start-2 border-t pt-1.5 text-right font-semibold tabular-nums"
+                :class="salarioRepartido.resultado < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'"
+              >
+                {{ salarioRepartido.resultado < 0 ? comSinal('−', salarioRepartido.resultado) : dinheiro(salarioRepartido.resultado) }}
+              </dd>
+            </dl>
           </div>
           <p v-else-if="meuMes" class="text-sm text-muted-foreground">
             A pizza mostra o mês corrente: as faturas abertas são as do ciclo de hoje.
@@ -957,25 +978,25 @@ function diaEMes(iso: string): string {
           </ol>
 
           <!--
-            O rodapé muda com o espaço. No compartilhado, o acerto do mês — a mesma
-            conta do cartão "Acerto do mês" — para se ver quem deve a quem sem sair
-            do planejamento. No pessoal, o que você tem a pagar (as faturas
-            abertas) contra o seu salário.
+            O rodapé muda com o espaço, e os dois batem com o Salário do mês. No
+            compartilhado, quem deve a quem — o mês da tela e o anterior ainda não
+            acertado, o mesmo acerto que entra no salário. No pessoal, o que você
+            tem a pagar (a fatia Faturas da pizza, já com o acerto) contra o salário.
           -->
           <div v-if="espacoCasal" class="mt-auto flex items-start gap-2 border-t pt-3 text-xs">
             <HandCoinsIcon class="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <p v-if="acertado">
+            <Skeleton v-if="carregandoAcerto || carregandoNomes" class="h-4 w-full" />
+            <p v-else-if="!acertoDoEspaco" class="text-muted-foreground">O acerto aparece nos espaços divididos por duas pessoas.</p>
+            <p v-else-if="acertoDoEspaco.valor >= 0.01">
+              <span class="font-medium">{{ acertoDoEspaco.devedor }}</span> deve
+              <span class="font-semibold tabular-nums">{{ dinheiro(acertoDoEspaco.valor) }}</span>
+              a <span class="font-medium">{{ acertoDoEspaco.credor }}</span> em {{ acertoDoEspaco.meses }}.
+            </p>
+            <p v-else-if="acertoDoEspaco.acertado">
               <span class="font-medium text-emerald-700 dark:text-emerald-400">Acertado.</span>
               {{ nomeDoMes(competencia) }} já foi marcado como pago.
             </p>
-            <p v-else-if="acerto && acerto.valor >= 0.01">
-              <span class="font-medium">{{ acerto.devedor }}</span> deve
-              <span class="font-semibold tabular-nums">{{ dinheiro(acerto.valor) }}</span>
-              a <span class="font-medium">{{ acerto.credor }}</span>
-              {{ situacao === 'fechado' ? 'por' : 'até agora em' }} {{ nomeDoMes(competencia) }}.
-            </p>
-            <p v-else-if="acerto" class="text-muted-foreground">Ninguém deve nada a ninguém neste mês.</p>
-            <p v-else class="text-muted-foreground">O acerto aparece nos espaços divididos por duas pessoas.</p>
+            <p v-else class="text-muted-foreground">Ninguém deve nada a ninguém neste mês.</p>
           </div>
 
           <div v-else-if="aPagarDoSalario" class="mt-auto space-y-1 border-t pt-3 text-xs">
@@ -1004,16 +1025,6 @@ function diaEMes(iso: string): string {
                 aria-hidden="true"
               />
             </div>
-            <p class="text-muted-foreground">
-              As faturas abertas dos seus cartões<template v-if="aPagarDoSalario.acerto">
-                ({{ dinheiro(aPagarDoSalario.faturas) }}) {{ aPagarDoSalario.acerto > 0 ? 'menos' : 'mais' }}
-                o acerto ({{ dinheiro(Math.abs(aPagarDoSalario.acerto)) }}
-                {{ aPagarDoSalario.acerto > 0 ? 'que te devem' : 'que você deve' }}<template v-if="acertoDoMes.comAnterior">, com {{ nomeDoMes(competenciaAnterior).toLowerCase() }} ainda pendente</template>)</template>
-              contra o salário do mês. Âmbar a partir de
-              {{ formatarPercentual(aPagarDoSalario.faixas.atencao) }}, vermelho a partir de
-              {{ formatarPercentual(aPagarDoSalario.faixas.alerta) }} —
-              <NuxtLink to="/espacos" class="relative z-10 text-primary underline-offset-2 hover:underline">ajustar</NuxtLink>.
-            </p>
           </div>
         </div>
         <p v-else class="text-sm text-muted-foreground">

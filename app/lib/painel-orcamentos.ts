@@ -186,65 +186,79 @@ export function semanasDoPlanejado(dados: {
 
 // ---- A pizza do salário ------------------------------------------------------
 
-export type ChaveDaFatia = 'faturas' | 'investido' | 'livre'
+export type ChaveDaFatia = 'faturas' | 'receber' | 'devo' | 'investido' | 'livre'
 
+/** Um arco da pizza. */
 export interface FatiaDoSalario {
   chave: ChaveDaFatia
-  rotulo: string
   valor: number
-  /** Do salário, de 0 a 1. As três somam 1 quando nada estourou. */
+  /** Da pizza, de 0 a 1. Os arcos somam 1. */
   fracao: number
 }
 
 export interface SalarioRepartido {
   salario: number
+  /** Os arcos, na ordem em que a pizza os desenha, a partir do topo. */
   fatias: FatiaDoSalario[]
-  /** Quanto faturas + investido passaram do salário; zero quando cabem nele. */
-  estouro: number
   /** As faturas abertas como o banco mostra, antes do acerto. */
   faturasDoBanco: number
-  /** O acerto que entrou na conta: positivo = te devem (abate), negativo = você deve (soma). */
-  acerto: number
+  /** O que te devem no acerto (zero se for você quem deve). */
+  receber: number
+  /** O que você deve no acerto (zero se forem eles que devem). */
+  devo: number
+  investido: number
+  /**
+   * A conta da legenda: salário − (faturas − receber + devo) − investido.
+   * Positivo é o que sobra; negativo, quanto passou do salário.
+   */
+  resultado: number
 }
 
 const redondo = (n: number) => Math.round(n * 100) / 100
 
 /**
- * O salário do mês repartido em três: o que está nas faturas abertas, o que foi
- * guardado (metas e caixinhas) e o que ainda está livre.
+ * O salário do mês contra o que já está comprometido: as faturas abertas, o
+ * acerto dos espaços de duas pessoas e o que foi guardado (metas e caixinhas).
  *
- * A contribuição ao casal não é fatia — foi a escolha de produto para esta
+ * A contribuição ao casal não entra — foi a escolha de produto para esta
  * leitura, que responde "do que eu ganho, quanto já está comprometido no
  * cartão e quanto eu guardei". Quem quer a conta com a contribuição tem a
  * Sobra do Planejamento.
  *
- * Quando faturas e investido passam do salário, o livre é zero e as outras
- * duas fatias dividem a pizza na proporção delas; o tanto que passou vai em
- * `estouro`, para a tela dizer em texto — uma pizza não desenha mais de 100%.
- *
- * O ACERTO entra na fatia das faturas (`acertoAPagar`): o que te devem volta
- * para você e abate o que sai do salário; o que você deve soma. A fatia nunca
- * fica negativa — receber mais do que a fatura não vira salário a mais aqui.
+ * O ACERTO aparece como parte das faturas: o que te devem é uma sub-fatia
+ * DENTRO de Faturas (a parte da fatura que volta para você); o que você deve é
+ * uma fatia a mais, ao lado de Faturas. A pizza é o salário (ou, quando o
+ * comprometido passa dele, o comprometido), e o "livre" é o que sobra dela —
+ * uma pizza não desenha mais de 100%; quanto passou fica no `resultado`.
  */
 export function repartirSalario(dados: { salario: number, faturas: number, investido: number, acerto?: number }): SalarioRepartido | null {
   if (!(dados.salario > 0)) return null
+  const salario = redondo(dados.salario)
   const faturasDoBanco = Math.max(0, redondo(dados.faturas))
   const acerto = redondo(dados.acerto ?? 0)
-  const faturas = acertoAPagar(faturasDoBanco, acerto)
+  const receber = Math.max(0, acerto)
+  const devo = Math.max(0, -acerto)
   const investido = Math.max(0, redondo(dados.investido))
-  const comprometido = faturas + investido
-  const livre = Math.max(0, redondo(dados.salario - comprometido))
-  const base = Math.max(dados.salario, comprometido)
+  // A sub-fatia mora dentro de Faturas: não passa do tamanho dela.
+  const receberNaPizza = Math.min(receber, faturasDoBanco)
+  const comprometido = faturasDoBanco + devo + investido
+  const livre = Math.max(0, redondo(salario - comprometido))
+  const base = Math.max(salario, comprometido)
+  const fatia = (chave: ChaveDaFatia, valor: number): FatiaDoSalario => ({ chave, valor: redondo(valor), fracao: valor / base })
   return {
-    salario: redondo(dados.salario),
+    salario,
     fatias: [
-      { chave: 'faturas', rotulo: 'Faturas', valor: faturas, fracao: faturas / base },
-      { chave: 'investido', rotulo: 'Investido', valor: investido, fracao: investido / base },
-      { chave: 'livre', rotulo: 'Livre', valor: livre, fracao: livre / base },
+      fatia('faturas', faturasDoBanco - receberNaPizza),
+      fatia('receber', receberNaPizza),
+      fatia('devo', devo),
+      fatia('investido', investido),
+      fatia('livre', livre),
     ],
-    estouro: Math.max(0, redondo(comprometido - dados.salario)),
     faturasDoBanco,
-    acerto,
+    receber,
+    devo,
+    investido,
+    resultado: redondo(salario - faturasDoBanco + receber - devo - investido),
   }
 }
 

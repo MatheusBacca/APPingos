@@ -230,17 +230,37 @@ describe('o acerto no salário', () => {
     expect(acertoAPagar(200, 500)).toBe(0)
   })
 
-  it('a pizza usa as faturas com o acerto e guarda as do banco', () => {
-    const r = repartirSalario({ salario: 5000, faturas: 3000, investido: 0, acerto: 900 })!
-    expect(r.fatias.find(f => f.chave === 'faturas')?.valor).toBe(2100)
-    expect(r.fatias.find(f => f.chave === 'livre')?.valor).toBe(2900)
-    expect(r.faturasDoBanco).toBe(3000)
-    expect(r.acerto).toBe(900)
+  const arcos = (r: NonNullable<ReturnType<typeof repartirSalario>>) => Object.fromEntries(r.fatias.map(f => [f.chave, f.valor]))
+
+  it('o que te devem é uma sub-fatia dentro de Faturas e abate na conta', () => {
+    const r = repartirSalario({ salario: 5000, faturas: 3000, investido: 500, acerto: 900 })!
+    // Faturas inteira na pizza (2100 + 900 = 3000), o Receberei dentro dela.
+    expect(arcos(r)).toEqual({ faturas: 2100, receber: 900, devo: 0, investido: 500, livre: 1500 })
+    expect(r.fatias.map(f => f.chave)).toEqual(['faturas', 'receber', 'devo', 'investido', 'livre'])
+    expect([r.faturasDoBanco, r.receber, r.devo]).toEqual([3000, 900, 0])
+    // 5000 − (3000 − 900) − 500
+    expect(r.resultado).toBe(2400)
+    expect(r.fatias.reduce((s, f) => s + f.fracao, 0)).toBeCloseTo(1)
   })
 
-  it('dever no acerto pode estourar o salário', () => {
+  it('o que você deve é uma fatia a mais, ao lado de Faturas, e soma na conta', () => {
+    const r = repartirSalario({ salario: 5000, faturas: 3000, investido: 0, acerto: -400 })!
+    expect(arcos(r)).toEqual({ faturas: 3000, receber: 0, devo: 400, investido: 0, livre: 1600 })
+    expect([r.receber, r.devo, r.resultado]).toEqual([0, 400, 1600])
+  })
+
+  it('dever no acerto pode passar do salário: resultado negativo, pizza inteira', () => {
     const r = repartirSalario({ salario: 1000, faturas: 900, investido: 0, acerto: -200 })!
-    expect(r.estouro).toBe(100)
+    expect(r.resultado).toBe(-100)
+    expect(arcos(r).livre).toBe(0)
+    expect(r.fatias.reduce((s, f) => s + f.fracao, 0)).toBeCloseTo(1)
+  })
+
+  it('receber mais que a fatura: a sub-fatia não passa de Faturas, a conta usa o valor todo', () => {
+    const r = repartirSalario({ salario: 1000, faturas: 200, investido: 0, acerto: 500 })!
+    expect(arcos(r)).toEqual({ faturas: 0, receber: 200, devo: 0, investido: 0, livre: 800 })
+    expect(r.receber).toBe(500)
+    expect(r.resultado).toBe(1300)
   })
 })
 
@@ -261,5 +281,6 @@ describe('mascararMantendoSinal', () => {
     expect(mascararMantendoSinal('+R$ 366,15')).toBe(`+${VALOR_OCULTO}`)
     expect(mascararMantendoSinal('−R$ 10,00')).toBe(`−${VALOR_OCULTO}`)
     expect(mascararMantendoSinal('R$ 10,00')).toBe(VALOR_OCULTO)
+    expect(mascararMantendoSinal('− R$ 834,08')).toBe(`− ${VALOR_OCULTO}`)
   })
 })

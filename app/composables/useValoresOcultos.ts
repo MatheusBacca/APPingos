@@ -31,8 +31,8 @@ export function useValoresOcultos() {
   }
 }
 
-/** "+R$ 366,15" → "+R$ ••••"; sem sinal, só a máscara. */
+/** "+R$ 366,15" → "+R$ ••••" ("− R$ 10" → "− R$ ••••", com o espaço); sem sinal, só a máscara. */
 export function mascararMantendoSinal(formatado: string): string {
-  const sinal = /^[+−-]/.exec(formatado.trim())?.[0] ?? ''
+  const sinal = /^[+−-]\s?/.exec(formatado.trim())?.[0] ?? ''
   return `${sinal}${VALOR_OCULTO}`
 }
