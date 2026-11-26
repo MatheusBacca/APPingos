@@ -48,6 +48,12 @@ export interface Lancamento {
  */
 export const LANCAMENTOS: Lancamento[] = [
   {
+    versao: '1.17.0',
+    titulo: 'O acerto entra no salário',
+    descricao: 'O Salário do mês virou uma conta: as faturas com o que você vai receber ou deve no acerto, o investido e o que sobra do salário. Um olho ao lado de "Como funciona" esconde os valores de Orçamentos, e os investimentos agora moram no Planejamento.',
+    data: '2026-11-25',
+  },
+  {
     versao: '1.16.0',
     titulo: 'Cada espaço no seu painel',
     descricao: 'O painel de Orçamentos agora segue o espaço aberto: o Planejamento mostra os gastos do espaço semana a semana, com o acerto do mês no compartilhado e o que você tem a pagar do salário no pessoal. Gastos do mês e Em que foi começam pelo espaço aberto e mostram, numa linha por espaço, quanto os outros tiram do seu mês. As cores da barra do salário se ajustam em Espaços › Seu salário, e o painel se acomoda em celular, tablet e computador.',
