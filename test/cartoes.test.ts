@@ -75,6 +75,58 @@ describe('totalDoCiclo', () => {
   })
 })
 
+/*
+ * Os dois bancos de produção em 25/11/2026, ciclo 05/11–04/12. O Nubank põe o
+ * mês do vencimento (12) e o C6 o do início do ciclo (11) — e o C6 marca com o
+ * mesmo 11 compras do fim do ciclo anterior que já estão na fatura fechada.
+ */
+describe('lancamentosDaFaturaAberta', () => {
+  const ciclo = { inicio: '2026-11-05', fechamento: '2026-12-04', vencimento: null, fonte: 'fatura' as const }
+  const l = (data: string, valor: number, extra: Partial<LancamentoDoCartao> = {}): LancamentoDoCartao =>
+    ({ conta_id: 'a', valor, sentido: 'saida', data, motivo_exclusao: null, fatura_id: null, ...extra })
+
+  it('a parcela de uma compra antiga entra: o banco diz em que fatura ela cai', () => {
+    const total = totalDoCiclo([
+      l('2026-11-20', 100, { fatura_prevista: '2026-12-01' }),
+      l('2026-07-12', 80, { fatura_prevista: '2026-12-01' }), // parcela 5/10 de julho
+      l('2026-10-20', 999, { fatura_prevista: '2026-11-01', fatura_id: 'fechada' }),
+    ], 'a', ciclo)
+    expect(total).toBe(180)
+  })
+
+  it('o C6: mesmo mês nas duas faturas, mas a fechada já tem fatura_id', () => {
+    const total = totalDoCiclo([
+      l('2026-11-02', 60, { fatura_prevista: '2026-11-01', fatura_id: 'fechada-0411' }),
+      l('2026-11-22', 300, { fatura_prevista: '2026-11-01' }),
+      l('2026-11-03', 40, { fatura_prevista: '2026-11-01' }), // antes do ciclo, sem fatura ainda: a do banco
+    ], 'a', ciclo)
+    expect(total).toBe(340)
+  })
+
+  it('compra solta de outro mês (fatura fechada que o banco ainda não ligou) fica de fora', () => {
+    const total = totalDoCiclo([
+      l('2026-11-10', 50, { fatura_prevista: '2026-12-01' }),
+      l('2026-11-12', 30, { fatura_prevista: '2026-12-01' }),
+      l('2026-11-02', 999, { fatura_prevista: '2026-11-01' }),
+      l('2026-11-06', 1, { fatura_prevista: '2027-01-01' }), // parcela futura comprada no ciclo: perde a votação
+    ], 'a', ciclo)
+    expect(total).toBe(80)
+  })
+
+  it('sem compra no ciclo, vale o menor mês entre as soltas', () => {
+    const total = totalDoCiclo([
+      l('2026-06-01', 120, { fatura_prevista: '2026-12-01' }),
+      l('2026-06-01', 120, { fatura_prevista: '2027-01-01' }),
+    ], 'a', ciclo)
+    expect(total).toBe(120)
+  })
+
+  it('sem fatura_prevista, segue as datas do ciclo como antes', () => {
+    const total = totalDoCiclo([l('2026-11-20', 10), l('2026-11-04', 999), l('2026-12-05', 999)], 'a', ciclo)
+    expect(total).toBe(10)
+  })
+})
+
 describe('usoDoLimite', () => {
   it('com o disponível do banco, usa o que o banco diz', () => {
     const u = usoDoLimite({ ...vazio, limite: 8000, limite_disponivel: 4210.5 }, 1000)
